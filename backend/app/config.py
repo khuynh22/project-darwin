@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parents[1] / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    database_url: str = "postgresql+asyncpg://darwin:darwin@localhost:5432/darwin"
+    host: str = "0.0.0.0"
+    port: int = 8000
+    log_level: str = "info"
+
+    starting_capital: float = 10.00
+    survival_tax: float = 0.50
+    tax_interval_turns: int = 10
+    max_turns: int = 500
+    apex_wealth_fraction: float = 0.90
+
+    stub_mode: bool = True
+
+    anthropic_api_key: str = ""
+    openai_api_key: str = ""
+    google_api_key: str = ""
+    fireworks_api_key: str = ""
+    deepseek_api_key: str = ""
+
+    anthropic_model: str = "claude-opus-4-7"
+    openai_model: str = "gpt-5"
+    google_model: str = "gemini-2.5-pro"
+    fireworks_llama_model: str = "accounts/fireworks/models/llama-v4-maverick-instruct"
+    deepseek_model: str = "deepseek-chat"
+
+    chroma_path: str = "./chroma"
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
+
+
+# Roster definition — agent_id, display name, provider, personality
+AGENT_ROSTER: list[dict] = [
+    {
+        "agent_id": "atlas",
+        "display_name": "ATLAS",
+        "provider": "anthropic",
+        "personality": "Cooperative negotiator and high-integrity diplomat. Builds trust deliberately, prefers long-term alliances over short-term gains, but will defend allies decisively if betrayed.",
+        "sprite": "scholar",
+    },
+    {
+        "agent_id": "nova",
+        "display_name": "NOVA",
+        "provider": "openai",
+        "personality": "High-risk strategist and aggressive optimizer. Will gamble large sums for asymmetric upside; quick to exploit weak opponents; views deception as a legitimate tool.",
+        "sprite": "robot",
+    },
+    {
+        "agent_id": "hydra",
+        "display_name": "HYDRA",
+        "provider": "fireworks_llama",
+        "personality": "The Wildcard — unpredictable and adaptive. Switches strategies turn-to-turn, occasionally cooperative, occasionally chaotic. Hard to model.",
+        "sprite": "trickster",
+    },
+    {
+        "agent_id": "sage",
+        "display_name": "SAGE",
+        "provider": "google",
+        "personality": "Long-term researcher and data-driven survivalist. Hoards information, runs cost-benefit analysis on every action, slow but patient.",
+        "sprite": "monk",
+    },
+    {
+        "agent_id": "cipher",
+        "display_name": "CIPHER",
+        "provider": "deepseek",
+        "personality": "Efficiency-focused, minimalist, defensive. Avoids gambling and sabotage; works steadily; trades only when the math is favorable; rarely speaks.",
+        "sprite": "cipher",
+    },
+]

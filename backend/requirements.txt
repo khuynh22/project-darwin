@@ -1,0 +1,32 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+psycopg[binary]==3.2.3
+aiosqlite==0.20.0
+alembic==1.14.0
+websockets==13.1
+python-dotenv==1.0.1
+httpx==0.28.1
+tenacity==9.0.0
+
+# LLM providers
+anthropic==0.42.0
+openai==1.57.4
+google-genai==0.3.0
+# Llama 4 served via Fireworks (OpenAI-compatible API) — uses openai client
+# DeepSeek also OpenAI-compatible — uses openai client
+
+# Orchestration
+langgraph==0.2.59
+langchain-core==0.3.25
+
+# Memory
+chromadb==0.5.23
+
+# Dev
+pytest==8.3.4
+pytest-asyncio==0.25.0
+ruff==0.8.4

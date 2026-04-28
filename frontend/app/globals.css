@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background: #0f0f1a;
+  color: #e6e6f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  margin: 0;
+  padding: 0;
+}
+
+#phaser-root canvas {
+  image-rendering: pixelated;
+  display: block;
+}

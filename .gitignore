@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env
+.env
+.env.local
+*.local
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code (session-local allow rules — never commit)
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project
+backend/data/
+backend/chroma/
+logs/
+*.log
+*.sqlite
+*.sqlite-journal
+thought_logs/
