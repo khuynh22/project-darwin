@@ -1,0 +1,68 @@
+# Project Darwin — full stack in one command.
+#
+#   1. cp .env.example .env     # then paste your API keys (or leave blank for stub mode)
+#   2. docker compose up --build
+#   3. open http://localhost:3000
+#
+# Three services:
+#   - postgres : the ledger
+#   - oracle   : FastAPI engine + WebSocket  (http://localhost:8000)
+#   - arena    : Next.js + Phaser pixel UI    (http://localhost:3000)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: darwin
+      POSTGRES_PASSWORD: darwin
+      POSTGRES_DB: darwin
+    volumes:
+      - darwin_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U darwin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  oracle:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://darwin:darwin@postgres:5432/darwin
+      # Pull every supported key + model id from the root .env. Empty values are
+      # fine — the agent factory falls back to the deterministic stub per agent.
+      STUB_MODE: ${STUB_MODE:-true}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      FIREWORKS_API_KEY: ${FIREWORKS_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-7}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5}
+      GOOGLE_MODEL: ${GOOGLE_MODEL:-gemini-2.5-pro}
+      FIREWORKS_LLAMA_MODEL: ${FIREWORKS_LLAMA_MODEL:-accounts/fireworks/models/llama-v4-maverick-instruct}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  arena:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # NEXT_PUBLIC_* must be baked at build time. The browser is on the host,
+      # so localhost:8000 (mapped from oracle) is the correct address.
+      args:
+        NEXT_PUBLIC_ORACLE_HTTP: http://localhost:8000
+        NEXT_PUBLIC_ORACLE_WS: ws://localhost:8000/ws
+    depends_on:
+      - oracle
+    ports:
+      - "3000:3000"
+
+volumes:
+  darwin_pg:

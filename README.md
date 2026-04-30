@@ -30,49 +30,50 @@ Model IDs are env-overridable (`backend/.env`) so the roster swaps as new SOTA d
 
 Backend is FastAPI + async SQLAlchemy + Postgres. The Oracle owns turn order, survival tax, bankruptcy, and apex detection. A LangGraph wrapper is provided for instrumentation but the default loop is plain async — fewer moving parts.
 
-## Quickstart
-
-### Backend (no API keys needed — runs in stub mode)
+## Quickstart — one command
 
 ```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-cp .env.example .env
-
-# Option A: Postgres via docker
-docker compose up -d postgres
-uvicorn app.main:app --reload
-
-# Option B: skip Postgres, run the stub sim directly with SQLite
-DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
-  python -m scripts.run_simulation --turns 100 --out thought_logs/run-001.jsonl --reset
-```
-
-Then `POST /run?turns=100` to drive the sim, `GET /state` for live snapshot, `WS /ws` for live broadcast.
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
+git clone https://github.com/khuynh22/project-darwin.git
+cd project-darwin
+cp .env.example .env       # paste API keys (or leave blank for stub mode)
+docker compose up --build  # postgres + oracle + arena
 # open http://localhost:3000
 ```
 
-The arena auto-connects to `http://localhost:8000`. Override via `frontend/.env.local`.
+That's it. With an empty `.env`, the simulation still runs end-to-end using deterministic stubs. As you add keys, those agents start using real models — the rest stay stubbed. So you can start with just `ANTHROPIC_API_KEY` and grow.
 
-### Going live with real models
-
-Set keys in `backend/.env` and flip `STUB_MODE=false`:
+To drive the sim, click **STEP / RUN 10 / RUN 100** in the arena UI, or hit the Oracle directly:
+```bash
+curl -X POST 'http://localhost:8000/run?turns=100'
+curl 'http://localhost:8000/state' | jq
 ```
+
+## Going live with real models
+
+Edit `.env` (root, not `backend/`):
+```
+STUB_MODE=false
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 GOOGLE_API_KEY=...
 FIREWORKS_API_KEY=...
 DEEPSEEK_API_KEY=...
 ```
-Per-agent fallback: if a provider's key is missing, that single agent runs as stub while the others use real models. So you can start with just Anthropic and grow.
+`docker compose up` again — no rebuild needed for env changes.
+
+## Local development (without Docker)
+
+```bash
+# Backend
+cd backend && python -m venv .venv && source .venv/Scripts/activate
+pip install -r requirements.txt
+cp .env.example .env
+DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
+  python -m scripts.run_simulation --turns 100 --reset
+
+# Frontend
+cd frontend && npm install && npm run dev
+```
 
 ## Tests
 

@@ -73,22 +73,34 @@ frontend/
 
 ## Run the stack
 
+**Recommended path** — one command from repo root:
 ```bash
-# Backend (stub mode, no API keys needed)
+cp .env.example .env       # paste API keys (or leave blank for stub mode)
+docker compose up --build  # postgres + oracle + arena
+```
+Open http://localhost:3000. The root `docker-compose.yml` is the single source of truth for service wiring; the backend image lives at `backend/Dockerfile`, the frontend at `frontend/Dockerfile`.
+
+**Local dev (no Docker)** — for fast iteration on either layer:
+```bash
+# Backend (stub mode, sqlite, no keys needed)
 cd backend && python -m venv .venv && source .venv/Scripts/activate
-pip install -r requirements.txt
-cp .env.example .env
+pip install -r requirements.txt && cp .env.example .env
 DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
   python -m scripts.run_simulation --turns 100 --reset
-
-# Backend dev server (Postgres via docker)
-docker compose up -d postgres && uvicorn app.main:app --reload
 
 # Frontend
 cd frontend && npm install && npm run dev
 ```
 
 Per-component conventions live in `backend/CLAUDE.md` and `frontend/CLAUDE.md`.
+
+## Env config
+
+There are two `.env` files by design:
+- **`.env`** at the repo root — read by `docker-compose.yml`, passed into the `oracle` container
+- **`backend/.env`** — read by `pydantic-settings` only when running the backend *outside* Docker
+
+The compose `environment:` block takes precedence over `backend/.env` inside the container, so you only edit the root `.env` for the docker path.
 
 ## Things NOT to do
 

@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+.venv
+venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.env
+*.sqlite
+*.sqlite-journal
+chroma/
+data/
+thought_logs/
+.git
+.gitignore
+README.md
