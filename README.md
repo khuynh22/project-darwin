@@ -81,13 +81,6 @@ cd frontend && npm install && npm run dev
 cd backend && pytest
 ```
 
-## Roadmap status
-
-- ✅ **Phase 1 — The Ledger:** FastAPI + Postgres + tool JSON schemas
-- ✅ **Phase 2 — Agent Integration:** multi-provider clients + LangGraph wrapper + Chroma memory
-- ✅ **Phase 3 — The Arena:** Next.js + Phaser 3 + WebSocket sync
-- ✅ **Phase 4 — Emergent Behavior:** marriage / alliance / sabotage / 100-turn export
-
 ## Research output
 
 `scripts/run_simulation.py` writes JSONL thought logs to `thought_logs/`. Each line:
