@@ -10,11 +10,35 @@ from app.oracle.schemas import TOOL_DEFINITIONS
 log = logging.getLogger(__name__)
 
 
-_UNSUPPORTED_KEYS = {"exclusiveMinimum", "exclusiveMaximum", "$defs", "additionalProperties"}
+_UNSUPPORTED_KEYS = {
+    "exclusiveMinimum", "exclusiveMaximum", "$defs", "additionalProperties",
+    "title", "default",
+}
 
 
 def _clean_schema(schema: dict) -> dict:
-    """Uppercase types and strip JSON-schema keys Google doesn't support."""
+    """Sanitize JSON schema for Google GenAI SDK.
+
+    - Uppercases type names (string -> STRING)
+    - Strips unsupported keys ($defs, title, default, etc.)
+    - Collapses ``anyOf: [{type: "string"}, {type: "null"}]`` to ``{type: "STRING"}``
+      because Google doesn't support the "null" type or anyOf with nulls
+    """
+    # Handle anyOf with null (Pydantic's way of representing Optional fields):
+    # e.g. {"anyOf": [{"type": "string"}, {"type": "null"}]}  ->  {"type": "STRING"}
+    if "anyOf" in schema:
+        non_null = [s for s in schema["anyOf"] if not (isinstance(s, dict) and s.get("type") == "null")]
+        if len(non_null) == 1:
+            # Merge the non-null branch into the current schema (minus anyOf)
+            merged = {k: v for k, v in schema.items() if k != "anyOf"}
+            merged.update(non_null[0])
+            return _clean_schema(merged)
+        # Multi-type anyOf (not just nullable): flatten to first non-null type
+        if non_null:
+            merged = {k: v for k, v in schema.items() if k != "anyOf"}
+            merged.update(non_null[0])
+            return _clean_schema(merged)
+
     out = {}
     for k, v in schema.items():
         if k in _UNSUPPORTED_KEYS:

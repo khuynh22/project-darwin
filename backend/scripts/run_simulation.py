@@ -70,9 +70,27 @@ async def main() -> None:
     parser.add_argument("--turns", type=int, default=100)
     parser.add_argument("--out", type=Path, default=Path("thought_logs/latest.jsonl"))
     parser.add_argument("--reset", action="store_true", help="Reset DB before running.")
+    parser.add_argument(
+        "--roster", type=Path, default=None,
+        help="JSON file with agent roster. Each entry: {agent_id, display_name, provider, personality, sprite}.",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
+
+    # Load roster from file or generate a default stub roster for CLI use
+    if args.roster:
+        roster = json.loads(args.roster.read_text(encoding="utf-8"))
+        print(f"[darwin] loaded {len(roster)} agents from {args.roster}")
+    else:
+        # Generate a minimal stub roster for CLI testing (3 agents)
+        roster = [
+            {"agent_id": f"agent_{i+1}", "display_name": f"AGENT {i+1}",
+             "provider": "stub", "personality": f"Agent {i+1}", "sprite": "robot"}
+            for i in range(3)
+        ]
+        print("[darwin] no --roster provided, using 3 stub agents")
+
     print(f"[darwin] starting sim -- {args.turns} turns, stub_mode={settings.stub_mode}")
 
     await init_db()
@@ -83,9 +101,9 @@ async def main() -> None:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.drop_all)
                 await conn.run_sync(Base.metadata.create_all)
-        await seed_roster(session)
+        await seed_roster(session, roster=roster)
 
-    agents = build_agents()
+    agents = build_agents(roster=roster)
 
     for turn in range(1, args.turns + 1):
         async with SessionLocal() as session:

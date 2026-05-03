@@ -21,24 +21,14 @@ The **Oracle** is the single source of truth. It owns the ledger, the turn loop,
 
 ## Roster
 
-The roster is **dynamic** -- users configure 3-10 agents from the UI via `POST /configure`. A default roster of 5 agents lives in `backend/app/config.py::AGENT_ROSTER` as a fallback when no dynamic configuration is active.
-
-| agent_id | display | provider           | personality            |
-|----------|---------|--------------------|------------------------|
-| atlas    | ATLAS   | anthropic          | cooperative diplomat   |
-| nova     | NOVA    | openai             | high-risk strategist   |
-| hydra    | HYDRA   | ollama             | wildcard               |
-| sage     | SAGE    | google             | survivalist            |
-| cipher   | CIPHER  | grok               | minimalist defender    |
-
-All 5 agents can be the same provider (e.g., all Anthropic). Per-agent API keys are stored encrypted in the DB (`models/api_key.py`). Model IDs are env-overridable via `backend/.env`.
+There are **no hardcoded agents**. Users must configure 3-10 agents from the UI before starting a simulation. The ConfigPanel opens automatically on first load. Each agent needs: display name, provider, model ID, and optionally a personality (auto-generated if blank). API keys are entered once per provider and stored encrypted in the DB (`models/api_key.py`).
 
 ## Repo layout
 
 ```
 backend/
   app/
-    config.py             # Settings + AGENT_ROSTER (default fallback roster)
+    config.py             # Settings (no hardcoded roster -- agents configured via UI)
     db.py                 # Async SQLAlchemy engine + Base + SessionLocal
     main.py               # FastAPI routes + lifespan + config/export endpoints
     ws.py                 # WebSocket broadcaster (singleton)

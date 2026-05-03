@@ -17,7 +17,10 @@ export default function Page() {
 
   useEffect(() => {
     const close = connectOracle(
-      (snap) => setSnapshot(snap),
+      (snap) => {
+        setSnapshot(snap);
+        if (snap.agents.length === 0) setConfigOpen(true);
+      },
       (evt) => setPauseInfo(evt),
     );
     return close;
@@ -25,8 +28,10 @@ export default function Page() {
 
   const httpBase = process.env.NEXT_PUBLIC_ORACLE_HTTP || 'http://localhost:8000';
 
+  const hasAgents = (snapshot?.agents?.length ?? 0) > 0;
+
   async function step(turns = 1) {
-    if (running) return;
+    if (running || !hasAgents) return;
     setRunning(true);
     try {
       const res = await fetch(`${httpBase}/run?turns=${turns}`, { method: 'POST' });
@@ -55,13 +60,13 @@ export default function Page() {
         <header className="px-4 py-3 bg-arena-panel border-b border-black/40 flex items-center gap-3">
           <h1 className="text-arena-accent text-sm tracking-widest">PROJECT DARWIN — TURN {snapshot?.turn ?? 0}</h1>
           <div className="flex-1" />
-          <button onClick={() => step(1)} disabled={running} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
+          <button onClick={() => step(1)} disabled={running || !hasAgents} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
             {running ? '...' : 'STEP 1'}
           </button>
-          <button onClick={() => step(10)} disabled={running} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
+          <button onClick={() => step(10)} disabled={running || !hasAgents} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
             {running ? '...' : 'RUN 10'}
           </button>
-          <button onClick={() => step(100)} disabled={running} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
+          <button onClick={() => step(100)} disabled={running || !hasAgents} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
             {running ? '...' : 'RUN 100'}
           </button>
           <button

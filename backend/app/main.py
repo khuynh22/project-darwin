@@ -12,6 +12,7 @@ from sqlalchemy import desc, select
 from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.models.agent import Agent
+from app.models.api_key import ApiKeyStore
 from app.models.ledger import ThoughtLog, Transaction, WorldEvent
 from app.oracle.engine import run_turn, seed_roster
 from app.ws import broadcaster
@@ -24,9 +25,42 @@ logging.basicConfig(level=logging.INFO)
 async def lifespan(app: FastAPI):  # noqa: ARG001
     from app.thought_export import start_export, stop_export
     await init_db()
+
+    # Restore session if agents already exist in the DB (e.g. after backend restart)
+    global _current_turn, _active_roster
     async with SessionLocal() as session:
-        await seed_roster(session)
-    start_export()
+        existing = (await session.execute(select(Agent))).scalars().all()
+        if existing:
+            # Rebuild roster from DB + stored API keys
+            from app.models.api_key import get_key
+            roster: list[dict] = []
+            for a in existing:
+                spec: dict = {
+                    "agent_id": a.agent_id,
+                    "display_name": a.display_name,
+                    "provider": a.provider,
+                    "personality": a.personality,
+                    "sprite": a.sprite,
+                }
+                # Find the latest stored key for this provider
+                keys = (await session.execute(
+                    select(ApiKeyStore).where(ApiKeyStore.provider == a.provider).order_by(ApiKeyStore.id.desc())
+                )).scalars().first()
+                if keys:
+                    raw = await get_key(session, keys.id)
+                    if raw:
+                        spec["api_key"] = raw
+                roster.append(spec)
+            _active_roster = roster
+
+            # Restore turn counter from the latest thought log
+            latest = (await session.execute(
+                select(ThoughtLog.turn).order_by(ThoughtLog.id.desc()).limit(1)
+            )).scalar()
+            _current_turn = latest or 0
+            start_export()
+            log.info("Restored session: %d agents, turn %d", len(roster), _current_turn)
+
     yield
     stop_export()
 

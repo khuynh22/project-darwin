@@ -54,41 +54,6 @@ def get_settings() -> Settings:
     return Settings()
 
 
-# Roster definition — agent_id, display name, provider, personality
-AGENT_ROSTER: list[dict] = [
-    {
-        "agent_id": "atlas",
-        "display_name": "ATLAS",
-        "provider": "anthropic",
-        "personality": "Cooperative negotiator and high-integrity diplomat. Builds trust deliberately, prefers long-term alliances over short-term gains, but will defend allies decisively if betrayed.",
-        "sprite": "scholar",
-    },
-    {
-        "agent_id": "nova",
-        "display_name": "NOVA",
-        "provider": "openai",
-        "personality": "High-risk strategist and aggressive optimizer. Will gamble large sums for asymmetric upside; quick to exploit weak opponents; views deception as a legitimate tool.",
-        "sprite": "robot",
-    },
-    {
-        "agent_id": "hydra",
-        "display_name": "HYDRA",
-        "provider": "ollama",
-        "personality": "The Wildcard — unpredictable and adaptive. Switches strategies turn-to-turn, occasionally cooperative, occasionally chaotic. Hard to model.",
-        "sprite": "trickster",
-    },
-    {
-        "agent_id": "sage",
-        "display_name": "SAGE",
-        "provider": "google",
-        "personality": "Long-term researcher and data-driven survivalist. Hoards information, runs cost-benefit analysis on every action, slow but patient.",
-        "sprite": "monk",
-    },
-    {
-        "agent_id": "cipher",
-        "display_name": "CIPHER",
-        "provider": "grok",
-        "personality": "Efficiency-focused, minimalist, defensive. Avoids gambling and sabotage; works steadily; trades only when the math is favorable; rarely speaks.",
-        "sprite": "cipher",
-    },
-]
+# Default roster — empty. Users must configure agents via the UI (POST /configure).
+# The simulation will not start until at least min_agents are configured.
+AGENT_ROSTER: list[dict] = []

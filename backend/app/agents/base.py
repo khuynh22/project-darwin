@@ -21,7 +21,7 @@ PERSONALITY: {personality}
 WORLD RULES:
 - You start with $10. The survival tax of $0.50 is deducted from every alive agent every 10 turns.
 - Bankruptcy at $0 eliminates you permanently.
-- Goal: survive 500 turns OR hold >=90% of all wealth.
+- Goal: survive as long as possible OR hold >=90% of all wealth from all other agents.
 - Each turn you must choose ONE tool call from the actions below.
 
 TOOL SUMMARY:

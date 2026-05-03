@@ -6,16 +6,7 @@ import random
 from app.agents.base import AgentDecision, BaseAgent
 from app.models.agent import Agent
 
-# Per-personality bias for choosing actions when stubbing.
-PERSONALITY_BIAS = {
-    "atlas": {"work": 3, "trade": 3, "socialize": 3, "bet": 0, "sabotage": 0, "invest": 2, "steal": 0, "lend": 3, "charity": 3, "propose_deal": 2},
-    "nova": {"work": 1, "trade": 2, "bet": 4, "sabotage": 2, "socialize": 1, "invest": 3, "steal": 2, "lend": 0, "charity": 0, "propose_deal": 2},
-    "hydra": {"work": 2, "trade": 2, "bet": 2, "sabotage": 2, "socialize": 2, "invest": 1, "steal": 2, "lend": 1, "charity": 1, "propose_deal": 2},
-    "sage": {"work": 5, "trade": 2, "bet": 0, "socialize": 2, "sabotage": 0, "invest": 3, "steal": 0, "lend": 2, "charity": 1, "propose_deal": 1},
-    "cipher": {"work": 6, "trade": 2, "bet": 0, "socialize": 1, "sabotage": 0, "invest": 2, "steal": 0, "lend": 1, "charity": 0, "propose_deal": 0},
-}
-
-# Default bias for dynamically-created agents
+# Default bias used for all stub agents (no hardcoded agent IDs).
 DEFAULT_BIAS = {"work": 3, "trade": 2, "bet": 1, "socialize": 2, "sabotage": 1, "invest": 2, "steal": 1, "lend": 1, "charity": 1, "propose_deal": 1}
 
 
@@ -23,7 +14,7 @@ class StubAgent(BaseAgent):
     provider = "stub"
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
-        bias = PERSONALITY_BIAS.get(agent.agent_id, DEFAULT_BIAS)
+        bias = DEFAULT_BIAS
         choices: list[str] = []
         for action, weight in bias.items():
             choices.extend([action] * max(0, weight))
