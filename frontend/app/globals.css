@@ -11,12 +11,6 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-#phaser-root canvas {
-  image-rendering: pixelated;
-  display: block;
-  border-radius: 8px;
-}
-
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

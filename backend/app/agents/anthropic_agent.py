@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 
 from app.agents.base import AgentDecision, BaseAgent, render_system_prompt, render_world_brief
@@ -40,19 +39,33 @@ class AnthropicAgent(BaseAgent):
             messages=[{"role": "user", "content": user}],
         )
         monologue_parts: list[str] = []
-        action = "work"
-        arguments: dict = {}
+        tool_calls: list[tuple[str, dict]] = []
         for block in msg.content:
             if block.type == "text":
                 monologue_parts.append(block.text)
             elif block.type == "tool_use":
-                action = block.name
-                arguments = dict(block.input or {})
-                break
-        # Extract reasoning from tool args if no text monologue was emitted
+                tool_calls.append((block.name, dict(block.input or {})))
+
+        # First tool call = major action, second = optional free action
+        action = "work"
+        arguments: dict = {}
+        free_action = None
+        free_arguments: dict = {}
+
+        if tool_calls:
+            action, arguments = tool_calls[0]
+        if len(tool_calls) >= 2:
+            free_action, free_arguments = tool_calls[1]
+            free_arguments.pop("reasoning", None)
+            free_arguments.pop("public_message", None)
+
         reasoning = arguments.pop("reasoning", "")
         if not monologue_parts and reasoning:
             monologue_parts.append(reasoning)
-        return AgentDecision(action=action, arguments=arguments,
-                             monologue="\n".join(monologue_parts).strip(),
-                             raw={"stop_reason": msg.stop_reason})
+
+        return AgentDecision(
+            action=action, arguments=arguments,
+            monologue="\n".join(monologue_parts).strip(),
+            raw={"stop_reason": msg.stop_reason},
+            free_action=free_action, free_arguments=free_arguments,
+        )

@@ -71,9 +71,6 @@ async def do_work(session: AsyncSession, *, turn: int, actor_id: str) -> ActionR
     # Marriage work bonus: +10%
     if actor.spouse_id:
         reward = round(reward * 1.10, 2)
-    # Ore held boosts cash: +$0.02 per ore
-    ore_bonus = round(inv.get("ore", 0) * 0.02, 2)
-    reward = round(reward + ore_bonus, 2)
 
     # Produce goods: 2-3 of specialty, 0-1 of others
     produced: dict[str, int] = {}
@@ -96,7 +93,7 @@ async def do_work(session: AsyncSession, *, turn: int, actor_id: str) -> ActionR
         target_id=None,
         action="work",
         delta=reward,
-        payload={"produced": produced, "specialty": specialty, "ore_bonus": ore_bonus},
+        payload={"produced": produced, "specialty": specialty},
         note=f"earned ${reward:.2f} + {prod_str} (specialty: {specialty})",
     )
     return ActionResult(True, f"earned ${reward:.2f} + {prod_str}", delta=reward)

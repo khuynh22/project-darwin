@@ -16,6 +16,8 @@ def _utcnow() -> datetime:
 
 
 class Agent(Base):
+    """Represents an autonomous agent in the simulation."""
+
     __tablename__ = "agents"
 
     agent_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -68,10 +70,6 @@ class Agent(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
     last_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
-
-    # Position on the pixel map (set by frontend or default)
-    pos_x: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    pos_y: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     eliminated_at_turn: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

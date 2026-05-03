@@ -1,87 +1,63 @@
-# CLAUDE.md — frontend/
+# CLAUDE.md -- frontend/
 
-Next.js 15 (App Router) + React 19 + Tailwind 3 + Phaser 3. The frontend is a **viewer**, not a participant — all game logic lives in the backend Oracle. The frontend mirrors state via WebSocket and dispatches turn requests via REST.
+Next.js 15 (App Router) + React 19 + Tailwind 3. Pure React UI -- **no Phaser, no canvas**. The frontend is a viewer only; all game logic lives in the backend Oracle.
 
 ## Run
 
 ```bash
 npm install
 npm run dev          # http://localhost:3000
-npm run typecheck
 npm run build
 ```
 
-By default the app talks to `http://localhost:8000` (REST) and `ws://localhost:8000/ws` (WebSocket). Override via `frontend/.env.local`:
-
-```
-NEXT_PUBLIC_ORACLE_HTTP=https://my-oracle.example.com
-NEXT_PUBLIC_ORACLE_WS=wss://my-oracle.example.com/ws
-```
+Talks to `http://localhost:8000` (REST) and `ws://localhost:8000/ws` (WS). Override via `.env.local`.
 
 ## Where things live
 
-- **`app/page.tsx`** -- Single-page client component. Owns the WS connection, snapshot state, pause state, and config modal state. Passes snapshot down to children as props.
-- **`components/Arena.tsx`** -- Thin React wrapper. Mounts the Phaser game once, then forwards snapshot updates to the scene.
-- **`components/Sidebar.tsx`** -- Agent cards with balance, social state, and error badges.
-- **`components/ThoughtLog.tsx`** -- Color-coded action log (red for antisocial, green for prosocial).
-- **`components/ConfigPanel.tsx`** -- Modal for configuring 3-10 agents: provider, model, API key, personality, sprite. POSTs to `/configure`.
-- **`lib/ws.ts`** -- `connectOracle(onSnapshot, onPaused?)` -- opens WS, auto-reconnects, handles `simulation_paused` events. **All shared TS types live here** (`AgentSnap`, `WorldSnapshot`, `PausedEvent`).
-- **`lib/phaser/scene.ts`** -- Phaser scene with 6 venues, composed-primitive sprites (head + body + eyes), tween movement animations, and married-agent positioning.
+- **`app/page.tsx`** -- Main layout. Owns WS connection, snapshot state, auto-play loop, pause modal. No Phaser.
+- **`components/WorldMap.tsx`** -- 6 venue cards (Work, Bank, Casino, Market, Lounge, Alley) in a 3x2 grid. Agents shown as styled chips with initials, name, provider, balance, specialty, and current action.
+- **`components/Sidebar.tsx`** -- Agent cards: cash + invested, trust bar, inventory, specialty badge, social state, status badges.
+- **`components/PublicLog.tsx`** -- Public feed: actions + outcomes + public_message broadcasts. Color-coded by action type.
+- **`components/ThoughtLog.tsx`** -- Private reasoning (observer only). Shows agent monologue/strategy.
+- **`components/ConfigPanel.tsx`** -- Agent setup modal. Per-provider API keys (enter once, reused). Color picker. Optional personality.
+- **`lib/ws.ts`** -- Types (`AgentSnap` with trust_score, inventory, specialty, invested; `ThoughtSnap` with public_message; `PausedEvent`) + `connectOracle()`.
 
-## React ↔ Phaser bridge
+## Layout
 
-The two systems have **incompatible lifecycles** — React re-renders on every state change, Phaser owns its own render loop. The pattern:
-
-- React owns the snapshot (state)
-- Phaser owns the canvas (DOM + animation)
-- `<Arena>` calls `syncSnapshot()` in a `useEffect` whenever the snapshot prop changes
-- The Phaser scene reads the snapshot, diffs against its own sprite map, and updates positions / labels / thought bubbles
-
-**Don't try to drive Phaser from React state directly.** Don't mount the Phaser game inside a child component that re-renders. `ensureGame` is the only entry point; it lazy-imports Phaser (browser-only).
+```
++--[Header: Darwin | Turn N | Step | +10 | Auto | Export | Config | Reset]--+
+|                                                                    |       |
+|  [Work]        [Bank]          [Casino]                            | Agent |
+|  agent chips   agent chips     agent chips                         | Cards |
+|                                                                    |       |
+|  [Market]      [Lounge]        [Alley]                             |       |
+|  agent chips   agent chips     agent chips                         |       |
+|                                                                    |       |
++--[Public Feed]-------------+--[Private Thoughts]-------------------+-------+
+```
 
 ## Conventions
 
-- **Every file with state, effects, or browser globals must start with `'use client';`** — Next.js App Router defaults to server components, which break Phaser and `WebSocket`.
-- **Phaser is dynamically imported.** `<Arena>` is loaded with `dynamic(..., { ssr: false })` from `app/page.tsx`. Don't import `phaser` at the top of any component file — it touches `window` and crashes SSR.
-- **Snapshot is the single source of truth.** Components compute everything from `snapshot.agents` / `snapshot.recent_thoughts`. Don't cache derived state across renders.
-- **Agent positioning is action-driven.** `ACTION_VENUE` in `scene.ts` maps actions to venues; `VENUES` defines venue coordinates. There is no `POS_GRID` -- agent positions are computed from their latest action.
-- **`SPRITE_COLORS`** maps sprite kind to hex color. New sprite kinds (from dynamic roster) fall back to white. To add a new sprite, add an entry to `SPRITE_COLORS` and to `SPRITE_OPTIONS` in `backend/app/main.py`.
-- **WS reconnects automatically.** Don't add custom retry logic in components -- `connectOracle` already handles it with a 1.5s backoff.
-- **`connectOracle` accepts an optional `onPaused` callback** for handling `simulation_paused` WS events (provider errors).
+- **`'use client'`** on all components (WS + state requires client rendering).
+- **Snapshot is the single source of truth.** Never cache derived state.
+- **Agent identity = color** (red, blue, green, etc.). No legacy sprite names (scholar, robot, etc.).
+- **`ACTION_VENUE`** in `WorldMap.tsx` maps all 20 actions to 6 venues.
+- **Auto-play** runs 1 turn every 500ms via `setTimeout` loop. Stops on error/apex.
+- **Config modal auto-opens** when no agents exist (first load or after reset).
 
-## Adding a new component
+## Adding a new action (frontend)
 
-If it reads snapshot:
-1. Take `snapshot: WorldSnapshot | null` as a prop (don't subscribe to WS yourself)
-2. Mark it `'use client';` only if it has state or effects -- pure renderers can stay server components, but in this app everything is client because of WS
-
-If it triggers an Oracle action: use `fetch(\`${process.env.NEXT_PUBLIC_ORACLE_HTTP}/...\`)`. Don't add an API client abstraction -- the surface is small enough.
-
-## Adding a new action (frontend side)
-
-When a new action is added in the backend:
-1. **`lib/phaser/scene.ts::ACTION_VENUE`** -- map the action name to a venue key (workplace, bank, casino, marketplace, lounge, alley)
-2. **`components/ThoughtLog.tsx`** -- optionally add it to `ANTISOCIAL_ACTIONS` or `PROSOCIAL_ACTIONS` for color coding
-3. No type changes needed -- actions flow through as generic strings in `ThoughtSnap.action`
+1. `WorldMap.tsx::ACTION_VENUE` -- map action name to venue (workplace, bank, casino, marketplace, lounge, alley)
+2. `WorldMap.tsx::ACTION_LABELS` -- human-readable label for the action chip
+3. `PublicLog.tsx::ACTION_COLORS` -- color class for the public feed
 
 ## Styling
 
-Tailwind 3 with a custom palette (`arena.bg`, `arena.panel`, `arena.accent`). The pixel-art aesthetic is intentional:
-
-- `image-rendering: pixelated` is set globally on Phaser canvases (in `globals.css`)
-- Use Tailwind utility classes, not CSS modules
-- Font is monospace by default; the `font-pixel` class is reserved for headers if you import Press Start 2P later
-
-## Gotchas
-
-- **`ssr: false` is mandatory for `<Arena>`.** Without it, Next.js tries to render Phaser server-side and crashes on `window`.
-- **Strict mode double-mounts in dev.** `useEffect` runs twice — `ensureGame` is idempotent so this is fine, but if you add side-effecting init logic, guard it.
-- **WebSocket origin must match.** If you put the Oracle behind a proxy or change the port, update both `NEXT_PUBLIC_ORACLE_HTTP` and `NEXT_PUBLIC_ORACLE_WS` — they're independent.
-- **Don't store snapshot in `localStorage`.** It's stale by definition; always wait for the WS snapshot or REST `/state` to populate.
+Tailwind 3 with zinc palette. System font (not monospace). Dark theme (#09090b base). Custom scrollbars. No pixel art.
 
 ## Things NOT to do
 
-- **Don't compute balances or wealth share in the frontend.** The Oracle is authoritative. Display what `snapshot.agents[i].balance` says.
-- **Don't add a state manager (Redux / Zustand / Jotai).** The snapshot prop pattern is sufficient — there's exactly one piece of global state and it changes ~once per second.
-- **Don't import `phaser` at the top of any file other than `lib/phaser/scene.ts`.** Even `import type` from Phaser at the wrong place can pull the runtime into the SSR bundle.
-- **Don't add a build step that bundles Phaser server-side.** If `next build` starts complaining about `window is not defined`, you've imported Phaser somewhere reachable from a server component.
+- Don't compute balances in the frontend. Oracle is authoritative.
+- Don't add a state manager. Snapshot prop pattern is sufficient.
+- Don't add Phaser or any canvas library. Pure React + CSS.
+- Don't use legacy sprite names (scholar, trickster, cipher, etc.). Use color names only.

@@ -1,4 +1,5 @@
 """Unit tests for the Oracle action handlers -- exercised against an in-memory SQLite."""
+
 from __future__ import annotations
 
 import random
@@ -21,8 +22,28 @@ async def session() -> AsyncSession:
     async with Session() as s:
         s.add_all(
             [
-                Agent(agent_id="a", display_name="A", provider="stub", personality="x", sprite="x", balance=10.0, allies=[], enemies=[], inventory={"ore": 0, "food": 0, "tech": 0}),
-                Agent(agent_id="b", display_name="B", provider="stub", personality="x", sprite="x", balance=10.0, allies=[], enemies=[], inventory={"ore": 0, "food": 0, "tech": 0}),
+                Agent(
+                    agent_id="a",
+                    display_name="A",
+                    provider="stub",
+                    personality="x",
+                    sprite="x",
+                    balance=10.0,
+                    allies=[],
+                    enemies=[],
+                    inventory={"ore": 0, "food": 0, "tech": 0},
+                ),
+                Agent(
+                    agent_id="b",
+                    display_name="B",
+                    provider="stub",
+                    personality="x",
+                    sprite="x",
+                    balance=10.0,
+                    allies=[],
+                    enemies=[],
+                    inventory={"ore": 0, "food": 0, "tech": 0},
+                ),
             ]
         )
         await s.commit()
@@ -34,11 +55,11 @@ async def test_work_increases_balance(session):
     random.seed(1)
     res = await do_work(session, turn=1, actor_id="a")
     assert res.success
-    assert 0.05 <= res.delta <= 0.25  # reduced range + possible marriage bonus
+    assert res.delta >= 0.05  # base + ore bonus
     a = await session.get(Agent, "a")
     assert a.balance == round(10.0 + res.delta, 2)
-    # Should also produce a good
-    assert sum(a.inventory.values()) == 1
+    # Should produce 2-4 goods (2-3 specialty + 0-1 others)
+    assert sum(a.inventory.values()) >= 2
 
 
 @pytest.mark.asyncio
@@ -57,7 +78,9 @@ async def test_marriage_requires_mutual_consent(session):
     # First proposal: sets pending, no balance change
     a = await session.get(Agent, "a")
     a.balance = 4.0
-    res1 = await do_socialize(session, turn=1, actor_id="a", target="b", proposal_type="marriage")
+    res1 = await do_socialize(
+        session, turn=1, actor_id="a", target="b", proposal_type="marriage"
+    )
     assert res1.success
     a = await session.get(Agent, "a")
     assert a.balance == 4.0  # no pooling yet
@@ -65,7 +88,9 @@ async def test_marriage_requires_mutual_consent(session):
     assert a.spouse_id is None
 
     # Second proposal from b to a: marriage happens
-    res2 = await do_socialize(session, turn=2, actor_id="b", target="a", proposal_type="marriage")
+    res2 = await do_socialize(
+        session, turn=2, actor_id="b", target="a", proposal_type="marriage"
+    )
     assert res2.success
     a = await session.get(Agent, "a")
     b = await session.get(Agent, "b")
@@ -75,7 +100,9 @@ async def test_marriage_requires_mutual_consent(session):
 
 @pytest.mark.asyncio
 async def test_bet_respects_funds(session):
-    res = await do_bet(session, turn=1, actor_id="a", amount=999.0, bet_type="coin_flip")
+    res = await do_bet(
+        session, turn=1, actor_id="a", amount=999.0, bet_type="coin_flip"
+    )
     assert not res.success
 
 

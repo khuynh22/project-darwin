@@ -69,6 +69,7 @@ function AgentChip({ agent, latestAction }: { agent: AgentSnap; latestAction?: s
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-medium text-zinc-200 truncate">{agent.display_name}</span>
           <span className="text-[9px] text-zinc-600 font-mono">{agent.provider}</span>
+          <span className="text-[8px] text-zinc-600 bg-zinc-700/50 px-1 rounded">{agent.specialty}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-mono font-semibold text-zinc-300">${agent.balance.toFixed(2)}</span>

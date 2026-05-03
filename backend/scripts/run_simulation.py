@@ -86,7 +86,7 @@ async def main() -> None:
         # Generate a minimal stub roster for CLI testing (3 agents)
         roster = [
             {"agent_id": f"agent_{i+1}", "display_name": f"AGENT {i+1}",
-             "provider": "stub", "personality": f"Agent {i+1}", "sprite": "robot"}
+             "provider": "stub", "personality": f"Agent {i+1}", "sprite": "blue"}
             for i in range(3)
         ]
         print("[darwin] no --roster provided, using 3 stub agents")

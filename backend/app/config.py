@@ -36,8 +36,8 @@ class Settings(BaseSettings):
 
     anthropic_model: str = "claude-opus-4-7"
     openai_model: str = "gpt-5"
-    google_model: str = "gemini-2.5-pro"
-    grok_model: str = "grok-3"
+    google_model: str = "gemini-3.1-pro-preview"
+    grok_model: str = "grok-4.3"
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "gemma4"

@@ -70,7 +70,7 @@ async def seed_roster(session: AsyncSession, roster: list[dict] | None = None) -
                 display_name=spec["display_name"],
                 provider=spec["provider"],
                 personality=spec.get("personality", "Adaptive agent."),
-                sprite=spec.get("sprite", "robot"),
+                sprite=spec.get("sprite", "blue"),
                 specialty=random.choice(["ore", "food", "tech"]),
                 balance=settings.starting_capital,
                 alive=True,
@@ -105,6 +105,7 @@ async def _world_state(session: AsyncSession, turn: int) -> dict:
                 "steal_count": a.steal_count,
                 "share_balance": a.share_balance,
                 "inventory": a.inventory or {},
+                "specialty": a.specialty,
                 "rest_bonus": a.rest_bonus,
                 "will_target": a.will_target,
                 "extortion_pending": a.extortion_pending,
@@ -238,58 +239,91 @@ async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
             .all()
         )
         locked_amount = sum(d.amount for d in locked)
+        inv = dict(a.inventory or {"ore": 0, "food": 0, "tech": 0})
 
+        # Food consumption: eat 1 food or pay $1 hunger penalty
+        hunger_penalty = 0.0
+        if inv.get("food", 0) >= 1:
+            inv["food"] = inv["food"] - 1
+            a.inventory = inv
+        else:
+            hunger_penalty = 1.00
+
+        # Compute progressive tax on cash (minus locked capital)
         taxable_cash = max(0.0, a.balance - locked_amount)
         tax = _compute_tax(taxable_cash)
-        if tax <= 0:
+
+        total_cost = round(tax + hunger_penalty, 2)
+        if total_cost <= 0:
             continue
-        a.balance = round(a.balance - tax, 2)
+        a.balance = round(a.balance - total_cost, 2)
+
+        parts = []
+        if tax > 0:
+            parts.append(f"tax ${tax:.2f}")
+        if hunger_penalty > 0:
+            parts.append(f"hunger ${hunger_penalty:.2f}")
         session.add(
             Transaction(
                 turn=turn,
                 actor_id=a.agent_id,
                 target_id=None,
                 action="tax",
-                delta=-tax,
+                delta=-total_cost,
                 payload={
                     "taxable_cash": taxable_cash,
                     "locked": locked_amount,
-                    "rate": "progressive",
+                    "hunger": hunger_penalty,
+                    "tech_discount": tech_held,
                 },
-                note=f"tax ${tax:.2f} on ${taxable_cash:.2f} cash",
+                note=" + ".join(parts) + f" (cash ${taxable_cash:.2f})",
             )
         )
         if a.balance <= 0:
+            # Calculate pre-death estate (balance before this tax wiped them)
+            estate = round(max(a.balance + total_cost, 0), 2)
             a.alive = False
             a.eliminated_at_turn = turn
+            a.balance = 0.0
             eliminated.append(a.agent_id)
-            # Will inheritance
-            if a.will_target:
-                beneficiary = await _get_agent_by_id(session, a.will_target)
-                if beneficiary and beneficiary.alive:
-                    inheritance = round(
-                        abs(a.balance) + a.balance + max(a.balance, 0) * 0.5, 2
+
+            # Determine heir: will target first, then spouse
+            heir_id = a.will_target or a.spouse_id
+            if heir_id and estate > 0:
+                heir = await _get_agent_by_id(session, heir_id)
+                if heir and heir.alive:
+                    # Will = 50% of estate, spouse = 100% of estate
+                    pct = 0.5 if a.will_target and a.will_target == heir_id else 1.0
+                    inheritance = round(estate * pct, 2)
+                    heir.balance = round(heir.balance + inheritance, 2)
+                    via = "will" if a.will_target == heir_id else "spouse"
+                    session.add(
+                        Transaction(
+                            turn=turn,
+                            actor_id=a.agent_id,
+                            target_id=heir_id,
+                            action="inherit",
+                            delta=inheritance,
+                            payload={"via": via, "estate": estate},
+                            note=f"${inheritance:.2f} inherited by {heir_id} ({via})",
+                        )
                     )
-                    # Give 50% of pre-death balance
-                    inheritance = round(max(a.balance + tax, 0) * 0.5, 2)
-                    if inheritance > 0:
-                        beneficiary.balance = round(
-                            beneficiary.balance + inheritance, 2
-                        )
-                        session.add(
-                            Transaction(
-                                turn=turn,
-                                actor_id=a.agent_id,
-                                target_id=a.will_target,
-                                action="will_inherit",
-                                delta=inheritance,
-                                payload={},
-                                note=f"inherited ${inheritance:.2f} from {a.agent_id}",
-                            )
-                        )
+
+            # Also transfer inventory to heir
+            if heir_id and a.inventory:
+                heir2 = await _get_agent_by_id(session, heir_id)
+                if heir2 and heir2.alive:
+                    h_inv = dict(heir2.inventory or {"ore": 0, "food": 0, "tech": 0})
+                    for g, qty in (a.inventory or {}).items():
+                        h_inv[g] = h_inv.get(g, 0) + qty
+                    heir2.inventory = h_inv
+                a.inventory = {"ore": 0, "food": 0, "tech": 0}
+
             session.add(
                 WorldEvent(
-                    turn=turn, kind="bankruptcy", payload={"agent_id": a.agent_id}
+                    turn=turn,
+                    kind="bankruptcy",
+                    payload={"agent_id": a.agent_id, "heir": heir_id, "estate": estate},
                 )
             )
     return eliminated
@@ -623,6 +657,7 @@ async def run_turn(
             db_agent.consecutive_errors = 0
             db_agent.last_error = None
 
+        # Apply major action
         outcome = await _apply_decision(
             session, turn=turn, agent=db_agent, decision=decision
         )
@@ -631,6 +666,26 @@ async def run_turn(
             if isinstance(decision.arguments, dict)
             else ""
         )
+
+        # Apply optional free action (if provided and valid)
+        free_outcome = ""
+        if decision.free_action:
+            from app.oracle.schemas import FREE_ACTIONS
+
+            if decision.free_action in FREE_ACTIONS:
+                free_decision = AgentDecision(
+                    action=decision.free_action,
+                    arguments=decision.free_arguments,
+                )
+                free_outcome = await _apply_decision(
+                    session, turn=turn, agent=db_agent, decision=free_decision
+                )
+                free_outcome = f" | free: {decision.free_action} -> {free_outcome}"
+            else:
+                free_outcome = (
+                    f" | free: {decision.free_action} rejected (not a free action)"
+                )
+
         session.add(
             ThoughtLog(
                 turn=turn,
@@ -639,7 +694,7 @@ async def run_turn(
                 public_message=public_msg or "",
                 action=decision.action,
                 arguments=decision.arguments,
-                outcome=outcome,
+                outcome=outcome + free_outcome,
             )
         )
         if exporter is not None:

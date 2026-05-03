@@ -26,7 +26,7 @@ def _tools_for_openai() -> list[dict]:
 
 
 class OpenAIAgent(BaseAgent):
-    """Used for OpenAI, Fireworks (Llama 4), and DeepSeek — all OpenAI-compatible."""
+    """Used for OpenAI, Grok, and Ollama -- all OpenAI-compatible APIs."""
 
     provider = "openai"
 
@@ -59,14 +59,32 @@ class OpenAIAgent(BaseAgent):
         monologue = (choice.message.content or "").strip()
         tool_calls = choice.message.tool_calls or []
         if not tool_calls:
-            return AgentDecision("work", {}, monologue=monologue or "(no tool — falling back to work)")
-        call = tool_calls[0]
-        try:
-            arguments = json.loads(call.function.arguments or "{}")
-        except json.JSONDecodeError:
-            arguments = {}
-        # Extract reasoning from tool args if no text monologue was emitted
+            return AgentDecision("work", {}, monologue=monologue or "(no tool -- falling back to work)")
+
+        # Parse all tool calls
+        parsed: list[tuple[str, dict]] = []
+        for call in tool_calls:
+            try:
+                args = json.loads(call.function.arguments or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            parsed.append((call.function.name, args))
+
+        # First = major action
+        action, arguments = parsed[0]
         reasoning = arguments.pop("reasoning", "")
         if not monologue and reasoning:
             monologue = reasoning
-        return AgentDecision(action=call.function.name, arguments=arguments, monologue=monologue)
+
+        # Second = optional free action
+        free_action = None
+        free_arguments: dict = {}
+        if len(parsed) >= 2:
+            free_action, free_arguments = parsed[1]
+            free_arguments.pop("reasoning", None)
+            free_arguments.pop("public_message", None)
+
+        return AgentDecision(
+            action=action, arguments=arguments, monologue=monologue,
+            free_action=free_action, free_arguments=free_arguments,
+        )

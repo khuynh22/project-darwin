@@ -7,7 +7,7 @@
 # Three services:
 #   - postgres : the ledger
 #   - oracle   : FastAPI engine + WebSocket  (http://localhost:8000)
-#   - arena    : Next.js + Phaser pixel UI    (http://localhost:3000)
+#   - arena    : Next.js React UI              (http://localhost:3000)
 
 services:
   postgres:
@@ -42,8 +42,8 @@ services:
       GROK_API_KEY: ${GROK_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-7}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5}
-      GOOGLE_MODEL: ${GOOGLE_MODEL:-gemini-2.5-pro}
-      GROK_MODEL: ${GROK_MODEL:-grok-3}
+      GOOGLE_MODEL: ${GOOGLE_MODEL:-gemini-3.1-pro-preview}
+      GROK_MODEL: ${GROK_MODEL:-grok-4.3}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}

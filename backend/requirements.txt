@@ -12,12 +12,10 @@ python-dotenv==1.0.1
 httpx==0.28.1
 tenacity==9.0.0
 
-# LLM providers
+# LLM providers (openai client also used for Grok and Ollama)
 anthropic==0.42.0
 openai==1.57.4
 google-genai==0.3.0
-# Llama 4 served via Fireworks (OpenAI-compatible API) — uses openai client
-# DeepSeek also OpenAI-compatible — uses openai client
 
 # Orchestration
 langgraph==0.2.59

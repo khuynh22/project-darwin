@@ -91,21 +91,32 @@ class GoogleAgent(BaseAgent):
             },
         )
         monologue_parts: list[str] = []
-        action = "work"
-        arguments: dict = {}
+        tool_calls: list[tuple[str, dict]] = []
         for cand in resp.candidates or []:
             for part in (cand.content.parts or []):
                 if getattr(part, "text", None):
                     monologue_parts.append(part.text)
                 fc = getattr(part, "function_call", None)
                 if fc and fc.name:
-                    action = fc.name
-                    arguments = dict(fc.args or {})
-                    break
-            if action != "work" or arguments:
-                break
-        # Extract reasoning from tool args if no text monologue was emitted
+                    tool_calls.append((fc.name, dict(fc.args or {})))
+
+        action = "work"
+        arguments: dict = {}
+        free_action = None
+        free_arguments: dict = {}
+
+        if tool_calls:
+            action, arguments = tool_calls[0]
+        if len(tool_calls) >= 2:
+            free_action, free_arguments = tool_calls[1]
+            free_arguments.pop("reasoning", None)
+            free_arguments.pop("public_message", None)
+
         reasoning = arguments.pop("reasoning", "")
         if not monologue_parts and reasoning:
             monologue_parts.append(reasoning)
-        return AgentDecision(action=action, arguments=arguments, monologue="\n".join(monologue_parts).strip())
+        return AgentDecision(
+            action=action, arguments=arguments,
+            monologue="\n".join(monologue_parts).strip(),
+            free_action=free_action, free_arguments=free_arguments,
+        )

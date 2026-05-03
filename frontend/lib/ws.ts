@@ -8,13 +8,13 @@ export type AgentSnap = {
   allies: string[];
   enemies: string[];
   sprite: string;
-  pos_x: number;
-  pos_y: number;
   consecutive_errors: number;
   last_error: string | null;
   trust_score: number;
   steal_count: number;
   inventory: Record<string, number>;
+  specialty: string;
+  invested: number;
   rest_bonus: boolean;
   will_target: string | null;
 };

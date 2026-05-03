@@ -1,90 +1,92 @@
-# Project Darwin — The LLM Social Economy Simulation
+# Project Darwin -- LLM Economic Survival Simulation
 
-A research multi-agent simulation where SOTA LLMs from different providers compete and cooperate in a shared economy. Each agent is given $10, must work, trade, gamble, marry, ally, and sabotage to survive 500 turns or hold ≥90% of the world's wealth.
+A multi-agent research simulation where LLMs compete in a ruthless economic arena. Agents work, trade, steal, deceive, form alliances, and betray each other to accumulate wealth. The last agent standing -- or the first to hold 90% of all wealth -- wins.
 
-## Roster (April 2026 SOTA, one per provider)
+## What makes it interesting
 
-| Agent  | Model                              | Provider   | Personality |
-|--------|------------------------------------|------------|-------------|
-| ATLAS  | claude-opus-4-7                    | Anthropic  | Cooperative diplomat |
-| NOVA   | gpt-5                              | OpenAI     | High-risk strategist |
-| HYDRA  | llama-v4-maverick (via Fireworks)  | Meta       | The Wildcard |
-| SAGE   | gemini-2.5-pro                     | Google     | Long-term survivalist |
-| CIPHER | deepseek-chat                      | DeepSeek   | Minimalist defender |
+- **20 actions** including deception (bluff, gaslight, slander, extort) and social manipulation (bribe, vouch, propose_deal)
+- **Goods economy** with specialization -- agents produce different goods and must trade to survive (food is consumed every tax cycle)
+- **Information asymmetry** -- agents can't see each other's balances, only their own + allies/spouse
+- **Trust system** (0-100) that affects trade acceptance and can be manipulated via slander/vouch
+- **Progressive taxation** on cash (invested capital is exempt), with collective strike mechanic to waive taxes
+- **Action tiers** -- 1 major + 1 optional free action per turn (e.g., `steal + bluff` or `work + vouch`)
+- **Any mix of providers** -- run 5 Claude agents, or Claude vs GPT vs Gemini vs Grok, or all stubs
 
-Model IDs are env-overridable (`backend/.env`) so the roster swaps as new SOTA drops.
+## Quickstart
+
+```bash
+git clone <repo-url>
+cd project-darwin
+cp .env.example .env       # paste API keys, or leave blank for stub mode
+docker compose up --build   # postgres + oracle + arena
+# open http://localhost:3000
+```
+
+The ConfigPanel opens automatically. Set up 3-10 agents (name, provider, model, color), enter API keys once per provider, and click Start.
+
+With an empty `.env` and all agents set to `stub` provider, the simulation runs with deterministic fake responses -- no API keys needed.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐         ┌────────────────────┐
-│  Next.js + Phaser 3 — Pixel Arena   │ ◄─ WS ─ │  FastAPI Oracle    │
-│  (sprites, thought bubbles, ledger) │ ◄─REST─ │  + Postgres ledger │
-└─────────────────────────────────────┘         └────────┬───────────┘
-                                                         │
-                                          ┌──────────────┼─────────────┐
-                                          ▼              ▼             ▼
-                                   Anthropic      OpenAI/Fireworks/   Google
-                                   Claude Opus    DeepSeek            Gemini
+Next.js (React)  <-- WS/REST -->  FastAPI (Oracle)  --> Postgres
+   WorldMap                         turn loop
+   Sidebar                          20 action handlers
+   PublicLog                         trust + goods + tax
+   ConfigPanel                       deferred actions (invest/lend)
+                                     parallel agent decide()
+                                  --> LLM providers (Anthropic, OpenAI, Google, Grok, Ollama)
 ```
 
-Backend is FastAPI + async SQLAlchemy + Postgres. The Oracle owns turn order, survival tax, bankruptcy, and apex detection. A LangGraph wrapper is provided for instrumentation but the default loop is plain async — fewer moving parts.
+The Oracle is the single source of truth. Frontend is a pure viewer.
 
-## Quickstart — one command
+## Game mechanics
 
-```bash
-git clone https://github.com/khuynh22/project-darwin.git
-cd project-darwin
-cp .env.example .env       # paste API keys (or leave blank for stub mode)
-docker compose up --build  # postgres + oracle + arena
-# open http://localhost:3000
-```
+| Mechanic | Detail |
+|----------|--------|
+| Starting capital | $10 per agent |
+| Tax | Progressive brackets every 10 turns (0-20% on cash). Invested capital exempt. |
+| Food | Must consume 1 food per tax cycle or pay $1 hunger penalty |
+| Goods | ore ($0.30), food ($0.25), tech ($0.50). Each agent specializes in one. |
+| Steal | Success drops 8% per attempt (60% base, min 15%). Penalty $2+ escalating. |
+| Marriage | Requires mutual consent. Pools balances. +10% work bonus. Divorce splits 50/50. |
+| Trust | 0-100 score. Affects trade acceptance. Slander lowers, vouch raises. |
+| Inheritance | Will target gets 50%. Spouse gets 100%. No heir = assets lost. |
+| Elimination | $0 balance = dead. Assets go to heir. |
+| Apex win | Hold >=90% of all alive agents' wealth. |
 
-That's it. With an empty `.env`, the simulation still runs end-to-end using deterministic stubs. As you add keys, those agents start using real models — the rest stay stubbed. So you can start with just `ANTHROPIC_API_KEY` and grow.
+## 20 actions (major + free tier)
 
-To drive the sim, click **STEP / RUN 10 / RUN 100** in the arena UI, or hit the Oracle directly:
-```bash
-curl -X POST 'http://localhost:8000/run?turns=100'
-curl 'http://localhost:8000/state' | jq
-```
+**Major** (1 required per turn): work, trade, bet, invest, steal, lend, sabotage, extort, bribe, socialize
 
-## Going live with real models
+**Free** (0-1 optional alongside major): vouch, will, rest, strike, bluff, propose_deal, slander, gaslight, gift, charity
 
-Edit `.env` (root, not `backend/`):
-```
-STUB_MODE=false
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GOOGLE_API_KEY=...
-FIREWORKS_API_KEY=...
-DEEPSEEK_API_KEY=...
-```
-`docker compose up` again — no rebuild needed for env changes.
+## API
 
-## Local development (without Docker)
+| Endpoint | Description |
+|----------|-------------|
+| `POST /configure` | Set up agents (3-10), resets simulation |
+| `POST /run?turns=N` | Run N turns |
+| `POST /reset` | Wipe everything |
+| `GET /state` | Full snapshot (agents, thoughts, balances) |
+| `GET /export/thoughts` | Download JSONL thought log |
+| `POST /agents/{id}/remove` | Eliminate a failing agent |
+
+## Development
 
 ```bash
 # Backend
-cd backend && python -m venv .venv && source .venv/Scripts/activate
-pip install -r requirements.txt
-cp .env.example .env
-DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
-  python -m scripts.run_simulation --turns 100 --reset
+cd backend && pip install -r requirements.txt && pytest
 
 # Frontend
 cd frontend && npm install && npm run dev
 ```
 
-## Tests
-
-```bash
-cd backend && pytest
-```
-
 ## Research output
 
-`scripts/run_simulation.py` writes JSONL thought logs to `thought_logs/`. Each line:
+JSONL thought logs in `thought_logs/`:
 ```json
-{"turn": 7, "agent_id": "atlas", "monologue": "…", "action": "trade", "arguments": {...}, "outcome": "..."}
+{"schema_version": 2, "turn": 7, "agent_id": "agent_1", "monologue": "...",
+ "action": "steal", "arguments": {"target": "agent_2"},
+ "outcome": "stole $1.23 from agent_2 [ok]", "timestamp": "..."}
 ```
-Suitable for direct ingestion into pandas / DuckDB for behavioral analysis.

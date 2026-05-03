@@ -16,6 +16,37 @@ _PUBLIC = "Optional public message visible to all agents (e.g., threats, announc
 GOODS = ("ore", "food", "tech")
 GOOD_VALUES = {"ore": 0.30, "food": 0.25, "tech": 0.50}
 
+# Free actions can be used as a second action per turn (or as the major action).
+# Major actions can ONLY be used as the primary action.
+FREE_ACTIONS = frozenset(
+    {
+        "vouch",
+        "will",
+        "rest",
+        "strike",
+        "bluff",
+        "propose_deal",
+        "slander",
+        "gaslight",
+        "gift",
+        "charity",
+    }
+)
+MAJOR_ACTIONS = frozenset(
+    {
+        "work",
+        "trade",
+        "bet",
+        "invest",
+        "steal",
+        "lend",
+        "sabotage",
+        "extort",
+        "bribe",
+        "socialize",
+    }
+)
+
 
 class _BaseArgs(BaseModel):
     """Common fields for all tool calls."""

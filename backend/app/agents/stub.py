@@ -65,10 +65,53 @@ _COSTLY_ACTIONS = {
 }
 
 
+_FREE_SET = {
+    "vouch",
+    "will",
+    "rest",
+    "strike",
+    "bluff",
+    "propose_deal",
+    "slander",
+    "gaslight",
+    "gift",
+    "charity",
+}
+
+
 class StubAgent(BaseAgent):
     provider = "stub"
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
+        decision = self._pick_major(state, agent)
+        # 40% chance to also pick a free action
+        if random.random() < 0.4:
+            others = [
+                a
+                for a in state["agents"]
+                if a["agent_id"] != agent.agent_id and a["alive"]
+            ]
+            target = random.choice(others)["agent_id"] if others else None
+            free = random.choice(["vouch", "bluff", "propose_deal", "slander"])
+            if free == "vouch" and target:
+                decision.free_action = "vouch"
+                decision.free_arguments = {"target": target}
+            elif free == "bluff":
+                decision.free_action = "bluff"
+                decision.free_arguments = {"fake_action": "invested $5.00"}
+            elif free == "slander" and target and agent.balance >= 0.20:
+                decision.free_action = "slander"
+                decision.free_arguments = {"target": target, "rumor": "unreliable"}
+            elif free == "propose_deal" and target:
+                decision.free_action = "propose_deal"
+                decision.free_arguments = {
+                    "target": target,
+                    "offer": "$0.50",
+                    "ask": "alliance",
+                }
+        return decision
+
+    def _pick_major(self, state: dict, agent: Agent) -> AgentDecision:
         bias = DEFAULT_BIAS
         choices: list[str] = []
         for action, weight in bias.items():

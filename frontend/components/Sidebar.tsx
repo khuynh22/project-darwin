@@ -43,23 +43,25 @@ export default function Sidebar({ snapshot }: { snapshot: WorldSnapshot | null }
               <span className="text-[10px] text-zinc-600 font-mono">{a.provider}</span>
             </div>
 
-            {/* Balance */}
+            {/* Balance: cash + invested */}
             <div className="flex items-baseline gap-1.5">
               <span className="text-lg font-semibold text-white font-mono">${a.balance.toFixed(2)}</span>
+              {a.invested > 0 && (
+                <span className="text-[10px] text-blue-400 font-mono" title="Locked in investments/loans">+${a.invested.toFixed(2)} inv</span>
+              )}
               <span className="text-[10px] text-zinc-500">{share.toFixed(0)}%</span>
             </div>
 
             {/* Trust */}
             <TrustBar score={a.trust_score} />
 
-            {/* Inventory */}
-            {Object.values(inv).some(v => v > 0) && (
-              <div className="flex gap-2 mt-1.5 text-[10px] text-zinc-400">
-                {inv.ore > 0 && <span title="Ore">{inv.ore} ore</span>}
-                {inv.food > 0 && <span title="Food">{inv.food} food</span>}
-                {inv.tech > 0 && <span title="Tech">{inv.tech} tech</span>}
-              </div>
-            )}
+            {/* Specialty + Inventory */}
+            <div className="flex gap-2 mt-1.5 text-[10px] text-zinc-400 items-center">
+              <span className="text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded text-[9px]" title="Production specialty">{a.specialty}</span>
+              {inv.ore > 0 && <span title="Ore: +$0.02/turn work bonus">{inv.ore} ore</span>}
+              {inv.food > 0 && <span title="Food: consumed at tax time or $1 penalty">{inv.food} food</span>}
+              {inv.tech > 0 && <span title="Tech: -5% tax per unit">{inv.tech} tech</span>}
+            </div>
 
             {/* Social */}
             <div className="text-[10px] text-zinc-500 mt-1 flex flex-wrap gap-x-2">

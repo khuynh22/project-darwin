@@ -101,8 +101,8 @@ async def health() -> dict:
 PROVIDER_DEFAULTS = [
     {"name": "anthropic", "default_model": "claude-opus-4-7", "requires_key": True},
     {"name": "openai", "default_model": "gpt-5", "requires_key": True},
-    {"name": "google", "default_model": "gemini-2.5-pro", "requires_key": True},
-    {"name": "grok", "default_model": "grok-3", "requires_key": True},
+    {"name": "google", "default_model": "gemini-3.1-pro-preview", "requires_key": True},
+    {"name": "grok", "default_model": "grok-4.3", "requires_key": True},
     {"name": "ollama", "default_model": "gemma4", "requires_key": False},
     {"name": "stub", "default_model": "stub", "requires_key": False},
 ]
@@ -199,7 +199,7 @@ async def configure_simulation(body: dict) -> dict:
             "provider": a.get("provider", "stub"),
             "model": a.get("model", ""),
             "personality": personality,
-            "sprite": a.get("sprite", "robot"),
+            "sprite": a.get("sprite", "blue"),
         }
         # Resolve API key: either inline or from stored key
         api_key_id = a.get("api_key_id")
@@ -241,6 +241,8 @@ async def configure_simulation(body: dict) -> dict:
 
 @app.get("/state")
 async def state() -> dict:
+    from app.models.deferred import DeferredAction
+
     async with SessionLocal() as session:
         agents = (await session.execute(select(Agent))).scalars().all()
         recent = (
@@ -252,6 +254,21 @@ async def state() -> dict:
             .scalars()
             .all()
         )
+        # Calculate invested capital per agent (for moderator view)
+        invested_map: dict[str, float] = {}
+        deferred = (
+            (
+                await session.execute(
+                    select(DeferredAction).where(DeferredAction.resolved.is_(False))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for d in deferred:
+            invested_map[d.actor_id] = round(
+                invested_map.get(d.actor_id, 0) + d.amount, 2
+            )
     return {
         "turn": _current_turn,
         "agents": [
@@ -265,13 +282,13 @@ async def state() -> dict:
                 "allies": list(a.allies or []),
                 "enemies": list(a.enemies or []),
                 "sprite": a.sprite,
-                "pos_x": a.pos_x,
-                "pos_y": a.pos_y,
                 "consecutive_errors": a.consecutive_errors,
                 "last_error": a.last_error,
                 "trust_score": a.trust_score,
                 "steal_count": a.steal_count,
                 "inventory": a.inventory or {},
+                "specialty": a.specialty,
+                "invested": invested_map.get(a.agent_id, 0),
                 "rest_bonus": a.rest_bonus,
                 "will_target": a.will_target,
             }
