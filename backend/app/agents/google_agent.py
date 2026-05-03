@@ -87,7 +87,7 @@ class GoogleAgent(BaseAgent):
             config={
                 "system_instruction": system,
                 "tools": _tools_for_google(),
-                "tool_config": {"function_calling_config": {"mode": "AUTO"}},
+                "tool_config": {"function_calling_config": {"mode": "ANY"}},
             },
         )
         monologue_parts: list[str] = []
@@ -104,4 +104,8 @@ class GoogleAgent(BaseAgent):
                     break
             if action != "work" or arguments:
                 break
+        # Extract reasoning from tool args if no text monologue was emitted
+        reasoning = arguments.pop("reasoning", "")
+        if not monologue_parts and reasoning:
+            monologue_parts.append(reasoning)
         return AgentDecision(action=action, arguments=arguments, monologue="\n".join(monologue_parts).strip())

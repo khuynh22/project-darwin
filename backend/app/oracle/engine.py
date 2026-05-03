@@ -122,6 +122,7 @@ async def _apply_decision(
         validated = arg_model.model_validate(decision.arguments).model_dump()
     except Exception as e:  # noqa: BLE001
         return f"argument validation failed: {e}"
+    validated.pop("reasoning", None)  # reasoning is for monologue, not the action handler
     result = await handler(session, turn=turn, actor_id=agent.agent_id, **validated)
     return result.note + (" [ok]" if result.success else " [rejected]")
 
@@ -220,10 +221,28 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
                 ))
 
 
+async def _decide_one(
+    client: BaseAgent, state: dict, db_agent: Agent, history: list[dict],
+) -> AgentDecision:
+    """Call decide() for one agent with its own history snapshot.
+
+    Runs with a generous 120s timeout -- if the model hasn't responded by then,
+    something is genuinely broken.
+    """
+    # Each agent gets its own copy of state with its history injected
+    agent_state = {**state, "_history": history}
+    return await asyncio.wait_for(client.decide(agent_state, db_agent), timeout=120)
+
+
 async def run_turn(
     session: AsyncSession, *, turn: int, agents: dict[str, BaseAgent]
 ) -> TurnResult:
-    """Execute one full turn for every alive agent, then apply tax if cycle boundary."""
+    """Execute one full turn for every alive agent, then apply tax if cycle boundary.
+
+    All agent decide() calls run in **parallel** -- total turn time is the
+    slowest agent, not the sum of all agents.  Decisions are then applied
+    sequentially to avoid DB race conditions.
+    """
     settings = get_settings()
 
     # Settle maturing investments and loans before agent decisions
@@ -232,30 +251,50 @@ async def run_turn(
     db_agents = (await session.execute(select(Agent))).scalars().all()
     state = await _world_state(session, turn)
 
+    # Phase 1: Handle skipped agents, collect active agents for parallel decide
+    active: list[Agent] = []
     for db_agent in db_agents:
         if not db_agent.alive:
             continue
         if db_agent.skip_next_turn:
             db_agent.skip_next_turn = False
             session.add(
-                ThoughtLog(turn=turn, agent_id=db_agent.agent_id, monologue="(sabotaged — turn skipped)",
+                ThoughtLog(turn=turn, agent_id=db_agent.agent_id,
+                           monologue="(sabotaged -- turn skipped)",
                            action="skip", arguments={}, outcome="skipped")
             )
             continue
+        active.append(db_agent)
 
-        client = agents[db_agent.agent_id]
-        # Fetch recent history so the agent can learn from past turns
-        history = await _agent_history(session, db_agent.agent_id)
-        state["_history"] = history  # injected for render_world_brief
-        try:
-            decision = await asyncio.wait_for(client.decide(state, db_agent), timeout=45)
-            # Reset error counter on success
-            db_agent.consecutive_errors = 0
-            db_agent.last_error = None
-        except Exception as exc:  # noqa: BLE001
-            # TimeoutError has an empty repr -- give it a useful message
+    # Phase 2: Fetch histories + fire all decide() calls in parallel
+    histories: dict[str, list[dict]] = {}
+    for db_agent in active:
+        histories[db_agent.agent_id] = await _agent_history(session, db_agent.agent_id)
+
+    tasks = {
+        db_agent.agent_id: asyncio.create_task(
+            _decide_one(agents[db_agent.agent_id], state, db_agent, histories[db_agent.agent_id])
+        )
+        for db_agent in active
+    }
+
+    # Wait for ALL agents to finish (or fail)
+    results: dict[str, AgentDecision | Exception] = {}
+    done = await asyncio.gather(*tasks.values(), return_exceptions=True)
+    for agent_id, result in zip(tasks.keys(), done):
+        results[agent_id] = result
+
+    # Phase 3: Apply decisions sequentially (DB writes must be serial)
+    from app.thought_export import get_exporter
+    exporter = get_exporter()
+
+    for db_agent in active:
+        result = results[db_agent.agent_id]
+
+        if isinstance(result, Exception):
+            exc = result
             if isinstance(exc, TimeoutError):
-                exc = TimeoutError(f"timed out after 45s")
+                exc = TimeoutError("timed out after 120s")
             log.error("Agent %s decide() failed: %r", db_agent.agent_id, exc)
             db_agent.consecutive_errors += 1
             db_agent.last_error = str(exc)[:512]
@@ -283,11 +322,14 @@ async def run_turn(
                     paused=True, pause_reason=reason, pause_agent_id=db_agent.agent_id,
                 )
 
-            # Under threshold: fall back to work but log the warning
             decision = AgentDecision(
                 action="work", arguments={},
                 monologue=f"(API error #{db_agent.consecutive_errors} -- falling back to work: {exc!s:.120})",
             )
+        else:
+            decision = result
+            db_agent.consecutive_errors = 0
+            db_agent.last_error = None
 
         outcome = await _apply_decision(session, turn=turn, agent=db_agent, decision=decision)
         session.add(
@@ -300,9 +342,6 @@ async def run_turn(
                 outcome=outcome,
             )
         )
-        # Stream to JSONL file if exporter is active
-        from app.thought_export import get_exporter  # local import avoids cycle
-        exporter = get_exporter()
         if exporter is not None:
             exporter.append(
                 turn=turn, agent_id=db_agent.agent_id,

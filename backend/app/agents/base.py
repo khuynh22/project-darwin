@@ -36,7 +36,7 @@ TOOL SUMMARY:
 - charity(amount, target?): donate to a specific agent or the poorest alive agent. Builds an alliance with the recipient.
 - propose_deal(target, offer, ask): propose a custom deal to another agent. No immediate economic effect -- the target sees your offer next turn.
 
-OUTPUT CONTRACT: Always emit a private monologue describing your reasoning, then call exactly one tool. Be strategic and stay in character.
+OUTPUT CONTRACT: Call exactly one tool per turn. Use the "reasoning" field in your tool call to explain your private strategy (1-3 sentences). Be strategic and stay in character.
 """
 
 

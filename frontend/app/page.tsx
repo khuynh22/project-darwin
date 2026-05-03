@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Sidebar from '@/components/Sidebar';
 import ThoughtLog from '@/components/ThoughtLog';
@@ -15,6 +15,8 @@ export default function Page() {
   const [configOpen, setConfigOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [pendingTurns, setPendingTurns] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const autoPlayRef = useRef(false);
 
   useEffect(() => {
     const close = connectOracle(
@@ -22,7 +24,12 @@ export default function Page() {
         setSnapshot(snap);
         if (snap.agents.length === 0) setConfigOpen(true);
       },
-      (evt) => setPauseInfo(evt),
+      (evt) => {
+        setPauseInfo(evt);
+        // Stop auto-play on error
+        autoPlayRef.current = false;
+        setAutoPlay(false);
+      },
     );
     return close;
   }, []);
@@ -31,31 +38,54 @@ export default function Page() {
 
   const hasAgents = (snapshot?.agents?.length ?? 0) > 0;
 
-  async function step(turns = 1) {
-    if (running || !hasAgents) return;
+  const step = useCallback(async (turns = 1) => {
+    if (!hasAgents) return;
     setRunning(true);
     setPendingTurns(turns);
     try {
       const res = await fetch(`${httpBase}/run?turns=${turns}`, { method: 'POST' });
       const data = await res.json();
       if (data.paused) {
-        const startTurn = snapshot?.turn ?? 0;
-        const endTurn = data.final_turn ?? data.turn ?? startTurn;
-        const completed = endTurn - startTurn;
-        setPendingTurns(Math.max(0, turns - completed));
-        setPauseInfo({ event: 'simulation_paused', turn: endTurn, agent_id: data.agent_id, reason: data.reason, snapshot: snapshot! });
+        setPendingTurns(0);
+        setPauseInfo({ event: 'simulation_paused', turn: data.final_turn ?? data.turn, agent_id: data.agent_id, reason: data.reason, snapshot: snapshot! });
+        autoPlayRef.current = false;
+        setAutoPlay(false);
       } else {
         setPendingTurns(0);
       }
     } finally {
       setRunning(false);
     }
+  }, [hasAgents, httpBase, snapshot]);
+
+  // Auto-play loop
+  useEffect(() => {
+    autoPlayRef.current = autoPlay;
+  }, [autoPlay]);
+
+  useEffect(() => {
+    if (!autoPlay || running || !hasAgents) return;
+    const timer = setTimeout(() => {
+      if (autoPlayRef.current) {
+        step(1);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [autoPlay, running, hasAgents, snapshot?.turn, step]);
+
+  function toggleAutoPlay() {
+    if (autoPlay) {
+      autoPlayRef.current = false;
+      setAutoPlay(false);
+    } else {
+      autoPlayRef.current = true;
+      setAutoPlay(true);
+    }
   }
 
   async function removeAgent(agentId: string) {
     await fetch(`${httpBase}/agents/${agentId}/remove`, { method: 'POST' });
     setPauseInfo(null);
-    // Auto-continue remaining turns after removing the failing agent
     const remaining = pendingTurns;
     if (remaining > 0) {
       setPendingTurns(0);
@@ -66,7 +96,6 @@ export default function Page() {
   async function resumeSimulation() {
     await fetch(`${httpBase}/simulation/resume`, { method: 'POST' });
     setPauseInfo(null);
-    // Auto-continue remaining turns after clearing errors
     const remaining = pendingTurns;
     if (remaining > 0) {
       setPendingTurns(0);
@@ -80,20 +109,28 @@ export default function Page() {
         <header className="px-4 py-3 bg-arena-panel border-b border-black/40 flex items-center gap-3">
           <h1 className="text-arena-accent text-sm tracking-widest">PROJECT DARWIN — TURN {snapshot?.turn ?? 0}</h1>
           <div className="flex-1" />
-          <button onClick={() => step(1)} disabled={running || !hasAgents} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
-            {running ? '...' : 'STEP 1'}
+          <button onClick={() => step(1)} disabled={running || !hasAgents || autoPlay} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
+            {running && !autoPlay ? '...' : 'STEP 1'}
           </button>
-          <button onClick={() => step(10)} disabled={running || !hasAgents} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
-            {running ? '...' : 'RUN 10'}
+          <button onClick={() => step(10)} disabled={running || !hasAgents || autoPlay} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
+            {running && !autoPlay ? '...' : 'RUN 10'}
           </button>
-          <button onClick={() => step(100)} disabled={running || !hasAgents} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
-            {running ? '...' : 'RUN 100'}
+          <button
+            onClick={toggleAutoPlay}
+            disabled={!hasAgents}
+            className={`px-3 py-1 text-xs font-bold ${
+              autoPlay
+                ? 'bg-red-500 text-white animate-pulse'
+                : 'bg-green-500 text-black'
+            } disabled:opacity-40`}
+          >
+            {autoPlay ? 'STOP' : 'AUTO'}
           </button>
           <button
             onClick={() => window.open(`${httpBase}/export/thoughts`, '_blank')}
             className="bg-white/10 text-white/80 hover:text-white px-3 py-1 text-xs border border-white/20"
           >
-            EXPORT LOG
+            EXPORT
           </button>
           <button
             onClick={() => setConfigOpen(true)}

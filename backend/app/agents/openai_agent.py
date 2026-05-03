@@ -41,7 +41,7 @@ class OpenAIAgent(BaseAgent):
         super().__init__(agent_id, model)
         from openai import AsyncOpenAI
 
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=30.0, max_retries=1)
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120.0, max_retries=0)
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent)
@@ -53,7 +53,7 @@ class OpenAIAgent(BaseAgent):
                 {"role": "user", "content": user},
             ],
             tools=_tools_for_openai(),
-            tool_choice="auto",
+            tool_choice="required",
         )
         choice = resp.choices[0]
         monologue = (choice.message.content or "").strip()
@@ -65,4 +65,8 @@ class OpenAIAgent(BaseAgent):
             arguments = json.loads(call.function.arguments or "{}")
         except json.JSONDecodeError:
             arguments = {}
+        # Extract reasoning from tool args if no text monologue was emitted
+        reasoning = arguments.pop("reasoning", "")
+        if not monologue and reasoning:
+            monologue = reasoning
         return AgentDecision(action=call.function.name, arguments=arguments, monologue=monologue)

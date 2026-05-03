@@ -2,6 +2,8 @@
 
 These are Pydantic models for validation and a JSON-schema export that the
 provider-specific agent clients pass to the LLM as the tool definition list.
+Every tool includes a `reasoning` field so the agent can explain its thinking
+even when tool_choice is forced (required/any).
 """
 from __future__ import annotations
 
@@ -9,51 +11,62 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+_REASON = "Your private reasoning for choosing this action (1-3 sentences)."
+
 
 class WorkArgs(BaseModel):
-    pass
+    reasoning: str = Field("", description=_REASON)
 
 
 class TradeArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     target: str = Field(..., description="agent_id of the trading partner")
     amount: float = Field(..., gt=0, description="dollars offered")
     item: Literal["information", "favor"] = Field(..., description="what is requested in return")
 
 
 class BetArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     amount: float = Field(..., gt=0)
     bet_type: Literal["pixel_horse", "coin_flip", "lottery"] = "coin_flip"
 
 
 class SocializeArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     target: str
     proposal_type: Literal["marriage", "alliance", "truce", "rivalry"]
 
 
 class SabotageArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     target: str
     cost: float = Field(default=1.00, ge=1.00, description="must be at least $1.00")
 
 
 class InvestArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     amount: float = Field(..., gt=0, description="dollars to invest; matures in 5 turns")
 
 
 class StealArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     target: str = Field(..., description="agent_id to steal from")
 
 
 class LendArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     target: str = Field(..., description="agent_id to lend to")
     amount: float = Field(..., gt=0, description="dollars to lend; repaid at 1.3x in 5 turns")
 
 
 class CharityArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     amount: float = Field(..., gt=0, description="dollars to donate")
     target: str | None = Field(None, description="specific agent_id, or omit for poorest alive agent")
 
 
 class ProposeDealArgs(BaseModel):
+    reasoning: str = Field("", description=_REASON)
     target: str = Field(..., description="agent_id to propose the deal to")
     offer: str = Field(..., description="what you offer, e.g. '$2 trade next turn'")
     ask: str = Field(..., description="what you want in return, e.g. 'alliance'")
