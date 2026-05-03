@@ -33,24 +33,24 @@ def _build_one(spec: dict) -> BaseAgent:
 
         return OpenAIAgent(agent_id=agent_id, model=settings.openai_model, api_key=settings.openai_api_key)
 
-    if provider == "fireworks_llama" and settings.fireworks_api_key:
+    if provider == "grok" and settings.grok_api_key:
         from app.agents.openai_agent import OpenAIAgent
 
         return OpenAIAgent(
             agent_id=agent_id,
-            model=settings.fireworks_llama_model,
-            api_key=settings.fireworks_api_key,
-            base_url="https://api.fireworks.ai/inference/v1",
+            model=settings.grok_model,
+            api_key=settings.grok_api_key,
+            base_url="https://api.x.ai/v1",
         )
 
-    if provider == "deepseek" and settings.deepseek_api_key:
+    if provider == "ollama":
         from app.agents.openai_agent import OpenAIAgent
 
         return OpenAIAgent(
             agent_id=agent_id,
-            model=settings.deepseek_model,
-            api_key=settings.deepseek_api_key,
-            base_url="https://api.deepseek.com/v1",
+            model=settings.ollama_model,
+            api_key="ollama",
+            base_url=settings.ollama_base_url + "/v1",
         )
 
     if provider == "google" and settings.google_api_key:

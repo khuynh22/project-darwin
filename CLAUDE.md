@@ -12,8 +12,8 @@ A multi-agent simulation observing emergent economic and social behavior between
                                                               │ build_agents()
                                           ┌───────────────────┼─────────────────┐
                                           ▼                   ▼                 ▼
-                                    Anthropic         OpenAI / Fireworks /     Google
-                                    (ATLAS)           DeepSeek                 (SAGE)
+                                    Anthropic         OpenAI / Ollama /        Google
+                                    (ATLAS)           Grok                     (SAGE)
                                                       (NOVA / HYDRA / CIPHER)
 ```
 
@@ -27,9 +27,9 @@ Defined in `backend/app/config.py::AGENT_ROSTER`. **Model IDs are env-overridabl
 |----------|---------|--------------------|------------------------|
 | atlas    | ATLAS   | anthropic          | cooperative diplomat   |
 | nova     | NOVA    | openai             | high-risk strategist   |
-| hydra    | HYDRA   | fireworks_llama    | wildcard               |
+| hydra    | HYDRA   | ollama             | wildcard               |
 | sage     | SAGE    | google             | survivalist            |
-| cipher   | CIPHER  | deepseek           | minimalist defender    |
+| cipher   | CIPHER  | grok               | minimalist defender    |
 
 ## Repo layout
 

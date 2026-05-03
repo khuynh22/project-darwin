@@ -30,14 +30,15 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     google_api_key: str = ""
-    fireworks_api_key: str = ""
-    deepseek_api_key: str = ""
+    grok_api_key: str = ""
 
     anthropic_model: str = "claude-opus-4-7"
     openai_model: str = "gpt-5"
     google_model: str = "gemini-2.5-pro"
-    fireworks_llama_model: str = "accounts/fireworks/models/llama-v4-maverick-instruct"
-    deepseek_model: str = "deepseek-chat"
+    grok_model: str = "grok-3"
+
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "gemma4"
 
     chroma_path: str = "./chroma"
 
@@ -66,7 +67,7 @@ AGENT_ROSTER: list[dict] = [
     {
         "agent_id": "hydra",
         "display_name": "HYDRA",
-        "provider": "fireworks_llama",
+        "provider": "ollama",
         "personality": "The Wildcard — unpredictable and adaptive. Switches strategies turn-to-turn, occasionally cooperative, occasionally chaotic. Hard to model.",
         "sprite": "trickster",
     },
@@ -80,7 +81,7 @@ AGENT_ROSTER: list[dict] = [
     {
         "agent_id": "cipher",
         "display_name": "CIPHER",
-        "provider": "deepseek",
+        "provider": "grok",
         "personality": "Efficiency-focused, minimalist, defensive. Avoids gambling and sabotage; works steadily; trades only when the math is favorable; rarely speaks.",
         "sprite": "cipher",
     },
