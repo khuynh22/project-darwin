@@ -46,6 +46,10 @@ services:
       GROK_MODEL: ${GROK_MODEL:-grok-3}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      ERROR_THRESHOLD: ${ERROR_THRESHOLD:-3}
+    volumes:
+      - darwin_logs:/app/thought_logs
     ports:
       - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -66,3 +70,4 @@ services:
 
 volumes:
   darwin_pg:
+  darwin_logs:

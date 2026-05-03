@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -29,13 +30,30 @@ class TurnResult:
     turn: int
     apex_declared: str | None
     eliminated: list[str]
+    paused: bool = False
+    pause_reason: str | None = None
+    pause_agent_id: str | None = None
 
 
-async def seed_roster(session: AsyncSession) -> None:
+def _is_permanent_error(exc: Exception) -> bool:
+    """Check if an exception represents a permanent provider failure (auth, not found)."""
+    exc_type = type(exc).__name__
+    permanent_types = ("AuthenticationError", "PermissionDenied", "NotFoundError")
+    if exc_type in permanent_types:
+        return True
+    msg = str(exc).lower()
+    for code in ("401", "403", "404", "invalid api key", "authentication", "permission denied"):
+        if code in msg:
+            return True
+    return False
+
+
+async def seed_roster(session: AsyncSession, roster: list[dict] | None = None) -> None:
     settings = get_settings()
+    specs = roster or AGENT_ROSTER
     existing = (await session.execute(select(Agent.agent_id))).scalars().all()
     have = set(existing)
-    for spec in AGENT_ROSTER:
+    for spec in specs:
         if spec["agent_id"] in have:
             continue
         session.add(
@@ -43,8 +61,8 @@ async def seed_roster(session: AsyncSession) -> None:
                 agent_id=spec["agent_id"],
                 display_name=spec["display_name"],
                 provider=spec["provider"],
-                personality=spec["personality"],
-                sprite=spec["sprite"],
+                personality=spec.get("personality", "Adaptive agent."),
+                sprite=spec.get("sprite", "robot"),
                 balance=settings.starting_capital,
                 alive=True,
                 allies=[],
@@ -122,11 +140,76 @@ def _apex_holder(agents: list[Agent], threshold: float) -> str | None:
     return None
 
 
+async def _process_deferred(session: AsyncSession, turn: int) -> None:
+    """Settle investments and loans that mature this turn."""
+    from app.models.deferred import DeferredAction
+
+    rows = (await session.execute(
+        select(DeferredAction).where(
+            DeferredAction.maturity_turn == turn,
+            DeferredAction.resolved.is_(False),
+        )
+    )).scalars().all()
+
+    for d in rows:
+        d.resolved = True
+        if d.kind == "investment":
+            actor = (await session.execute(
+                select(Agent).where(Agent.agent_id == d.actor_id)
+            )).scalar_one_or_none()
+            if actor is None or not actor.alive:
+                continue
+            success = random.random() < 0.70
+            if success:
+                ret = round(d.amount * random.uniform(1.2, 2.0), 2)
+                actor.balance = round(actor.balance + ret, 2)
+                session.add(Transaction(
+                    turn=turn, actor_id=d.actor_id, target_id=None, action="invest_return",
+                    delta=ret, payload={"original": d.amount, "return": ret},
+                    note=f"investment matured: +${ret:.2f}",
+                ))
+            else:
+                session.add(Transaction(
+                    turn=turn, actor_id=d.actor_id, target_id=None, action="invest_loss",
+                    delta=0.0, payload={"original": d.amount},
+                    note=f"investment failed: lost ${d.amount:.2f}",
+                ))
+
+        elif d.kind == "loan":
+            creditor = (await session.execute(
+                select(Agent).where(Agent.agent_id == d.actor_id)
+            )).scalar_one_or_none()
+            debtor = (await session.execute(
+                select(Agent).where(Agent.agent_id == d.target_id)
+            )).scalar_one_or_none()
+            repayment = d.payload.get("repayment", round(d.amount * 1.3, 2))
+            if debtor and debtor.alive and debtor.balance >= repayment:
+                debtor.balance = round(debtor.balance - repayment, 2)
+                if creditor and creditor.alive:
+                    creditor.balance = round(creditor.balance + repayment, 2)
+                session.add(Transaction(
+                    turn=turn, actor_id=d.target_id, target_id=d.actor_id, action="loan_repay",
+                    delta=-repayment, payload={"original": d.amount, "repayment": repayment},
+                    note=f"loan repaid: ${repayment:.2f} to {d.actor_id}",
+                ))
+            else:
+                # Debtor defaulted
+                session.add(Transaction(
+                    turn=turn, actor_id=d.actor_id, target_id=d.target_id, action="loan_default",
+                    delta=0.0, payload={"original": d.amount, "repayment": repayment},
+                    note=f"loan defaulted by {d.target_id}",
+                ))
+
+
 async def run_turn(
     session: AsyncSession, *, turn: int, agents: dict[str, BaseAgent]
 ) -> TurnResult:
     """Execute one full turn for every alive agent, then apply tax if cycle boundary."""
     settings = get_settings()
+
+    # Settle maturing investments and loans before agent decisions
+    await _process_deferred(session, turn)
+
     db_agents = (await session.execute(select(Agent))).scalars().all()
     state = await _world_state(session, turn)
 
@@ -144,10 +227,43 @@ async def run_turn(
         client = agents[db_agent.agent_id]
         try:
             decision = await client.decide(state, db_agent)
+            # Reset error counter on success
+            db_agent.consecutive_errors = 0
+            db_agent.last_error = None
         except Exception as exc:  # noqa: BLE001
             log.error("Agent %s decide() failed: %s", db_agent.agent_id, exc)
-            decision = AgentDecision(action="work", arguments={},
-                                     monologue=f"(API error -- falling back to work: {exc!s:.120})")
+            db_agent.consecutive_errors += 1
+            db_agent.last_error = str(exc)[:512]
+            permanent = _is_permanent_error(exc)
+
+            if permanent or db_agent.consecutive_errors >= settings.error_threshold:
+                reason = (
+                    f"permanent error: {exc!s:.200}" if permanent
+                    else f"{db_agent.consecutive_errors} consecutive failures: {exc!s:.200}"
+                )
+                session.add(
+                    ThoughtLog(
+                        turn=turn, agent_id=db_agent.agent_id,
+                        monologue=f"(Provider failure -- simulation paused: {reason})",
+                        action="skip", arguments={}, outcome="paused",
+                    )
+                )
+                session.add(WorldEvent(turn=turn, kind="provider_failure", payload={
+                    "agent_id": db_agent.agent_id, "error": str(exc)[:200],
+                    "consecutive_errors": db_agent.consecutive_errors, "permanent": permanent,
+                }))
+                await session.commit()
+                return TurnResult(
+                    turn=turn, apex_declared=None, eliminated=[],
+                    paused=True, pause_reason=reason, pause_agent_id=db_agent.agent_id,
+                )
+
+            # Under threshold: fall back to work but log the warning
+            decision = AgentDecision(
+                action="work", arguments={},
+                monologue=f"(API error #{db_agent.consecutive_errors} -- falling back to work: {exc!s:.120})",
+            )
+
         outcome = await _apply_decision(session, turn=turn, agent=db_agent, decision=decision)
         session.add(
             ThoughtLog(
@@ -159,6 +275,15 @@ async def run_turn(
                 outcome=outcome,
             )
         )
+        # Stream to JSONL file if exporter is active
+        from app.thought_export import get_exporter  # local import avoids cycle
+        exporter = get_exporter()
+        if exporter is not None:
+            exporter.append(
+                turn=turn, agent_id=db_agent.agent_id,
+                monologue=decision.monologue, action=decision.action,
+                arguments=decision.arguments, outcome=outcome,
+            )
 
     eliminated: list[str] = []
     if turn > 0 and turn % settings.tax_interval_turns == 0:
@@ -195,6 +320,9 @@ async def start_simulation(
             result = await run_turn(session, turn=turn, agents=agents)
         if on_turn:
             await on_turn(result)
+        if result.paused:
+            log.warning("Simulation PAUSED at turn %d: %s", turn, result.pause_reason)
+            break
         if result.apex_declared:
             log.info("APEX declared: %s at turn %d", result.apex_declared, turn)
             break

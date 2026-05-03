@@ -21,11 +21,12 @@ def _tools_for_anthropic() -> list[dict]:
 class AnthropicAgent(BaseAgent):
     provider = "anthropic"
 
-    def __init__(self, agent_id: str, model: str) -> None:
+    def __init__(self, agent_id: str, model: str, api_key: str | None = None) -> None:
         super().__init__(agent_id, model)
         from anthropic import AsyncAnthropic
 
-        self.client = AsyncAnthropic(api_key=get_settings().anthropic_api_key)
+        key = api_key or get_settings().anthropic_api_key
+        self.client = AsyncAnthropic(api_key=key)
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent)

@@ -30,6 +30,10 @@ class Agent(Base):
     allies: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     enemies: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
+    # Error tracking for provider failures
+    consecutive_errors: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
     # Position on the pixel map (set by frontend or default)
     pos_x: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pos_y: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

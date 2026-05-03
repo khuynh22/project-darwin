@@ -23,8 +23,47 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 
 async def init_db() -> None:
-    # Import models so SQLAlchemy registers them on Base.metadata before create_all.
-    from app.models import agent, ledger  # noqa: F401
+    """Create tables (additive) and backfill any missing columns on existing tables.
+
+    ``create_all`` never ALTERs existing tables, so new columns on old tables
+    must be added explicitly.  We keep a simple list of ``(table, column, type)``
+    tuples here instead of pulling in Alembic for what is still a research tool.
+    """
+    import logging
+
+    from sqlalchemy import inspect, text
+
+    from app.models import agent, api_key, deferred, ledger  # noqa: F401
+
+    log = logging.getLogger(__name__)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # --- Backfill missing columns on pre-existing tables ---------------------
+    _MIGRATIONS: list[tuple[str, str, str, str]] = [
+        # (table, column, pg_type, default)
+        ("agents", "consecutive_errors", "INTEGER", "0"),
+        ("agents", "last_error", "VARCHAR(512)", "NULL"),
+    ]
+
+    async with engine.begin() as conn:
+        # Get existing column names per table
+        def _get_columns(sync_conn):  # type: ignore[no-untyped-def]
+            insp = inspect(sync_conn)
+            result = {}
+            for tbl, col, _, _ in _MIGRATIONS:
+                if tbl not in result:
+                    try:
+                        result[tbl] = {c["name"] for c in insp.get_columns(tbl)}
+                    except Exception:  # noqa: BLE001
+                        result[tbl] = set()
+            return result
+
+        existing = await conn.run_sync(_get_columns)
+
+        for tbl, col, pg_type, default in _MIGRATIONS:
+            if col not in existing.get(tbl, set()):
+                stmt = f'ALTER TABLE {tbl} ADD COLUMN {col} {pg_type} DEFAULT {default}'
+                log.info("Backfilling column: %s", stmt)
+                await conn.execute(text(stmt))

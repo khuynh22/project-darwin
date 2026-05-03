@@ -8,19 +8,22 @@ from app.models.agent import Agent
 
 # Per-personality bias for choosing actions when stubbing.
 PERSONALITY_BIAS = {
-    "atlas": {"work": 3, "trade": 3, "socialize": 3, "bet": 0, "sabotage": 0},
-    "nova": {"work": 1, "trade": 2, "bet": 4, "sabotage": 2, "socialize": 1},
-    "hydra": {"work": 2, "trade": 2, "bet": 2, "sabotage": 2, "socialize": 2},
-    "sage": {"work": 5, "trade": 2, "bet": 0, "socialize": 2, "sabotage": 0},
-    "cipher": {"work": 6, "trade": 2, "bet": 0, "socialize": 1, "sabotage": 0},
+    "atlas": {"work": 3, "trade": 3, "socialize": 3, "bet": 0, "sabotage": 0, "invest": 2, "steal": 0, "lend": 3, "charity": 3, "propose_deal": 2},
+    "nova": {"work": 1, "trade": 2, "bet": 4, "sabotage": 2, "socialize": 1, "invest": 3, "steal": 2, "lend": 0, "charity": 0, "propose_deal": 2},
+    "hydra": {"work": 2, "trade": 2, "bet": 2, "sabotage": 2, "socialize": 2, "invest": 1, "steal": 2, "lend": 1, "charity": 1, "propose_deal": 2},
+    "sage": {"work": 5, "trade": 2, "bet": 0, "socialize": 2, "sabotage": 0, "invest": 3, "steal": 0, "lend": 2, "charity": 1, "propose_deal": 1},
+    "cipher": {"work": 6, "trade": 2, "bet": 0, "socialize": 1, "sabotage": 0, "invest": 2, "steal": 0, "lend": 1, "charity": 0, "propose_deal": 0},
 }
+
+# Default bias for dynamically-created agents
+DEFAULT_BIAS = {"work": 3, "trade": 2, "bet": 1, "socialize": 2, "sabotage": 1, "invest": 2, "steal": 1, "lend": 1, "charity": 1, "propose_deal": 1}
 
 
 class StubAgent(BaseAgent):
     provider = "stub"
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
-        bias = PERSONALITY_BIAS.get(agent.agent_id, {"work": 1})
+        bias = PERSONALITY_BIAS.get(agent.agent_id, DEFAULT_BIAS)
         choices: list[str] = []
         for action, weight in bias.items():
             choices.extend([action] * max(0, weight))
@@ -29,11 +32,11 @@ class StubAgent(BaseAgent):
         # Avoid actions we can't actually afford.
         if action in {"bet", "sabotage"} and agent.balance < 1.0:
             action = "work"
-        if action == "trade" and agent.balance < 0.50:
+        if action in {"trade", "invest", "lend", "charity"} and agent.balance < 0.50:
             action = "work"
 
         others = [a for a in state["agents"] if a["agent_id"] != agent.agent_id and a["alive"]]
-        if not others and action in {"trade", "socialize", "sabotage"}:
+        if not others and action in {"trade", "socialize", "sabotage", "steal", "lend", "charity", "propose_deal"}:
             action = "work"
 
         if action == "work":
@@ -73,7 +76,45 @@ class StubAgent(BaseAgent):
             return AgentDecision(
                 "sabotage",
                 {"target": target, "cost": 1.00},
-                monologue=f"({agent.display_name}) {target} is a threat — slowing them down.",
+                monologue=f"({agent.display_name}) {target} is a threat -- slowing them down.",
+            )
+
+        if action == "invest":
+            amount = round(min(2.00, max(0.10, agent.balance / 5)), 2)
+            return AgentDecision(
+                "invest",
+                {"amount": amount},
+                monologue=f"({agent.display_name}) Investing ${amount:.2f} for future returns.",
+            )
+
+        if action == "steal":
+            return AgentDecision(
+                "steal",
+                {"target": target},
+                monologue=f"({agent.display_name}) Attempting to take from {target}.",
+            )
+
+        if action == "lend":
+            amount = round(min(1.00, max(0.10, agent.balance / 6)), 2)
+            return AgentDecision(
+                "lend",
+                {"target": target, "amount": amount},
+                monologue=f"({agent.display_name}) Lending ${amount:.2f} to {target} for future repayment.",
+            )
+
+        if action == "charity":
+            amount = round(min(0.50, max(0.10, agent.balance / 8)), 2)
+            return AgentDecision(
+                "charity",
+                {"amount": amount, "target": target},
+                monologue=f"({agent.display_name}) Helping {target} with a donation.",
+            )
+
+        if action == "propose_deal":
+            return AgentDecision(
+                "propose_deal",
+                {"target": target, "offer": "$0.50 trade", "ask": "alliance"},
+                monologue=f"({agent.display_name}) Proposing a deal to {target}.",
             )
 
         return AgentDecision("work", {}, monologue="(fallback) work.")

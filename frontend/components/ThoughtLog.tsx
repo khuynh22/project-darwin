@@ -2,6 +2,15 @@
 
 import type { WorldSnapshot } from '@/lib/ws';
 
+const ANTISOCIAL_ACTIONS = new Set(['steal', 'sabotage']);
+const PROSOCIAL_ACTIONS = new Set(['charity', 'lend']);
+
+function actionColor(action: string): string {
+  if (ANTISOCIAL_ACTIONS.has(action)) return 'text-red-400';
+  if (PROSOCIAL_ACTIONS.has(action)) return 'text-green-400';
+  return 'text-white/40';
+}
+
 export default function ThoughtLog({ snapshot }: { snapshot: WorldSnapshot | null }) {
   const thoughts = snapshot?.recent_thoughts ?? [];
   return (
@@ -12,7 +21,7 @@ export default function ThoughtLog({ snapshot }: { snapshot: WorldSnapshot | nul
           <li key={i} className="font-mono">
             <span className="text-arena-accent">[T{t.turn} {t.agent_id}]</span>{' '}
             <span className="text-white/80">{t.monologue}</span>
-            <span className="text-white/40">  → {t.action}({JSON.stringify(t.arguments)}) :: {t.outcome}</span>
+            <span className={actionColor(t.action)}>  -&gt; {t.action}({JSON.stringify(t.arguments)}) :: {t.outcome}</span>
           </li>
         ))}
       </ul>

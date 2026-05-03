@@ -20,11 +20,13 @@ NEXT_PUBLIC_ORACLE_WS=wss://my-oracle.example.com/ws
 
 ## Where things live
 
-- **`app/page.tsx`** — Single-page client component. Owns the WS connection and the snapshot state. Passes snapshot down to `<Sidebar>`, `<ThoughtLog>`, and `<Arena>` as props.
-- **`components/Arena.tsx`** — Thin React wrapper. Mounts the Phaser game once, then forwards snapshot updates to the scene.
-- **`components/Sidebar.tsx`, `ThoughtLog.tsx`** — Pure presentational components reading from snapshot props.
-- **`lib/ws.ts`** — `connectOracle(onSnapshot)` — opens WS, auto-reconnects on close, also pulls initial state via REST. **All shared TS types live here** (`AgentSnap`, `WorldSnapshot`, etc.).
-- **`lib/phaser/scene.ts`** — Phaser scene as a module-level singleton. Lives outside React. `ensureGame(parent)` is idempotent; `syncSnapshot(snap)` is called from React effects.
+- **`app/page.tsx`** -- Single-page client component. Owns the WS connection, snapshot state, pause state, and config modal state. Passes snapshot down to children as props.
+- **`components/Arena.tsx`** -- Thin React wrapper. Mounts the Phaser game once, then forwards snapshot updates to the scene.
+- **`components/Sidebar.tsx`** -- Agent cards with balance, social state, and error badges.
+- **`components/ThoughtLog.tsx`** -- Color-coded action log (red for antisocial, green for prosocial).
+- **`components/ConfigPanel.tsx`** -- Modal for configuring 3-10 agents: provider, model, API key, personality, sprite. POSTs to `/configure`.
+- **`lib/ws.ts`** -- `connectOracle(onSnapshot, onPaused?)` -- opens WS, auto-reconnects, handles `simulation_paused` events. **All shared TS types live here** (`AgentSnap`, `WorldSnapshot`, `PausedEvent`).
+- **`lib/phaser/scene.ts`** -- Phaser scene with 6 venues, composed-primitive sprites (head + body + eyes), tween movement animations, and married-agent positioning.
 
 ## React ↔ Phaser bridge
 
@@ -42,16 +44,25 @@ The two systems have **incompatible lifecycles** — React re-renders on every s
 - **Every file with state, effects, or browser globals must start with `'use client';`** — Next.js App Router defaults to server components, which break Phaser and `WebSocket`.
 - **Phaser is dynamically imported.** `<Arena>` is loaded with `dynamic(..., { ssr: false })` from `app/page.tsx`. Don't import `phaser` at the top of any component file — it touches `window` and crashes SSR.
 - **Snapshot is the single source of truth.** Components compute everything from `snapshot.agents` / `snapshot.recent_thoughts`. Don't cache derived state across renders.
-- **Sprite styling lives in `scene.ts`.** `SPRITE_COLORS` (by sprite kind) and `POS_GRID` (by agent_id) are the two knobs. New agent → add an entry in both.
-- **WS reconnects automatically.** Don't add custom retry logic in components — `connectOracle` already handles it with a 1.5s backoff.
+- **Agent positioning is action-driven.** `ACTION_VENUE` in `scene.ts` maps actions to venues; `VENUES` defines venue coordinates. There is no `POS_GRID` -- agent positions are computed from their latest action.
+- **`SPRITE_COLORS`** maps sprite kind to hex color. New sprite kinds (from dynamic roster) fall back to white. To add a new sprite, add an entry to `SPRITE_COLORS` and to `SPRITE_OPTIONS` in `backend/app/main.py`.
+- **WS reconnects automatically.** Don't add custom retry logic in components -- `connectOracle` already handles it with a 1.5s backoff.
+- **`connectOracle` accepts an optional `onPaused` callback** for handling `simulation_paused` WS events (provider errors).
 
 ## Adding a new component
 
 If it reads snapshot:
 1. Take `snapshot: WorldSnapshot | null` as a prop (don't subscribe to WS yourself)
-2. Mark it `'use client';` only if it has state or effects — pure renderers can stay server components, but in this app everything is client because of WS
+2. Mark it `'use client';` only if it has state or effects -- pure renderers can stay server components, but in this app everything is client because of WS
 
-If it triggers an Oracle action: use `fetch(\`${process.env.NEXT_PUBLIC_ORACLE_HTTP}/...\`)`. Don't add an API client abstraction — the surface is small enough.
+If it triggers an Oracle action: use `fetch(\`${process.env.NEXT_PUBLIC_ORACLE_HTTP}/...\`)`. Don't add an API client abstraction -- the surface is small enough.
+
+## Adding a new action (frontend side)
+
+When a new action is added in the backend:
+1. **`lib/phaser/scene.ts::ACTION_VENUE`** -- map the action name to a venue key (workplace, bank, casino, marketplace, lounge, alley)
+2. **`components/ThoughtLog.tsx`** -- optionally add it to `ANTISOCIAL_ACTIONS` or `PROSOCIAL_ACTIONS` for color coding
+3. No type changes needed -- actions flow through as generic strings in `ThoughtSnap.action`
 
 ## Styling
 

@@ -22,7 +22,7 @@ WORLD RULES:
 - You start with $10. The survival tax of $0.50 is deducted from every alive agent every 10 turns.
 - Bankruptcy at $0 eliminates you permanently.
 - Goal: survive 500 turns OR hold >=90% of all wealth.
-- Each turn you must choose ONE tool call: work, trade, bet, socialize, or sabotage.
+- Each turn you must choose ONE tool call from the actions below.
 
 TOOL SUMMARY:
 - work(): low-risk labor, +$0.10 to +$0.50.
@@ -30,6 +30,11 @@ TOOL SUMMARY:
 - bet(amount, bet_type): coin_flip (50/50, 1x), pixel_horse (20%, 4x), lottery (5%, 18x).
 - socialize(target, proposal_type): marriage (pools both balances), alliance, truce, or rivalry.
 - sabotage(target, cost): pay >=$1 to make target skip their next turn (creates an enemy).
+- invest(amount): invest money for a deferred return. 70% chance of 1.2-2x profit in 5 turns; 30% total loss.
+- steal(target): attempt to steal up to 50% of target's balance. 60% success rate; failure costs $1 penalty. Creates enemies.
+- lend(target, amount): lend money to another agent. Oracle enforces 1.3x repayment in 5 turns. If debtor goes bankrupt, you lose.
+- charity(amount, target?): donate to a specific agent or the poorest alive agent. Builds an alliance with the recipient.
+- propose_deal(target, offer, ask): propose a custom deal to another agent. No immediate economic effect -- the target sees your offer next turn.
 
 OUTPUT CONTRACT: Always emit a private monologue describing your reasoning, then call exactly one tool. Be strategic and stay in character.
 """

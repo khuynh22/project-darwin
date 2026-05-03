@@ -47,11 +47,12 @@ def _tools_for_google() -> list:
 class GoogleAgent(BaseAgent):
     provider = "google"
 
-    def __init__(self, agent_id: str, model: str) -> None:
+    def __init__(self, agent_id: str, model: str, api_key: str | None = None) -> None:
         super().__init__(agent_id, model)
         from google import genai
 
-        self.client = genai.Client(api_key=get_settings().google_api_key)
+        key = api_key or get_settings().google_api_key
+        self.client = genai.Client(api_key=key)
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent)

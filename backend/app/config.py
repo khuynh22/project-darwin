@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     stub_mode: bool = True
 
+    error_threshold: int = 3
+
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     google_api_key: str = ""
@@ -41,6 +43,10 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma4"
 
     chroma_path: str = "./chroma"
+
+    encryption_key: str = ""
+    min_agents: int = 3
+    max_agents: int = 10
 
 
 @lru_cache(maxsize=1)

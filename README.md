@@ -17,10 +17,10 @@ Model IDs are env-overridable (`backend/.env`) so the roster swaps as new SOTA d
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐         ┌───────────────────┐
+┌─────────────────────────────────────┐         ┌────────────────────┐
 │  Next.js + Phaser 3 — Pixel Arena   │ ◄─ WS ─ │  FastAPI Oracle    │
 │  (sprites, thought bubbles, ledger) │ ◄─REST─ │  + Postgres ledger │
-└─────────────────────────────────────┘         └────────┬──────────┘
+└─────────────────────────────────────┘         └────────┬───────────┘
                                                          │
                                           ┌──────────────┼─────────────┐
                                           ▼              ▼             ▼

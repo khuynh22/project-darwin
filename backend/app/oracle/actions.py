@@ -212,10 +212,175 @@ async def do_sabotage(
     return ActionResult(True, f"sabotaged {target}", delta=-cost)
 
 
+async def do_invest(session: AsyncSession, *, turn: int, actor_id: str, amount: float) -> ActionResult:
+    from app.models.deferred import DeferredAction
+
+    actor = await _get_agent(session, actor_id)
+    if actor is None or not actor.alive:
+        return ActionResult(False, "actor not alive")
+    if actor.balance < amount:
+        return ActionResult(False, "insufficient funds for investment")
+
+    actor.balance = round(actor.balance - amount, 2)
+    maturity = turn + 5
+    session.add(DeferredAction(
+        kind="investment", actor_id=actor_id, target_id=None,
+        amount=amount, created_turn=turn, maturity_turn=maturity, payload={},
+    ))
+    await _record(
+        session, turn=turn, actor_id=actor_id, target_id=None, action="invest",
+        delta=-amount, payload={"amount": amount, "maturity_turn": maturity},
+        note=f"invested ${amount:.2f}, matures turn {maturity}",
+    )
+    return ActionResult(True, f"invested ${amount:.2f}, matures turn {maturity}", delta=-amount)
+
+
+async def do_steal(session: AsyncSession, *, turn: int, actor_id: str, target: str) -> ActionResult:
+    actor = await _get_agent(session, actor_id)
+    other = await _get_agent(session, target)
+    if actor is None or other is None or not actor.alive or not other.alive:
+        return ActionResult(False, "steal target invalid")
+
+    success = random.random() < 0.60
+    if success:
+        stolen = round(other.balance * 0.5 * random.uniform(0.3, 1.0), 2)
+        stolen = max(stolen, 0.01)
+        other.balance = round(other.balance - stolen, 2)
+        actor.balance = round(actor.balance + stolen, 2)
+        await _record(
+            session, turn=turn, actor_id=actor_id, target_id=target, action="steal",
+            delta=stolen, payload={"stolen": stolen}, note=f"stole ${stolen:.2f} from {target}",
+        )
+        await _record(
+            session, turn=turn, actor_id=target, target_id=actor_id, action="stolen_from",
+            delta=-stolen, payload={"stolen": stolen}, note=f"${stolen:.2f} stolen by {actor_id}",
+        )
+    else:
+        penalty = min(1.00, actor.balance)
+        actor.balance = round(actor.balance - penalty, 2)
+        await _record(
+            session, turn=turn, actor_id=actor_id, target_id=target, action="steal_failed",
+            delta=-penalty, payload={}, note=f"steal attempt failed, lost ${penalty:.2f} penalty",
+        )
+
+    # Both become enemies regardless
+    if target not in actor.enemies:
+        actor.enemies = [*actor.enemies, target]
+    if actor_id not in other.enemies:
+        other.enemies = [*other.enemies, actor_id]
+
+    if success:
+        return ActionResult(True, f"stole ${stolen:.2f} from {target}", delta=stolen)
+    return ActionResult(False, f"steal attempt on {target} failed, paid $1 penalty", delta=-penalty)
+
+
+async def do_lend(
+    session: AsyncSession, *, turn: int, actor_id: str, target: str, amount: float
+) -> ActionResult:
+    from app.models.deferred import DeferredAction
+
+    actor = await _get_agent(session, actor_id)
+    other = await _get_agent(session, target)
+    if actor is None or other is None or not actor.alive or not other.alive:
+        return ActionResult(False, "lend target invalid")
+    if actor.balance < amount:
+        return ActionResult(False, "insufficient funds to lend")
+
+    actor.balance = round(actor.balance - amount, 2)
+    other.balance = round(other.balance + amount, 2)
+    maturity = turn + 5
+    repayment = round(amount * 1.3, 2)
+    session.add(DeferredAction(
+        kind="loan", actor_id=actor_id, target_id=target,
+        amount=amount, created_turn=turn, maturity_turn=maturity,
+        payload={"repayment": repayment},
+    ))
+    await _record(
+        session, turn=turn, actor_id=actor_id, target_id=target, action="lend",
+        delta=-amount, payload={"amount": amount, "repayment": repayment, "maturity_turn": maturity},
+        note=f"lent ${amount:.2f} to {target}, repayment ${repayment:.2f} at turn {maturity}",
+    )
+    await _record(
+        session, turn=turn, actor_id=target, target_id=actor_id, action="borrow",
+        delta=amount, payload={"amount": amount, "repayment": repayment, "maturity_turn": maturity},
+        note=f"borrowed ${amount:.2f} from {actor_id}",
+    )
+    return ActionResult(True, f"lent ${amount:.2f} to {target}", delta=-amount)
+
+
+async def do_charity(
+    session: AsyncSession, *, turn: int, actor_id: str, amount: float, target: str | None = None
+) -> ActionResult:
+    actor = await _get_agent(session, actor_id)
+    if actor is None or not actor.alive:
+        return ActionResult(False, "actor not alive")
+    if actor.balance < amount:
+        return ActionResult(False, "insufficient funds for charity")
+
+    if target:
+        recipient = await _get_agent(session, target)
+    else:
+        # Find poorest alive agent (not self)
+        rows = (await session.execute(
+            select(Agent).where(Agent.alive.is_(True), Agent.agent_id != actor_id).order_by(Agent.balance)
+        )).scalars().all()
+        recipient = rows[0] if rows else None
+
+    if recipient is None or not recipient.alive:
+        return ActionResult(False, "no valid charity recipient")
+
+    actor.balance = round(actor.balance - amount, 2)
+    recipient.balance = round(recipient.balance + amount, 2)
+
+    # Build alliance
+    rid = recipient.agent_id
+    if rid not in actor.allies:
+        actor.allies = [*actor.allies, rid]
+    if actor_id not in recipient.allies:
+        recipient.allies = [*recipient.allies, actor_id]
+
+    await _record(
+        session, turn=turn, actor_id=actor_id, target_id=rid, action="charity",
+        delta=-amount, payload={"amount": amount},
+        note=f"donated ${amount:.2f} to {rid}",
+    )
+    await _record(
+        session, turn=turn, actor_id=rid, target_id=actor_id, action="charity_recv",
+        delta=amount, payload={"amount": amount},
+        note=f"received ${amount:.2f} charity from {actor_id}",
+    )
+    return ActionResult(True, f"donated ${amount:.2f} to {rid}", delta=-amount)
+
+
+async def do_propose_deal(
+    session: AsyncSession, *, turn: int, actor_id: str, target: str, offer: str, ask: str
+) -> ActionResult:
+    actor = await _get_agent(session, actor_id)
+    other = await _get_agent(session, target)
+    if actor is None or other is None or not actor.alive or not other.alive:
+        return ActionResult(False, "deal target invalid")
+
+    session.add(WorldEvent(
+        turn=turn, kind="deal_proposed",
+        payload={"from": actor_id, "to": target, "offer": offer, "ask": ask},
+    ))
+    await _record(
+        session, turn=turn, actor_id=actor_id, target_id=target, action="propose_deal",
+        delta=0.0, payload={"offer": offer, "ask": ask},
+        note=f"proposed deal to {target}: offer={offer}, ask={ask}",
+    )
+    return ActionResult(True, f"deal proposed to {target}")
+
+
 ACTION_TABLE = {
     "work": do_work,
     "trade": do_trade,
     "bet": do_bet,
     "socialize": do_socialize,
     "sabotage": do_sabotage,
+    "invest": do_invest,
+    "steal": do_steal,
+    "lend": do_lend,
+    "charity": do_charity,
+    "propose_deal": do_propose_deal,
 }

@@ -10,6 +10,8 @@ export type AgentSnap = {
   sprite: string;
   pos_x: number;
   pos_y: number;
+  consecutive_errors: number;
+  last_error: string | null;
 };
 
 export type ThoughtSnap = {
@@ -27,8 +29,17 @@ export type WorldSnapshot = {
   recent_thoughts: ThoughtSnap[];
 };
 
+export type PausedEvent = {
+  event: "simulation_paused";
+  turn: number;
+  agent_id: string;
+  reason: string;
+  snapshot: WorldSnapshot;
+};
+
 export function connectOracle(
   onSnapshot: (snap: WorldSnapshot) => void,
+  onPaused?: (evt: PausedEvent) => void,
 ): () => void {
   const httpBase =
     process.env.NEXT_PUBLIC_ORACLE_HTTP || "http://localhost:8000";
@@ -49,6 +60,9 @@ export function connectOracle(
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
+        if (msg.event === "simulation_paused" && onPaused) {
+          onPaused(msg as PausedEvent);
+        }
         if (msg.snapshot) onSnapshot(msg.snapshot as WorldSnapshot);
       } catch {
         /* ignore malformed frame */
