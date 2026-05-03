@@ -2,16 +2,16 @@
 
 import type { WorldSnapshot, AgentSnap, ThoughtSnap } from "@/lib/ws";
 
-// We import Phaser dynamically so SSR doesn't choke on `window`.
 let Phaser: typeof import("phaser") | null = null;
 let game: Phaser.Game | null = null;
 let scene: ArenaScene | null = null;
 
+// ── Agent colors by sprite kind ──────────────────────────────────────────────
 const SPRITE_COLORS: Record<string, number> = {
-  scholar: 0x7df9ff,
+  scholar: 0x5bc0eb,
   robot: 0xff6b6b,
   trickster: 0xc77dff,
-  monk: 0xfff36b,
+  monk: 0xfde74c,
   cipher: 0x6bff95,
   knight: 0xff9f43,
   rogue: 0xe74c3c,
@@ -20,70 +20,87 @@ const SPRITE_COLORS: Record<string, number> = {
   ranger: 0x1abc9c,
 };
 
-// --- Venue definitions ---
+// ── Venue definitions ────────────────────────────────────────────────────────
 type VenueDef = {
   x: number;
   y: number;
   w: number;
   h: number;
-  color: number;
-  border: number;
+  fill: number;
+  roof: number;
+  accent: number;
+  icon: string;
   label: string;
 };
 
+const W = 780;
+const H = 560;
+
 const VENUES: Record<string, VenueDef> = {
   workplace: {
-    x: 110,
-    y: 110,
-    w: 150,
-    h: 90,
-    color: 0x1e2d4a,
-    border: 0x7df9ff,
-    label: "WORKPLACE",
+    x: 80,
+    y: 100,
+    w: 160,
+    h: 100,
+    fill: 0x1c2e4a,
+    roof: 0x2a4a7a,
+    accent: 0x5bc0eb,
+    icon: "\u{1F3ED}",
+    label: "FACTORY",
   },
   bank: {
-    x: 360,
-    y: 80,
-    w: 130,
-    h: 75,
-    color: 0x2a2080,
-    border: 0x7df9ff,
+    x: 310,
+    y: 70,
+    w: 150,
+    h: 90,
+    fill: 0x1a1860,
+    roof: 0x3030a0,
+    accent: 0xfde74c,
+    icon: "\u{1F3E6}",
     label: "BANK",
   },
   casino: {
-    x: 610,
-    y: 110,
-    w: 140,
-    h: 90,
-    color: 0x5c1a2a,
-    border: 0xfff36b,
+    x: 560,
+    y: 90,
+    w: 160,
+    h: 100,
+    fill: 0x4a1028,
+    roof: 0x8a2040,
+    accent: 0xff4757,
+    icon: "\u{1F3B0}",
     label: "CASINO",
   },
   marketplace: {
-    x: 160,
+    x: 100,
     y: 340,
-    w: 170,
-    h: 95,
-    color: 0x1a3a2a,
-    border: 0x6bff95,
+    w: 180,
+    h: 100,
+    fill: 0x1a3a28,
+    roof: 0x2a6a3a,
+    accent: 0x2ecc71,
+    icon: "\u{1F3EA}",
     label: "MARKET",
   },
   lounge: {
-    x: 440,
-    y: 380,
+    x: 400,
+    y: 370,
     w: 160,
-    h: 90,
-    color: 0x2a1a3a,
-    border: 0xc77dff,
+    h: 95,
+    fill: 0x2a1a3a,
+    roof: 0x4a2a6a,
+    accent: 0xc77dff,
+    icon: "\u{1F37B}",
     label: "LOUNGE",
   },
   alley: {
-    x: 630,
-    y: 430,
+    x: 640,
+    y: 400,
     w: 120,
-    h: 80,
-    color: 0x1a0a0a,
-    border: 0xff4444,
+    h: 85,
+    fill: 0x1a0a0a,
+    roof: 0x2a1515,
+    accent: 0xff4444,
+    icon: "\u{1F5E1}",
     label: "ALLEY",
   },
 };
@@ -102,20 +119,18 @@ const ACTION_VENUE: Record<string, string> = {
   skip: "workplace",
 };
 
+// ── Agent visual state ───────────────────────────────────────────────────────
 type AgentVisual = {
   container: any;
-  body: any;
-  head: any;
-  eyeL: any;
-  eyeR: any;
   label: any;
   bubble: any;
 };
 
+// ── The Arena Scene ──────────────────────────────────────────────────────────
 class ArenaScene {
   private sceneRef: any = null;
   private agents: Record<string, AgentVisual> = {};
-  private venueGlow: Record<string, any> = {};
+  private knownAgentIds: Set<string> = new Set();
 
   get ready() {
     return this.sceneRef !== null;
@@ -123,69 +138,225 @@ class ArenaScene {
 
   attach(s: any) {
     this.sceneRef = s;
-    this.drawTown();
+    this.drawWorld();
   }
 
-  private drawTown() {
+  /** Remove all agent sprites -- called on reconfigure */
+  clearAgents() {
+    for (const [id, vis] of Object.entries(this.agents)) {
+      vis.container?.destroy();
+      vis.label?.destroy();
+      if (vis.bubble) vis.bubble.destroy();
+    }
+    this.agents = {};
+    this.knownAgentIds.clear();
+  }
+
+  // ── World drawing ────────────────────────────────────────────────────────
+  private drawWorld() {
     const s = this.sceneRef;
-    // Background
-    s.add.rectangle(360, 280, 720, 560, 0x0f0f1a);
+    const g = s.add.graphics();
 
-    // Draw venues
-    for (const [key, v] of Object.entries(VENUES)) {
-      // Venue background with rounded corners (approximated with rectangle)
-      const rect = s.add
-        .rectangle(v.x, v.y, v.w, v.h, v.color)
-        .setStrokeStyle(1.5, v.border)
-        .setAlpha(0.7);
-      this.venueGlow[key] = rect;
+    // Sky gradient (dark blue to darker)
+    g.fillStyle(0x0a0a1e, 1);
+    g.fillRect(0, 0, W, H);
 
-      // Venue label
-      s.add
-        .text(v.x - v.w / 2 + 8, v.y - v.h / 2 + 4, v.label, {
-          fontSize: "10px",
-          color: "#" + v.border.toString(16).padStart(6, "0"),
-          fontStyle: "bold",
-        })
-        .setAlpha(0.8);
+    // Stars
+    for (let i = 0; i < 60; i++) {
+      const sx = Math.random() * W;
+      const sy = Math.random() * H * 0.5;
+      const brightness = Math.random() * 0.5 + 0.2;
+      g.fillStyle(0xffffff, brightness);
+      g.fillCircle(sx, sy, Math.random() * 1.2 + 0.3);
     }
 
-    // Subtle connecting paths between venues (decorative)
-    const g = s.add.graphics();
-    g.lineStyle(1, 0xffffff, 0.05);
-    const venueKeys = Object.keys(VENUES);
-    for (let i = 0; i < venueKeys.length; i++) {
-      for (let j = i + 1; j < venueKeys.length; j++) {
-        const a = VENUES[venueKeys[i]];
-        const b = VENUES[venueKeys[j]];
-        g.lineBetween(a.x, a.y, b.x, b.y);
+    // Ground
+    g.fillStyle(0x151520, 1);
+    g.fillRect(0, H * 0.45, W, H * 0.55);
+
+    // Ground grid lines (subtle)
+    g.lineStyle(1, 0xffffff, 0.03);
+    for (let y = H * 0.45; y < H; y += 30) {
+      g.lineBetween(0, y, W, y);
+    }
+
+    // Paths between venues (dirt roads)
+    g.lineStyle(3, 0x2a2a3a, 0.4);
+    const vk = Object.keys(VENUES);
+    for (let i = 0; i < vk.length; i++) {
+      for (let j = i + 1; j < vk.length; j++) {
+        const a = VENUES[vk[i]];
+        const b = VENUES[vk[j]];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (dist < 350) {
+          g.lineBetween(a.x, a.y + a.h / 2, b.x, b.y + b.h / 2);
+        }
       }
     }
+
+    // Draw venue buildings
+    for (const v of Object.values(VENUES)) {
+      this.drawBuilding(s, v);
+    }
   }
 
-  private createAgentSprite(x: number, y: number, color: number): any {
+  private drawBuilding(s: any, v: VenueDef) {
+    const g = s.add.graphics();
+    const left = v.x - v.w / 2;
+    const top = v.y - v.h / 2;
+
+    // Shadow
+    g.fillStyle(0x000000, 0.3);
+    g.fillRect(left + 4, top + 4, v.w, v.h);
+
+    // Main building body
+    g.fillStyle(v.fill, 1);
+    g.fillRect(left, top, v.w, v.h);
+
+    // Roof (triangle)
+    g.fillStyle(v.roof, 1);
+    g.fillTriangle(
+      left - 8,
+      top,
+      v.x,
+      top - 25,
+      left + v.w + 8,
+      top,
+    );
+
+    // Roof accent line
+    g.lineStyle(2, v.accent, 0.8);
+    g.lineBetween(left - 8, top, v.x, top - 25);
+    g.lineBetween(v.x, top - 25, left + v.w + 8, top);
+
+    // Windows (grid of small lit squares)
+    const cols = Math.floor(v.w / 28);
+    const rows = Math.floor(v.h / 28);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const wx = left + 14 + c * 28;
+        const wy = top + 14 + r * 28;
+        const lit = Math.random() > 0.3;
+        g.fillStyle(lit ? 0xfff9c4 : 0x1a1a2e, lit ? 0.6 : 0.3);
+        g.fillRect(wx, wy, 12, 12);
+        g.lineStyle(1, 0x000000, 0.4);
+        g.strokeRect(wx, wy, 12, 12);
+      }
+    }
+
+    // Door
+    g.fillStyle(v.accent, 0.3);
+    g.fillRect(v.x - 8, top + v.h - 20, 16, 20);
+    g.lineStyle(1, v.accent, 0.6);
+    g.strokeRect(v.x - 8, top + v.h - 20, 16, 20);
+
+    // Building outline
+    g.lineStyle(1.5, v.accent, 0.5);
+    g.strokeRect(left, top, v.w, v.h);
+
+    // Label with glow effect
+    const label = s.add.text(v.x, top - 32, v.label, {
+      fontSize: "11px",
+      color: "#" + v.accent.toString(16).padStart(6, "0"),
+      fontStyle: "bold",
+      align: "center",
+    });
+    label.setOrigin(0.5, 0.5);
+    label.setAlpha(0.9);
+
+    // Icon above label
+    const icon = s.add.text(v.x, top - 46, v.icon, {
+      fontSize: "14px",
+    });
+    icon.setOrigin(0.5, 0.5);
+  }
+
+  // ── Agent sprites ────────────────────────────────────────────────────────
+
+  private createAgentSprite(
+    x: number,
+    y: number,
+    color: number,
+    name: string,
+  ): any {
     const s = this.sceneRef;
     const container = s.add.container(x, y);
 
-    // Body (rectangle with slight depth effect)
-    const body = s.add
-      .rectangle(0, 2, 14, 18, color)
-      .setStrokeStyle(1, 0x000000);
+    // Feet
+    const footL = s.add.ellipse(-4, 14, 6, 4, 0x222222);
+    const footR = s.add.ellipse(4, 14, 6, 4, 0x222222);
 
-    // Head (circle)
-    const head = s.add.circle(0, -10, 6, color).setStrokeStyle(1, 0x000000);
+    // Body (rounded rectangle via ellipse)
+    const body = s.add.ellipse(0, 2, 18, 22, color);
+    body.setStrokeStyle(1.5, this.darken(color, 0.4));
+
+    // Head
+    const head = s.add.circle(0, -12, 8, color);
+    head.setStrokeStyle(1.5, this.darken(color, 0.4));
+
+    // Face highlight
+    const highlight = s.add.ellipse(2, -14, 4, 3, 0xffffff);
+    highlight.setAlpha(0.2);
 
     // Eyes
-    const eyeL = s.add.circle(-2, -11, 1.2, 0xffffff);
-    const eyeR = s.add.circle(2, -11, 1.2, 0xffffff);
+    const eyeL = s.add.circle(-3, -13, 2.5, 0xffffff);
+    const eyeR = s.add.circle(3, -13, 2.5, 0xffffff);
+    const pupilL = s.add.circle(-2.5, -13, 1.2, 0x111111);
+    const pupilR = s.add.circle(3.5, -13, 1.2, 0x111111);
 
-    // Pupils
-    const pupilL = s.add.circle(-2, -11, 0.5, 0x000000);
-    const pupilR = s.add.circle(2, -11, 0.5, 0x000000);
+    // Mouth (small smile)
+    const mouth = s.add.graphics();
+    mouth.lineStyle(1, 0x333333, 0.6);
+    mouth.beginPath();
+    mouth.arc(0, -8, 3, 0.2, Math.PI - 0.2, false);
+    mouth.strokePath();
 
-    container.add([body, head, eyeL, eyeR, pupilL, pupilR]);
-    return { container, body, head, eyeL, eyeR };
+    // Arms
+    const armL = s.add.ellipse(-12, 2, 5, 12, this.darken(color, 0.15));
+    const armR = s.add.ellipse(12, 2, 5, 12, this.darken(color, 0.15));
+
+    // Name tag background
+    const nameTag = s.add.graphics();
+    nameTag.fillStyle(0x000000, 0.6);
+    nameTag.fillRoundedRect(-22, 18, 44, 12, 3);
+
+    // Name text
+    const nameText = s.add.text(0, 24, name, {
+      fontSize: "7px",
+      color: "#ffffff",
+      fontStyle: "bold",
+      align: "center",
+    });
+    nameText.setOrigin(0.5, 0.5);
+
+    container.add([
+      footL,
+      footR,
+      armL,
+      armR,
+      body,
+      head,
+      highlight,
+      eyeL,
+      eyeR,
+      pupilL,
+      pupilR,
+      mouth,
+      nameTag,
+      nameText,
+    ]);
+    container.setSize(40, 50);
+    return container;
   }
+
+  private darken(color: number, factor: number): number {
+    const r = Math.floor(((color >> 16) & 0xff) * (1 - factor));
+    const g = Math.floor(((color >> 8) & 0xff) * (1 - factor));
+    const b = Math.floor((color & 0xff) * (1 - factor));
+    return (r << 16) | (g << 8) | b;
+  }
+
+  // ── Venue position computation ───────────────────────────────────────────
 
   private getVenuePosition(
     venueName: string,
@@ -194,18 +365,19 @@ class ArenaScene {
     spouse?: string | null,
   ): [number, number] {
     const venue = VENUES[venueName] || VENUES.workplace;
-    // Spread agents horizontally within the venue
-    const spread = Math.min(28, (venue.w - 30) / Math.max(totalAtVenue, 1));
+    const maxSpread = venue.w - 50;
+    const spread = Math.min(32, maxSpread / Math.max(totalAtVenue, 1));
     const startX = venue.x - ((totalAtVenue - 1) * spread) / 2;
     let x = startX + index * spread;
-    const y = venue.y + 8; // slightly below venue center
+    const y = venue.y + venue.h / 2 - 10;
 
-    // Married agents get pulled closer together
     if (spouse) {
-      x += index % 2 === 0 ? -5 : 5;
+      x += index % 2 === 0 ? -4 : 4;
     }
     return [x, y];
   }
+
+  // ── Upsert agent ─────────────────────────────────────────────────────────
 
   upsertSprite(
     agent: AgentSnap,
@@ -215,34 +387,45 @@ class ArenaScene {
   ) {
     if (!this.sceneRef) return;
     const s = this.sceneRef;
-    const color = SPRITE_COLORS[agent.sprite] || 0xffffff;
+    const color = SPRITE_COLORS[agent.sprite] || 0xaaaaaa;
     let vis = this.agents[agent.agent_id];
+    this.knownAgentIds.add(agent.agent_id);
 
     if (!vis) {
-      // Initial position at venue center
       const venue = VENUES[targetVenue] || VENUES.workplace;
-      const parts = this.createAgentSprite(venue.x, venue.y, color);
-      const label = s.add.text(venue.x - 20, venue.y + 18, agent.display_name, {
+      const container = this.createAgentSprite(
+        venue.x,
+        venue.y,
+        color,
+        agent.display_name,
+      );
+
+      // Balance label (separate from container for independent positioning)
+      const label = s.add.text(venue.x, venue.y + 36, "", {
         fontSize: "8px",
-        color: "#ffffff",
+        color: "#7df9ff",
         fontStyle: "bold",
+        align: "center",
+        backgroundColor: "#00000088",
+        padding: { x: 3, y: 1 },
       });
-      vis = { ...parts, label, bubble: null };
+      label.setOrigin(0.5, 0);
+
+      vis = { container, label, bubble: null };
       this.agents[agent.agent_id] = vis;
     }
 
     if (!agent.alive) {
-      vis.container.setAlpha(0.15);
-      vis.label.setAlpha(0.15);
-      vis.label.setText(`${agent.display_name} DEAD`);
+      vis.container.setAlpha(0.12);
+      vis.label.setAlpha(0.12);
+      vis.label.setText("DEAD");
       return;
     }
 
     vis.container.setAlpha(1);
     vis.label.setAlpha(1);
-    vis.label.setText(`${agent.display_name} $${agent.balance.toFixed(2)}`);
+    vis.label.setText(`$${agent.balance.toFixed(2)}`);
 
-    // Animate movement to target venue position
     const [tx, ty] = this.getVenuePosition(
       targetVenue,
       venueIndex,
@@ -250,37 +433,40 @@ class ArenaScene {
       agent.spouse,
     );
 
-    // Kill existing tweens to prevent stacking
+    // Kill existing tweens
     s.tweens.killTweensOf(vis.container);
     s.tweens.killTweensOf(vis.label);
 
+    // Movement
     s.tweens.add({
       targets: vis.container,
       x: tx,
       y: ty,
-      duration: 600,
+      duration: 650,
       ease: "Quad.easeInOut",
     });
 
     s.tweens.add({
       targets: vis.label,
-      x: tx - 20,
-      y: ty + 18,
-      duration: 600,
+      x: tx,
+      y: ty + 36,
+      duration: 650,
       ease: "Quad.easeInOut",
     });
 
-    // Subtle bobbing idle animation
+    // Idle bobbing (starts after movement completes)
     s.tweens.add({
       targets: vis.container,
       y: ty - 2,
-      duration: 1200,
+      duration: 1500 + Math.random() * 500,
       ease: "Sine.easeInOut",
       yoyo: true,
       repeat: -1,
-      delay: 700, // wait for movement to finish
+      delay: 700,
     });
   }
+
+  // ── Thought bubbles ──────────────────────────────────────────────────────
 
   showThought(agentId: string, text: string) {
     if (!this.sceneRef) return;
@@ -288,29 +474,43 @@ class ArenaScene {
     const vis = this.agents[agentId];
     if (!vis) return;
     if (vis.bubble) vis.bubble.destroy();
-    const bubble = s.add.text(
-      vis.container.x + 10,
-      vis.container.y - 30,
-      text.slice(0, 50),
-      {
-        fontSize: "8px",
-        color: "#000000",
-        backgroundColor: "#ffffffcc",
-        padding: { x: 3, y: 2 },
-        wordWrap: { width: 140 },
-      },
+
+    const container = s.add.container(
+      vis.container.x + 15,
+      vis.container.y - 35,
     );
-    vis.bubble = bubble;
-    // Fade out the bubble
+
+    // Bubble background
+    const bg = s.add.graphics();
+    const trimmed = text.slice(0, 45);
+    const bw = Math.min(150, trimmed.length * 5 + 16);
+    bg.fillStyle(0xffffff, 0.92);
+    bg.fillRoundedRect(-4, -4, bw, 18, 4);
+    // Tail triangle
+    bg.fillTriangle(-2, 14, 4, 18, 8, 14);
+
+    const txt = s.add.text(0, 0, trimmed, {
+      fontSize: "7px",
+      color: "#111111",
+      wordWrap: { width: 140 },
+    });
+
+    container.add([bg, txt]);
+    vis.bubble = container;
+
     s.tweens.add({
-      targets: bubble,
+      targets: container,
       alpha: 0,
-      duration: 800,
-      delay: 1800,
-      onComplete: () => bubble.destroy(),
+      y: container.y - 8,
+      duration: 600,
+      delay: 2200,
+      ease: "Quad.easeIn",
+      onComplete: () => container.destroy(),
     });
   }
 }
+
+// ── Public API ──────────────────────────────────────────────────────────────
 
 export function ensureGame(parent: HTMLElement): any {
   if (game) return game;
@@ -323,9 +523,9 @@ export function ensureGame(parent: HTMLElement): any {
     const config: any = {
       type: (Phaser as any).AUTO,
       parent,
-      width: 720,
-      height: 560,
-      backgroundColor: "#0f0f1a",
+      width: W,
+      height: H,
+      backgroundColor: "#0a0a1e",
       pixelArt: true,
       scene: {
         create() {
@@ -341,10 +541,23 @@ export function ensureGame(parent: HTMLElement): any {
   }
 }
 
+/** Track the set of agent IDs from the last snapshot to detect roster changes */
+let _lastRosterKey = "";
+
 export function syncSnapshot(snapshot: WorldSnapshot) {
   if (!scene || !scene.ready) return;
   try {
-    // Build a map of agentId -> latest action from recent_thoughts
+    // Detect roster change: if the set of agent_ids changed, clear old sprites
+    const currentIds = snapshot.agents
+      .map((a) => a.agent_id)
+      .sort()
+      .join(",");
+    if (_lastRosterKey && _lastRosterKey !== currentIds) {
+      scene.clearAgents();
+    }
+    _lastRosterKey = currentIds;
+
+    // Build action map from recent thoughts
     const latestAction = new Map<string, string>();
     const latestThought = new Map<string, ThoughtSnap>();
     for (const t of snapshot.recent_thoughts) {
@@ -354,7 +567,7 @@ export function syncSnapshot(snapshot: WorldSnapshot) {
       }
     }
 
-    // Group alive agents by their target venue
+    // Group alive agents by venue
     const venueAgents: Record<string, AgentSnap[]> = {};
     for (const agent of snapshot.agents) {
       if (!agent.alive) continue;
@@ -364,13 +577,15 @@ export function syncSnapshot(snapshot: WorldSnapshot) {
       venueAgents[venue].push(agent);
     }
 
-    // Place married agents at the same venue
+    // Married agent venue tracking
     const spouseVenue = new Map<string, string>();
     for (const agent of snapshot.agents) {
       if (agent.alive && agent.spouse) {
         const myAction = latestAction.get(agent.agent_id) || "work";
-        const myVenue = ACTION_VENUE[myAction] || "workplace";
-        spouseVenue.set(agent.agent_id, myVenue);
+        spouseVenue.set(
+          agent.agent_id,
+          ACTION_VENUE[myAction] || "workplace",
+        );
       }
     }
 
@@ -380,7 +595,6 @@ export function syncSnapshot(snapshot: WorldSnapshot) {
       if (!agent.alive) {
         targetVenue = "workplace";
       } else if (agent.spouse && spouseVenue.has(agent.spouse)) {
-        // Follow spouse if married (use first alphabetically as "anchor")
         const myVenue =
           ACTION_VENUE[latestAction.get(agent.agent_id) || "work"] ||
           "workplace";
@@ -403,7 +617,7 @@ export function syncSnapshot(snapshot: WorldSnapshot) {
       );
     }
 
-    // Pop thought bubbles for latest action of each agent
+    // Thought bubbles
     latestThought.forEach((t, agentId) =>
       scene!.showThought(agentId, t.monologue || t.action),
     );

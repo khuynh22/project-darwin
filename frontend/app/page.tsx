@@ -13,6 +13,7 @@ export default function Page() {
   const [snapshot, setSnapshot] = useState<WorldSnapshot | null>(null);
   const [pauseInfo, setPauseInfo] = useState<PausedEvent | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     const close = connectOracle(
@@ -25,10 +26,16 @@ export default function Page() {
   const httpBase = process.env.NEXT_PUBLIC_ORACLE_HTTP || 'http://localhost:8000';
 
   async function step(turns = 1) {
-    const res = await fetch(`${httpBase}/run?turns=${turns}`, { method: 'POST' });
-    const data = await res.json();
-    if (data.paused) {
-      setPauseInfo({ event: 'simulation_paused', turn: data.final_turn ?? data.turn, agent_id: data.agent_id, reason: data.reason, snapshot: snapshot! });
+    if (running) return;
+    setRunning(true);
+    try {
+      const res = await fetch(`${httpBase}/run?turns=${turns}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.paused) {
+        setPauseInfo({ event: 'simulation_paused', turn: data.final_turn ?? data.turn, agent_id: data.agent_id, reason: data.reason, snapshot: snapshot! });
+      }
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -48,14 +55,14 @@ export default function Page() {
         <header className="px-4 py-3 bg-arena-panel border-b border-black/40 flex items-center gap-3">
           <h1 className="text-arena-accent text-sm tracking-widest">PROJECT DARWIN — TURN {snapshot?.turn ?? 0}</h1>
           <div className="flex-1" />
-          <button onClick={() => step(1)} className="bg-arena-accent text-black px-3 py-1 text-xs">
-            STEP 1
+          <button onClick={() => step(1)} disabled={running} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
+            {running ? '...' : 'STEP 1'}
           </button>
-          <button onClick={() => step(10)} className="bg-arena-accent text-black px-3 py-1 text-xs">
-            RUN 10
+          <button onClick={() => step(10)} disabled={running} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
+            {running ? '...' : 'RUN 10'}
           </button>
-          <button onClick={() => step(100)} className="bg-arena-accent text-black px-3 py-1 text-xs">
-            RUN 100
+          <button onClick={() => step(100)} disabled={running} className="bg-arena-accent text-black px-3 py-1 text-xs disabled:opacity-40">
+            {running ? '...' : 'RUN 100'}
           </button>
           <button
             onClick={() => window.open(`${httpBase}/export/thoughts`, '_blank')}

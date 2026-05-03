@@ -120,12 +120,23 @@ async def configure_simulation(body: dict) -> dict:
         agent_id = a.get("agent_id", "").lower().replace(" ", "_")
         if not agent_id:
             return {"error": "Each agent needs an agent_id"}
+        # Auto-generate personality if empty/missing
+        personality = (a.get("personality") or "").strip()
+        if not personality:
+            _auto_personalities = [
+                "Adaptive strategist who reads the room and adjusts tactics each turn.",
+                "Cautious optimizer who minimizes risk and builds steady wealth.",
+                "Bold opportunist who takes big swings and exploits market gaps.",
+                "Social connector who builds alliances and leverages relationships.",
+                "Calculating survivalist who hoards resources and strikes when advantageous.",
+            ]
+            personality = _auto_personalities[len(roster) % len(_auto_personalities)]
         spec = {
             "agent_id": agent_id,
             "display_name": a.get("display_name", agent_id.upper()),
             "provider": a.get("provider", "stub"),
             "model": a.get("model", ""),
-            "personality": a.get("personality", "Adaptive agent."),
+            "personality": personality,
             "sprite": a.get("sprite", "robot"),
         }
         # Resolve API key: either inline or from stored key
