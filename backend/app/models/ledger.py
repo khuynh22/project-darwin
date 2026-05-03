@@ -25,7 +25,9 @@ class Transaction(Base):
     delta: Mapped[float] = mapped_column(Float, nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     note: Mapped[str] = mapped_column(String(512), nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
 
 
 class ThoughtLog(Base):
@@ -37,10 +39,15 @@ class ThoughtLog(Base):
     turn: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     agent_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     monologue: Mapped[str] = mapped_column(String(8192), nullable=False, default="")
+    public_message: Mapped[str] = mapped_column(
+        String(1024), nullable=False, default="", server_default=""
+    )
     action: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     arguments: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     outcome: Mapped[str] = mapped_column(String(2048), nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
 
 
 class WorldEvent(Base):
@@ -52,4 +59,6 @@ class WorldEvent(Base):
     turn: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )

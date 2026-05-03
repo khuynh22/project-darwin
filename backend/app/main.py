@@ -24,6 +24,7 @@ logging.basicConfig(level=logging.INFO)
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
     from app.thought_export import start_export, stop_export
+
     await init_db()
 
     # Restore session if agents already exist in the DB (e.g. after backend restart)
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
         if existing:
             # Rebuild roster from DB + stored API keys
             from app.models.api_key import get_key
+
             roster: list[dict] = []
             for a in existing:
                 spec: dict = {
@@ -43,9 +45,17 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
                     "sprite": a.sprite,
                 }
                 # Find the latest stored key for this provider
-                keys = (await session.execute(
-                    select(ApiKeyStore).where(ApiKeyStore.provider == a.provider).order_by(ApiKeyStore.id.desc())
-                )).scalars().first()
+                keys = (
+                    (
+                        await session.execute(
+                            select(ApiKeyStore)
+                            .where(ApiKeyStore.provider == a.provider)
+                            .order_by(ApiKeyStore.id.desc())
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
                 if keys:
                     raw = await get_key(session, keys.id)
                     if raw:
@@ -54,9 +64,11 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
             _active_roster = roster
 
             # Restore turn counter from the latest thought log
-            latest = (await session.execute(
-                select(ThoughtLog.turn).order_by(ThoughtLog.id.desc()).limit(1)
-            )).scalar()
+            latest = (
+                await session.execute(
+                    select(ThoughtLog.turn).order_by(ThoughtLog.id.desc()).limit(1)
+                )
+            ).scalar()
             _current_turn = latest or 0
             start_export()
             log.info("Restored session: %d agents, turn %d", len(roster), _current_turn)
@@ -95,17 +107,29 @@ PROVIDER_DEFAULTS = [
     {"name": "stub", "default_model": "stub", "requires_key": False},
 ]
 
-SPRITE_OPTIONS = ["scholar", "robot", "trickster", "monk", "cipher", "knight", "rogue", "healer", "mage", "ranger"]
+COLOR_OPTIONS = [
+    "red",
+    "blue",
+    "green",
+    "purple",
+    "orange",
+    "cyan",
+    "pink",
+    "yellow",
+    "teal",
+    "indigo",
+]
 
 
 @app.get("/providers")
 async def providers() -> dict:
-    return {"providers": PROVIDER_DEFAULTS, "sprites": SPRITE_OPTIONS}
+    return {"providers": PROVIDER_DEFAULTS, "colors": COLOR_OPTIONS}
 
 
 @app.post("/api-keys")
 async def create_api_key(body: dict) -> dict:
     from app.models.api_key import store_key
+
     provider = body.get("provider", "")
     label = body.get("label", provider)
     raw_key = body.get("key", "")
@@ -120,6 +144,7 @@ async def create_api_key(body: dict) -> dict:
 @app.get("/api-keys")
 async def get_api_keys() -> dict:
     from app.models.api_key import list_keys
+
     async with SessionLocal() as session:
         keys = await list_keys(session)
     return {"keys": keys}
@@ -128,6 +153,7 @@ async def get_api_keys() -> dict:
 @app.delete("/api-keys/{key_id}")
 async def remove_api_key(key_id: int) -> dict:
     from app.models.api_key import delete_key
+
     async with SessionLocal() as session:
         ok = await delete_key(session, key_id)
         await session.commit()
@@ -146,7 +172,9 @@ async def configure_simulation(body: dict) -> dict:
     agents_list = body.get("agents", [])
     settings = get_settings()
     if not (settings.min_agents <= len(agents_list) <= settings.max_agents):
-        return {"error": f"Need {settings.min_agents}-{settings.max_agents} agents, got {len(agents_list)}"}
+        return {
+            "error": f"Need {settings.min_agents}-{settings.max_agents} agents, got {len(agents_list)}"
+        }
 
     # Validate + resolve API keys
     roster: list[dict] = []
@@ -192,6 +220,7 @@ async def configure_simulation(body: dict) -> dict:
 
     # Reset DB tables and re-seed
     from app.db import Base, engine
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -215,8 +244,14 @@ async def state() -> dict:
     async with SessionLocal() as session:
         agents = (await session.execute(select(Agent))).scalars().all()
         recent = (
-            await session.execute(select(ThoughtLog).order_by(desc(ThoughtLog.id)).limit(20))
-        ).scalars().all()
+            (
+                await session.execute(
+                    select(ThoughtLog).order_by(desc(ThoughtLog.id)).limit(20)
+                )
+            )
+            .scalars()
+            .all()
+        )
     return {
         "turn": _current_turn,
         "agents": [
@@ -234,6 +269,11 @@ async def state() -> dict:
                 "pos_y": a.pos_y,
                 "consecutive_errors": a.consecutive_errors,
                 "last_error": a.last_error,
+                "trust_score": a.trust_score,
+                "steal_count": a.steal_count,
+                "inventory": a.inventory or {},
+                "rest_bonus": a.rest_bonus,
+                "will_target": a.will_target,
             }
             for a in agents
         ],
@@ -242,6 +282,7 @@ async def state() -> dict:
                 "turn": t.turn,
                 "agent_id": t.agent_id,
                 "monologue": t.monologue,
+                "public_message": t.public_message or "",
                 "action": t.action,
                 "arguments": t.arguments,
                 "outcome": t.outcome,
@@ -255,8 +296,14 @@ async def state() -> dict:
 async def ledger(limit: int = 100) -> dict:
     async with SessionLocal() as session:
         rows = (
-            await session.execute(select(Transaction).order_by(desc(Transaction.id)).limit(limit))
-        ).scalars().all()
+            (
+                await session.execute(
+                    select(Transaction).order_by(desc(Transaction.id)).limit(limit)
+                )
+            )
+            .scalars()
+            .all()
+        )
     return {
         "transactions": [
             {
@@ -277,9 +324,17 @@ async def ledger(limit: int = 100) -> dict:
 async def events(limit: int = 50) -> dict:
     async with SessionLocal() as session:
         rows = (
-            await session.execute(select(WorldEvent).order_by(desc(WorldEvent.id)).limit(limit))
-        ).scalars().all()
-    return {"events": [{"turn": e.turn, "kind": e.kind, "payload": e.payload} for e in rows]}
+            (
+                await session.execute(
+                    select(WorldEvent).order_by(desc(WorldEvent.id)).limit(limit)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return {
+        "events": [{"turn": e.turn, "kind": e.kind, "payload": e.payload} for e in rows]
+    }
 
 
 @app.post("/turn")
@@ -295,15 +350,48 @@ async def step_turn() -> dict:
             result = await run_turn(session, turn=_current_turn, agents=agents)
         snapshot = await state()
         if result.paused:
-            await broadcaster.broadcast({
-                "event": "simulation_paused", "turn": _current_turn,
-                "agent_id": result.pause_agent_id, "reason": result.pause_reason,
-                "snapshot": snapshot,
-            })
-            return {"turn": result.turn, "paused": True,
-                    "agent_id": result.pause_agent_id, "reason": result.pause_reason}
-        await broadcaster.broadcast({"event": "turn", "turn": _current_turn, "snapshot": snapshot})
-    return {"turn": result.turn, "apex": result.apex_declared, "eliminated": result.eliminated}
+            await broadcaster.broadcast(
+                {
+                    "event": "simulation_paused",
+                    "turn": _current_turn,
+                    "agent_id": result.pause_agent_id,
+                    "reason": result.pause_reason,
+                    "snapshot": snapshot,
+                }
+            )
+            return {
+                "turn": result.turn,
+                "paused": True,
+                "agent_id": result.pause_agent_id,
+                "reason": result.pause_reason,
+            }
+        await broadcaster.broadcast(
+            {"event": "turn", "turn": _current_turn, "snapshot": snapshot}
+        )
+    return {
+        "turn": result.turn,
+        "apex": result.apex_declared,
+        "eliminated": result.eliminated,
+    }
+
+
+@app.post("/reset")
+async def reset_simulation() -> dict:
+    """Drop all data and return to a clean state. User must reconfigure."""
+    from app.thought_export import stop_export
+
+    global _current_turn, _active_roster
+    from app.db import Base, engine
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    _current_turn = 0
+    _active_roster = None
+    stop_export()
+    snapshot = await state()
+    await broadcaster.broadcast({"event": "snapshot", "snapshot": snapshot})
+    return {"reset": True}
 
 
 @app.post("/run")
@@ -324,14 +412,26 @@ async def run_many(turns: int = 10) -> dict:
                 result = await run_turn(session, turn=_current_turn, agents=agents)
             snapshot = await state()
             if result.paused:
-                await broadcaster.broadcast({
-                    "event": "simulation_paused", "turn": _current_turn,
-                    "agent_id": result.pause_agent_id, "reason": result.pause_reason,
-                    "snapshot": snapshot,
-                })
-                return {"final_turn": _current_turn, "apex": None, "eliminated": eliminated,
-                        "paused": True, "agent_id": result.pause_agent_id, "reason": result.pause_reason}
-            await broadcaster.broadcast({"event": "turn", "turn": _current_turn, "snapshot": snapshot})
+                await broadcaster.broadcast(
+                    {
+                        "event": "simulation_paused",
+                        "turn": _current_turn,
+                        "agent_id": result.pause_agent_id,
+                        "reason": result.pause_reason,
+                        "snapshot": snapshot,
+                    }
+                )
+                return {
+                    "final_turn": _current_turn,
+                    "apex": None,
+                    "eliminated": eliminated,
+                    "paused": True,
+                    "agent_id": result.pause_agent_id,
+                    "reason": result.pause_reason,
+                }
+            await broadcaster.broadcast(
+                {"event": "turn", "turn": _current_turn, "snapshot": snapshot}
+            )
             eliminated.extend(result.eliminated)
             if result.apex_declared:
                 apex = result.apex_declared
@@ -343,6 +443,7 @@ async def run_many(turns: int = 10) -> dict:
 async def export_thoughts() -> FileResponse:
     """Download the current thought log as JSONL."""
     from app.thought_export import get_exporter
+
     exporter = get_exporter()
     if exporter is None or not exporter.filepath.exists():
         return FileResponse(path="/dev/null", status_code=404)
@@ -357,6 +458,7 @@ async def export_thoughts() -> FileResponse:
 async def export_thoughts_latest(lines: int = 50) -> dict:
     """Return the last N thought entries from the current log."""
     from app.thought_export import get_exporter
+
     exporter = get_exporter()
     if exporter is None:
         return {"entries": []}
@@ -374,13 +476,18 @@ async def remove_agent(agent_id: str) -> dict:
         agent.eliminated_at_turn = _current_turn
         agent.consecutive_errors = 0
         agent.last_error = None
-        session.add(WorldEvent(
-            turn=_current_turn, kind="provider_failure",
-            payload={"agent_id": agent_id, "removed_by_user": True},
-        ))
+        session.add(
+            WorldEvent(
+                turn=_current_turn,
+                kind="provider_failure",
+                payload={"agent_id": agent_id, "removed_by_user": True},
+            )
+        )
         await session.commit()
     snapshot = await state()
-    await broadcaster.broadcast({"event": "turn", "turn": _current_turn, "snapshot": snapshot})
+    await broadcaster.broadcast(
+        {"event": "turn", "turn": _current_turn, "snapshot": snapshot}
+    )
     return {"removed": agent_id, "turn": _current_turn}
 
 
@@ -388,7 +495,11 @@ async def remove_agent(agent_id: str) -> dict:
 async def resume_simulation() -> dict:
     """Clear error counters for all agents so the simulation can resume."""
     async with SessionLocal() as session:
-        agents = (await session.execute(select(Agent).where(Agent.alive.is_(True)))).scalars().all()
+        agents = (
+            (await session.execute(select(Agent).where(Agent.alive.is_(True))))
+            .scalars()
+            .all()
+        )
         for a in agents:
             a.consecutive_errors = 0
             a.last_error = None

@@ -8,16 +8,23 @@ let scene: ArenaScene | null = null;
 
 // ── Agent colors by sprite kind ──────────────────────────────────────────────
 const SPRITE_COLORS: Record<string, number> = {
+  // Color names matching backend COLOR_OPTIONS
+  red: 0xef4444,
+  blue: 0x3b82f6,
+  green: 0x22c55e,
+  purple: 0xa855f7,
+  orange: 0xf97316,
+  cyan: 0x06b6d4,
+  pink: 0xec4899,
+  yellow: 0xeab308,
+  teal: 0x14b8a6,
+  indigo: 0x6366f1,
+  // Legacy names for backward compat
   scholar: 0x5bc0eb,
   robot: 0xff6b6b,
   trickster: 0xc77dff,
   monk: 0xfde74c,
   cipher: 0x6bff95,
-  knight: 0xff9f43,
-  rogue: 0xe74c3c,
-  healer: 0x2ecc71,
-  mage: 0x9b59b6,
-  ranger: 0x1abc9c,
 };
 
 // ── Venue definitions ────────────────────────────────────────────────────────
@@ -117,6 +124,16 @@ const ACTION_VENUE: Record<string, string> = {
   charity: "marketplace",
   propose_deal: "lounge",
   skip: "workplace",
+  slander: "alley",
+  vouch: "lounge",
+  gift: "marketplace",
+  bluff: "lounge",
+  extort: "alley",
+  strike: "workplace",
+  rest: "lounge",
+  will: "bank",
+  gaslight: "alley",
+  bribe: "marketplace",
 };
 
 // ── Agent visual state ───────────────────────────────────────────────────────

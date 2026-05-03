@@ -45,6 +45,16 @@ async def init_db() -> None:
         # (table, column, pg_type, default)
         ("agents", "consecutive_errors", "INTEGER", "0"),
         ("agents", "last_error", "VARCHAR(512)", "NULL"),
+        ("agents", "trust_score", "FLOAT", "50.0"),
+        ("agents", "steal_count", "INTEGER", "0"),
+        ("agents", "share_balance", "BOOLEAN", "TRUE"),
+        ("agents", "inventory", "JSON", "'{}'"),
+        ("agents", "rest_bonus", "BOOLEAN", "FALSE"),
+        ("agents", "will_target", "VARCHAR(64)", "NULL"),
+        ("agents", "extortion_pending", "JSON", "NULL"),
+        ("agents", "bribe_pending", "JSON", "NULL"),
+        ("agents", "marriage_pending", "VARCHAR(64)", "NULL"),
+        ("thoughts", "public_message", "VARCHAR(1024)", "''"),
     ]
 
     async with engine.begin() as conn:
@@ -64,6 +74,6 @@ async def init_db() -> None:
 
         for tbl, col, pg_type, default in _MIGRATIONS:
             if col not in existing.get(tbl, set()):
-                stmt = f'ALTER TABLE {tbl} ADD COLUMN {col} {pg_type} DEFAULT {default}'
+                stmt = f"ALTER TABLE {tbl} ADD COLUMN {col} {pg_type} DEFAULT {default}"
                 log.info("Backfilling column: %s", stmt)
                 await conn.execute(text(stmt))

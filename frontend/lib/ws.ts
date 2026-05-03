@@ -12,12 +12,18 @@ export type AgentSnap = {
   pos_y: number;
   consecutive_errors: number;
   last_error: string | null;
+  trust_score: number;
+  steal_count: number;
+  inventory: Record<string, number>;
+  rest_bonus: boolean;
+  will_target: string | null;
 };
 
 export type ThoughtSnap = {
   turn: number;
   agent_id: string;
   monologue: string;
+  public_message: string;
   action: string;
   arguments: Record<string, unknown>;
   outcome: string;
@@ -45,7 +51,6 @@ export function connectOracle(
     process.env.NEXT_PUBLIC_ORACLE_HTTP || "http://localhost:8000";
   const wsUrl = process.env.NEXT_PUBLIC_ORACLE_WS || "ws://localhost:8000/ws";
 
-  // Pull initial state immediately so the UI shows something even before WS opens.
   fetch(`${httpBase}/state`)
     .then((r) => r.json())
     .then((snap: WorldSnapshot) => onSnapshot(snap))

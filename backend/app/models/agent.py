@@ -27,11 +27,40 @@ class Agent(Base):
 
     # Social state
     spouse_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    marriage_pending: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )  # agent who proposed
     allies: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     enemies: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
+    # Trust & reputation
+    trust_score: Mapped[float] = mapped_column(
+        Float, nullable=False, default=50.0, server_default="50.0"
+    )
+    steal_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    share_balance: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1"
+    )
+
+    # Goods inventory
+    inventory: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default=lambda: {"ore": 0, "food": 0, "tech": 0}
+    )
+
+    # Status effects
+    rest_bonus: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    will_target: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    extortion_pending: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    bribe_pending: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     # Error tracking for provider failures
-    consecutive_errors: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    consecutive_errors: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     last_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # Position on the pixel map (set by frontend or default)
@@ -39,4 +68,6 @@ class Agent(Base):
     pos_y: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     eliminated_at_turn: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )

@@ -5,13 +5,10 @@ module.exports = {
     extend: {
       colors: {
         arena: {
-          bg: '#0f0f1a',
-          panel: '#1a1a2e',
-          accent: '#7df9ff',
+          bg: '#09090b',
+          panel: '#18181b',
+          accent: '#3b82f6',
         },
-      },
-      fontFamily: {
-        pixel: ['"Press Start 2P"', 'monospace'],
       },
     },
   },

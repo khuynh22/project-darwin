@@ -1,4 +1,5 @@
-"""Deterministic stub agent — exercises the full pipeline without API calls."""
+"""Deterministic stub agent -- exercises the full pipeline without API calls."""
+
 from __future__ import annotations
 
 import random
@@ -7,7 +8,61 @@ from app.agents.base import AgentDecision, BaseAgent
 from app.models.agent import Agent
 
 # Default bias used for all stub agents (no hardcoded agent IDs).
-DEFAULT_BIAS = {"work": 3, "trade": 2, "bet": 1, "socialize": 2, "sabotage": 1, "invest": 2, "steal": 1, "lend": 1, "charity": 1, "propose_deal": 1}
+DEFAULT_BIAS = {
+    "work": 4,
+    "trade": 2,
+    "bet": 1,
+    "socialize": 2,
+    "sabotage": 1,
+    "invest": 2,
+    "steal": 1,
+    "lend": 1,
+    "charity": 1,
+    "propose_deal": 1,
+    "slander": 1,
+    "vouch": 1,
+    "gift": 1,
+    "bluff": 1,
+    "extort": 1,
+    "strike": 0,
+    "rest": 1,
+    "will": 0,
+    "gaslight": 1,
+    "bribe": 1,
+}
+
+# Actions that require a target agent
+_TARGET_ACTIONS = {
+    "trade",
+    "socialize",
+    "sabotage",
+    "steal",
+    "lend",
+    "charity",
+    "propose_deal",
+    "slander",
+    "vouch",
+    "gift",
+    "extort",
+    "gaslight",
+    "bribe",
+}
+
+# Actions that require money
+_COSTLY_ACTIONS = {
+    "bet": 0.50,
+    "sabotage": 1.00,
+    "invest": 0.10,
+    "lend": 0.10,
+    "charity": 0.10,
+    "slander": 0.20,
+    "gift": 0.10,
+    "bluff": 0.10,
+    "extort": 0.0,
+    "gaslight": 0.15,
+    "bribe": 0.10,
+    "trade": 0.0,
+}
 
 
 class StubAgent(BaseAgent):
@@ -20,54 +75,61 @@ class StubAgent(BaseAgent):
             choices.extend([action] * max(0, weight))
         action = random.choice(choices) if choices else "work"
 
-        # Avoid actions we can't actually afford.
-        if action in {"bet", "sabotage"} and agent.balance < 1.0:
-            action = "work"
-        if action in {"trade", "invest", "lend", "charity"} and agent.balance < 0.50:
+        # Affordability check
+        min_cost = _COSTLY_ACTIONS.get(action, 0)
+        if min_cost > 0 and agent.balance < min_cost:
             action = "work"
 
-        others = [a for a in state["agents"] if a["agent_id"] != agent.agent_id and a["alive"]]
-        if not others and action in {"trade", "socialize", "sabotage", "steal", "lend", "charity", "propose_deal"}:
+        others = [
+            a for a in state["agents"] if a["agent_id"] != agent.agent_id and a["alive"]
+        ]
+        if not others and action in _TARGET_ACTIONS:
             action = "work"
 
         if action == "work":
-            return AgentDecision("work", {}, monologue=f"({agent.display_name}) Steady earnings beat speculation.")
+            return AgentDecision(
+                "work", {}, monologue=f"({agent.display_name}) Steady work."
+            )
 
-        target = random.choice(others)["agent_id"]
+        target = random.choice(others)["agent_id"] if others else ""
 
         if action == "trade":
-            amount = round(min(0.50, agent.balance / 4), 2) or 0.10
+            amount = round(min(0.30, agent.balance / 4), 2) or 0.05
+            good = random.choice(["ore", "food", "tech", None])
             return AgentDecision(
                 "trade",
-                {"target": target, "amount": amount, "item": random.choice(["information", "favor"])},
-                monologue=f"({agent.display_name}) Probing {target} with a small trade to gauge cooperation.",
+                {"target": target, "amount": amount, "good": good},
+                monologue=f"({agent.display_name}) Trading with {target}.",
             )
 
         if action == "bet":
             amount = round(min(1.00, max(0.10, agent.balance / 5)), 2)
             return AgentDecision(
                 "bet",
-                {"amount": amount, "bet_type": random.choice(["coin_flip", "pixel_horse", "lottery"])},
-                monologue=f"({agent.display_name}) Calculated risk — variance is opportunity.",
+                {
+                    "amount": amount,
+                    "bet_type": random.choice(["coin_flip", "pixel_horse", "lottery"]),
+                },
+                monologue=f"({agent.display_name}) Taking a gamble.",
             )
 
         if action == "socialize":
-            proposal = random.choices(
-                ["alliance", "truce", "marriage", "rivalry"], weights=[5, 3, 1, 1]
-            )[0]
-            if proposal == "marriage" and agent.spouse_id:
-                proposal = "alliance"
+            proposals = ["alliance", "truce", "marriage", "rivalry"]
+            if agent.spouse_id:
+                proposals = ["alliance", "truce", "rivalry", "divorce"]
+            proposal = random.choice(proposals)
+            t = agent.spouse_id if proposal == "divorce" else target
             return AgentDecision(
                 "socialize",
-                {"target": target, "proposal_type": proposal},
-                monologue=f"({agent.display_name}) Proposing {proposal} with {target}.",
+                {"target": t, "proposal_type": proposal},
+                monologue=f"({agent.display_name}) {proposal} with {t}.",
             )
 
         if action == "sabotage":
             return AgentDecision(
                 "sabotage",
                 {"target": target, "cost": 1.00},
-                monologue=f"({agent.display_name}) {target} is a threat -- slowing them down.",
+                monologue=f"({agent.display_name}) Sabotaging {target}.",
             )
 
         if action == "invest":
@@ -75,14 +137,14 @@ class StubAgent(BaseAgent):
             return AgentDecision(
                 "invest",
                 {"amount": amount},
-                monologue=f"({agent.display_name}) Investing ${amount:.2f} for future returns.",
+                monologue=f"({agent.display_name}) Investing.",
             )
 
         if action == "steal":
             return AgentDecision(
                 "steal",
                 {"target": target},
-                monologue=f"({agent.display_name}) Attempting to take from {target}.",
+                monologue=f"({agent.display_name}) Stealing from {target}.",
             )
 
         if action == "lend":
@@ -90,7 +152,7 @@ class StubAgent(BaseAgent):
             return AgentDecision(
                 "lend",
                 {"target": target, "amount": amount},
-                monologue=f"({agent.display_name}) Lending ${amount:.2f} to {target} for future repayment.",
+                monologue=f"({agent.display_name}) Lending to {target}.",
             )
 
         if action == "charity":
@@ -98,14 +160,82 @@ class StubAgent(BaseAgent):
             return AgentDecision(
                 "charity",
                 {"amount": amount, "target": target},
-                monologue=f"({agent.display_name}) Helping {target} with a donation.",
+                monologue=f"({agent.display_name}) Donating to {target}.",
             )
 
         if action == "propose_deal":
             return AgentDecision(
                 "propose_deal",
-                {"target": target, "offer": "$0.50 trade", "ask": "alliance"},
-                monologue=f"({agent.display_name}) Proposing a deal to {target}.",
+                {"target": target, "offer": "$0.50", "ask": "alliance"},
+                monologue=f"({agent.display_name}) Proposing deal to {target}.",
+            )
+
+        if action == "slander":
+            return AgentDecision(
+                "slander",
+                {"target": target, "rumor": "untrustworthy"},
+                monologue=f"({agent.display_name}) Slandering {target}.",
+            )
+
+        if action == "vouch":
+            return AgentDecision(
+                "vouch",
+                {"target": target},
+                monologue=f"({agent.display_name}) Vouching for {target}.",
+            )
+
+        if action == "gift":
+            amount = round(min(0.30, max(0.10, agent.balance / 10)), 2)
+            return AgentDecision(
+                "gift",
+                {"target": target, "amount": amount},
+                monologue=f"({agent.display_name}) Gifting to {target}.",
+            )
+
+        if action == "bluff":
+            return AgentDecision(
+                "bluff",
+                {"fake_action": f"invested $3.00"},
+                monologue=f"({agent.display_name}) Bluffing.",
+            )
+
+        if action == "extort":
+            return AgentDecision(
+                "extort",
+                {"target": target, "amount": 1.00, "threat": "sabotage"},
+                monologue=f"({agent.display_name}) Extorting {target}.",
+            )
+
+        if action == "strike":
+            return AgentDecision(
+                "strike", {}, monologue=f"({agent.display_name}) Striking."
+            )
+
+        if action == "rest":
+            return AgentDecision(
+                "rest", {}, monologue=f"({agent.display_name}) Resting."
+            )
+
+        if action == "will":
+            return AgentDecision(
+                "will",
+                {"target": target},
+                monologue=f"({agent.display_name}) Setting will to {target}.",
+            )
+
+        if action == "gaslight":
+            return AgentDecision(
+                "gaslight",
+                {"target": target, "fake_event": f"Someone slandered you"},
+                monologue=f"({agent.display_name}) Gaslighting {target}.",
+            )
+
+        if action == "bribe":
+            amount = round(min(0.50, max(0.10, agent.balance / 8)), 2)
+            return AgentDecision(
+                "bribe",
+                {"target": target, "amount": amount, "desired_action": "work"},
+                monologue=f"({agent.display_name}) Bribing {target}.",
             )
 
         return AgentDecision("work", {}, monologue="(fallback) work.")

@@ -1,4 +1,4 @@
-"""Unit tests for the Oracle action handlers — exercised against an in-memory SQLite."""
+"""Unit tests for the Oracle action handlers -- exercised against an in-memory SQLite."""
 from __future__ import annotations
 
 import random
@@ -21,8 +21,8 @@ async def session() -> AsyncSession:
     async with Session() as s:
         s.add_all(
             [
-                Agent(agent_id="a", display_name="A", provider="stub", personality="x", sprite="x", balance=10.0, allies=[], enemies=[]),
-                Agent(agent_id="b", display_name="B", provider="stub", personality="x", sprite="x", balance=10.0, allies=[], enemies=[]),
+                Agent(agent_id="a", display_name="A", provider="stub", personality="x", sprite="x", balance=10.0, allies=[], enemies=[], inventory={"ore": 0, "food": 0, "tech": 0}),
+                Agent(agent_id="b", display_name="B", provider="stub", personality="x", sprite="x", balance=10.0, allies=[], enemies=[], inventory={"ore": 0, "food": 0, "tech": 0}),
             ]
         )
         await s.commit()
@@ -34,9 +34,11 @@ async def test_work_increases_balance(session):
     random.seed(1)
     res = await do_work(session, turn=1, actor_id="a")
     assert res.success
-    assert 0.10 <= res.delta <= 0.50
+    assert 0.05 <= res.delta <= 0.25  # reduced range + possible marriage bonus
     a = await session.get(Agent, "a")
     assert a.balance == round(10.0 + res.delta, 2)
+    # Should also produce a good
+    assert sum(a.inventory.values()) == 1
 
 
 @pytest.mark.asyncio
@@ -51,15 +53,24 @@ async def test_sabotage_costs_actor_and_skips_target(session):
 
 
 @pytest.mark.asyncio
-async def test_marriage_pools_balances(session):
+async def test_marriage_requires_mutual_consent(session):
+    # First proposal: sets pending, no balance change
     a = await session.get(Agent, "a")
     a.balance = 4.0
-    res = await do_socialize(session, turn=1, actor_id="a", target="b", proposal_type="marriage")
-    assert res.success
+    res1 = await do_socialize(session, turn=1, actor_id="a", target="b", proposal_type="marriage")
+    assert res1.success
+    a = await session.get(Agent, "a")
+    assert a.balance == 4.0  # no pooling yet
+    assert a.marriage_pending == "b"
+    assert a.spouse_id is None
+
+    # Second proposal from b to a: marriage happens
+    res2 = await do_socialize(session, turn=2, actor_id="b", target="a", proposal_type="marriage")
+    assert res2.success
     a = await session.get(Agent, "a")
     b = await session.get(Agent, "b")
-    assert a.balance == 7.0 and b.balance == 7.0
     assert a.spouse_id == "b" and b.spouse_id == "a"
+    assert a.balance == 7.0 and b.balance == 7.0  # pooled
 
 
 @pytest.mark.asyncio
@@ -72,5 +83,5 @@ async def test_bet_respects_funds(session):
 async def test_trade_rejected_when_insufficient(session):
     a = await session.get(Agent, "a")
     a.balance = 0.05
-    res = await do_trade(session, turn=1, actor_id="a", target="b", amount=1.0, item="information")
+    res = await do_trade(session, turn=1, actor_id="a", target="b", amount=1.0)
     assert not res.success
