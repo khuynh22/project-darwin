@@ -1,3 +1,6 @@
+"""Agent model representing an autonomous entity in the simulation, with attributes for identity,
+social relationships, trust, inventory, and status effects."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -44,7 +47,10 @@ class Agent(Base):
         Boolean, nullable=False, default=True, server_default="1"
     )
 
-    # Goods inventory
+    # Goods economy
+    specialty: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="ore", server_default="ore"
+    )
     inventory: Mapped[dict] = mapped_column(
         JSON, nullable=False, default=lambda: {"ore": 0, "food": 0, "tech": 0}
     )

@@ -6,7 +6,6 @@ const COLOR_HEX: Record<string, string> = {
   red: '#ef4444', blue: '#3b82f6', green: '#22c55e', purple: '#a855f7',
   orange: '#f97316', cyan: '#06b6d4', pink: '#ec4899', yellow: '#eab308',
   teal: '#14b8a6', indigo: '#6366f1',
-  scholar: '#5bc0eb', robot: '#ff6b6b', trickster: '#c77dff', monk: '#fde74c', cipher: '#6bff95',
 };
 
 function TrustBar({ score }: { score: number }) {
@@ -14,7 +13,7 @@ function TrustBar({ score }: { score: number }) {
   const color = pct >= 60 ? '#22c55e' : pct >= 35 ? '#eab308' : '#ef4444';
   return (
     <div className="flex items-center gap-1.5 mt-1">
-      <span className="text-[10px] text-zinc-500 w-6">T:{Math.round(pct)}</span>
+      <span className="text-[10px] text-zinc-500 w-6">Trust:{Math.round(pct)}</span>
       <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>

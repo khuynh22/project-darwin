@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import dynamic from 'next/dynamic';
 import Sidebar from '@/components/Sidebar';
 import ThoughtLog from '@/components/ThoughtLog';
 import PublicLog from '@/components/PublicLog';
+import WorldMap from '@/components/WorldMap';
 import ConfigPanel from '@/components/ConfigPanel';
 import { connectOracle, type WorldSnapshot, type PausedEvent } from '@/lib/ws';
-
-const Arena = dynamic(() => import('@/components/Arena'), { ssr: false });
 
 export default function Page() {
   const [snapshot, setSnapshot] = useState<WorldSnapshot | null>(null);
@@ -92,56 +90,59 @@ export default function Page() {
   }
 
   return (
-    <main className="grid grid-cols-[1fr_300px] h-screen bg-zinc-950">
-      <section className="flex flex-col">
-        {/* Header */}
-        <header className="px-4 py-2.5 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <h1 className="text-blue-400 text-sm font-semibold tracking-wide">Darwin</h1>
-            <span className="text-zinc-500 text-xs font-mono bg-zinc-800 px-2 py-0.5 rounded">Turn {snapshot?.turn ?? 0}</span>
-          </div>
-          <div className="flex-1" />
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => step(1)} disabled={running || !hasAgents || autoPlay}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 text-xs rounded-md disabled:opacity-30 transition-colors border border-zinc-700">
-              Step
-            </button>
-            <button onClick={() => step(10)} disabled={running || !hasAgents || autoPlay}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 text-xs rounded-md disabled:opacity-30 transition-colors border border-zinc-700">
-              +10
-            </button>
-            <button onClick={toggleAutoPlay} disabled={!hasAgents}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors border ${
-                autoPlay ? 'bg-red-600 border-red-500 text-white' : 'bg-emerald-700 border-emerald-600 text-white'
+    <main className="flex flex-col h-screen bg-zinc-950">
+      {/* Header */}
+      <header className="flex-shrink-0 px-4 py-2 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <h1 className="text-blue-400 text-sm font-semibold tracking-wide">Project Darwin</h1>
+          <span className="text-zinc-500 text-xs font-mono bg-zinc-800 px-2 py-0.5 rounded">Turn {snapshot?.turn ?? 0}</span>
+          {running && <span className="text-zinc-500 text-xs animate-pulse">running...</span>}
+        </div>
+        <div className="flex-1" />
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => step(1)} disabled={running || !hasAgents || autoPlay}
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 text-xs rounded-md disabled:opacity-30 transition-colors border border-zinc-700">
+            Step
+          </button>
+          <button onClick={() => step(10)} disabled={running || !hasAgents || autoPlay}
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 text-xs rounded-md disabled:opacity-30 transition-colors border border-zinc-700">
+            +10
+          </button>
+          <button onClick={toggleAutoPlay} disabled={!hasAgents}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors border ${autoPlay ? 'bg-red-600 border-red-500 text-white' : 'bg-emerald-700 border-emerald-600 text-white'
               } disabled:opacity-30`}>
-              {autoPlay ? 'Stop' : 'Auto'}
-            </button>
-          </div>
-          <div className="w-px h-4 bg-zinc-700" />
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => window.open(`${httpBase}/export/thoughts`, '_blank')}
-              className="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors">Export</button>
-            <button onClick={() => setConfigOpen(true)}
-              className="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors">Config</button>
-            <button onClick={resetSim}
-              className="text-red-400/70 hover:text-red-400 text-xs px-2 py-1 rounded-md hover:bg-red-950/30 transition-colors">Reset</button>
-          </div>
-        </header>
+            {autoPlay ? 'Stop' : 'Auto'}
+          </button>
+        </div>
+        <div className="w-px h-4 bg-zinc-700" />
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => window.open(`${httpBase}/export/thoughts`, '_blank')}
+            className="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors">Export</button>
+          <button onClick={() => setConfigOpen(true)}
+            className="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors">Config</button>
+          <button onClick={resetSim}
+            className="text-red-400/70 hover:text-red-400 text-xs px-2 py-1 rounded-md hover:bg-red-950/30 transition-colors">Reset</button>
+        </div>
+      </header>
 
-        {/* Arena */}
-        <div id="phaser-root" className="flex-1 bg-zinc-950 min-h-0 p-2">
-          <Arena snapshot={snapshot} />
+      {/* Main content: 3-column layout */}
+      <div className="flex-1 flex min-h-0">
+        {/* Left: World map + Logs */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* World map (venues + agents) */}
+          <WorldMap snapshot={snapshot} />
+
+          {/* Bottom: Public feed + Private thoughts */}
+          <div className="flex-shrink-0 h-48 flex border-t border-zinc-800">
+            <PublicLog snapshot={snapshot} />
+            <div className="w-px bg-zinc-800" />
+            <ThoughtLog snapshot={snapshot} />
+          </div>
         </div>
 
-        {/* Bottom: Public log + Private thoughts side by side */}
-        <div className="h-52 flex border-t border-zinc-800">
-          <PublicLog snapshot={snapshot} />
-          <ThoughtLog snapshot={snapshot} />
-        </div>
-      </section>
-
-      {/* Right sidebar */}
-      <Sidebar snapshot={snapshot} />
+        {/* Right sidebar */}
+        <Sidebar snapshot={snapshot} />
+      </div>
 
       {/* Config modal */}
       <ConfigPanel open={configOpen} onClose={() => setConfigOpen(false)} />

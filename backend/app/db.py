@@ -54,6 +54,7 @@ async def init_db() -> None:
         ("agents", "extortion_pending", "JSON", "NULL"),
         ("agents", "bribe_pending", "JSON", "NULL"),
         ("agents", "marriage_pending", "VARCHAR(64)", "NULL"),
+        ("agents", "specialty", "VARCHAR(16)", "'ore'"),
         ("thoughts", "public_message", "VARCHAR(1024)", "''"),
     ]
 

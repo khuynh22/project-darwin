@@ -62,16 +62,33 @@ async def do_work(session: AsyncSession, *, turn: int, actor_id: str) -> ActionR
     actor = await _get_agent(session, actor_id)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
+
+    inv = dict(actor.inventory or {"ore": 0, "food": 0, "tech": 0})
+    specialty = getattr(actor, "specialty", "ore") or "ore"
+
+    # Base cash reward
     reward = round(random.uniform(0.05, 0.20), 2)
     # Marriage work bonus: +10%
     if actor.spouse_id:
         reward = round(reward * 1.10, 2)
-    # Produce a random good
-    good = random.choice(["ore", "food", "tech"])
-    inv = dict(actor.inventory or {"ore": 0, "food": 0, "tech": 0})
-    inv[good] = inv.get(good, 0) + 1
+    # Ore held boosts cash: +$0.02 per ore
+    ore_bonus = round(inv.get("ore", 0) * 0.02, 2)
+    reward = round(reward + ore_bonus, 2)
+
+    # Produce goods: 2-3 of specialty, 0-1 of others
+    produced: dict[str, int] = {}
+    for good in ("ore", "food", "tech"):
+        if good == specialty:
+            qty = random.randint(2, 3)
+        else:
+            qty = random.randint(0, 1)
+        if qty > 0:
+            inv[good] = inv.get(good, 0) + qty
+            produced[good] = qty
     actor.inventory = inv
+
     actor.balance = round(actor.balance + reward, 2)
+    prod_str = ", ".join(f"{v} {k}" for k, v in produced.items())
     await _record(
         session,
         turn=turn,
@@ -79,10 +96,10 @@ async def do_work(session: AsyncSession, *, turn: int, actor_id: str) -> ActionR
         target_id=None,
         action="work",
         delta=reward,
-        payload={"good": good},
-        note=f"earned ${reward:.2f} + 1 {good}",
+        payload={"produced": produced, "specialty": specialty, "ore_bonus": ore_bonus},
+        note=f"earned ${reward:.2f} + {prod_str} (specialty: {specialty})",
     )
-    return ActionResult(True, f"earned ${reward:.2f} + 1 {good}", delta=reward)
+    return ActionResult(True, f"earned ${reward:.2f} + {prod_str}", delta=reward)
 
 
 async def do_trade(

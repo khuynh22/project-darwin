@@ -71,6 +71,7 @@ async def seed_roster(session: AsyncSession, roster: list[dict] | None = None) -
                 provider=spec["provider"],
                 personality=spec.get("personality", "Adaptive agent."),
                 sprite=spec.get("sprite", "robot"),
+                specialty=random.choice(["ore", "food", "tech"]),
                 balance=settings.starting_capital,
                 alive=True,
                 allies=[],
