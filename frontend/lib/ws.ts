@@ -27,9 +27,12 @@ export type WorldSnapshot = {
   recent_thoughts: ThoughtSnap[];
 };
 
-export function connectOracle(onSnapshot: (snap: WorldSnapshot) => void): () => void {
-  const httpBase = process.env.NEXT_PUBLIC_ORACLE_HTTP || 'http://localhost:8000';
-  const wsUrl = process.env.NEXT_PUBLIC_ORACLE_WS || 'ws://localhost:8000/ws';
+export function connectOracle(
+  onSnapshot: (snap: WorldSnapshot) => void,
+): () => void {
+  const httpBase =
+    process.env.NEXT_PUBLIC_ORACLE_HTTP || "http://localhost:8000";
+  const wsUrl = process.env.NEXT_PUBLIC_ORACLE_WS || "ws://localhost:8000/ws";
 
   // Pull initial state immediately so the UI shows something even before WS opens.
   fetch(`${httpBase}/state`)
@@ -51,6 +54,7 @@ export function connectOracle(onSnapshot: (snap: WorldSnapshot) => void): () => 
         /* ignore malformed frame */
       }
     };
+    ws.onerror = () => {};
     ws.onclose = () => {
       if (!closed) setTimeout(open, 1500);
     };

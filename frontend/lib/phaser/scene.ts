@@ -24,10 +24,12 @@ const POS_GRID: Record<string, [number, number]> = {
 };
 
 class ArenaScene {
-  private sceneRef!: any; // Phaser.Scene
+  private sceneRef: any = null;
   private sprites: Record<string, any> = {};
   private labels: Record<string, any> = {};
   private bubbles: Record<string, any> = {};
+
+  get ready() { return this.sceneRef !== null; }
 
   attach(s: any) {
     this.sceneRef = s;
@@ -49,6 +51,7 @@ class ArenaScene {
   }
 
   upsertSprite(agent: WorldSnapshot['agents'][number]) {
+    if (!this.sceneRef) return;
     const s = this.sceneRef;
     const [x, y] = POS_GRID[agent.agent_id] || [360, 280];
     const color = SPRITE_COLORS[agent.sprite] || 0xffffff;
@@ -68,6 +71,7 @@ class ArenaScene {
   }
 
   showThought(agentId: string, text: string) {
+    if (!this.sceneRef) return;
     const s = this.sceneRef;
     const body = this.sprites[agentId];
     if (!body) return;
@@ -86,36 +90,46 @@ class ArenaScene {
 
 export function ensureGame(parent: HTMLElement): any {
   if (game) return game;
-  if (!Phaser) {
-    Phaser = require('phaser');
-  }
-  scene = new ArenaScene();
-  const config: any = {
-    type: (Phaser as any).AUTO,
-    parent,
-    width: 720,
-    height: 560,
-    backgroundColor: '#0f0f1a',
-    pixelArt: true,
-    scene: {
-      create() {
-        scene!.attach(this);
+  try {
+    if (!Phaser) {
+      const mod = require('phaser');
+      Phaser = mod.default || mod;
+    }
+    scene = new ArenaScene();
+    const config: any = {
+      type: (Phaser as any).AUTO,
+      parent,
+      width: 720,
+      height: 560,
+      backgroundColor: '#0f0f1a',
+      pixelArt: true,
+      scene: {
+        create() {
+          scene!.attach(this);
+        },
       },
-    },
-  };
-  game = new (Phaser as any).Game(config);
-  return game;
+    };
+    game = new (Phaser as any).Game(config);
+    return game;
+  } catch (err) {
+    console.error('[Arena] Phaser init failed:', err);
+    return null;
+  }
 }
 
 export function syncSnapshot(snapshot: WorldSnapshot) {
-  if (!scene) return;
-  for (const agent of snapshot.agents) {
-    scene.upsertSprite(agent);
+  if (!scene || !scene.ready) return;
+  try {
+    for (const agent of snapshot.agents) {
+      scene.upsertSprite(agent);
+    }
+    // Pop a thought bubble for the latest action of each agent
+    const latestPerAgent = new Map<string, WorldSnapshot['recent_thoughts'][number]>();
+    for (const t of snapshot.recent_thoughts) {
+      if (!latestPerAgent.has(t.agent_id)) latestPerAgent.set(t.agent_id, t);
+    }
+    latestPerAgent.forEach((t, agentId) => scene!.showThought(agentId, t.monologue || t.action));
+  } catch (err) {
+    console.error('[Arena] syncSnapshot failed:', err);
   }
-  // Pop a thought bubble for the latest action of each agent
-  const latestPerAgent = new Map<string, WorldSnapshot['recent_thoughts'][number]>();
-  for (const t of snapshot.recent_thoughts) {
-    if (!latestPerAgent.has(t.agent_id)) latestPerAgent.set(t.agent_id, t);
-  }
-  latestPerAgent.forEach((t, agentId) => scene!.showThought(agentId, t.monologue || t.action));
 }

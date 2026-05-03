@@ -54,7 +54,6 @@ class OpenAIAgent(BaseAgent):
             ],
             tools=_tools_for_openai(),
             tool_choice="required",
-            temperature=0.8,
         )
         choice = resp.choices[0]
         monologue = (choice.message.content or "").strip()

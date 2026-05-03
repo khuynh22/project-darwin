@@ -10,16 +10,38 @@ from app.oracle.schemas import TOOL_DEFINITIONS
 log = logging.getLogger(__name__)
 
 
-def _tools_for_google() -> list[dict]:
-    # google-genai accepts a list of FunctionDeclarations under a single Tool.
-    return [
-        {
-            "function_declarations": [
-                {"name": t["name"], "description": t["description"], "parameters": t["parameters"]}
-                for t in TOOL_DEFINITIONS
-            ]
-        }
-    ]
+_UNSUPPORTED_KEYS = {"exclusiveMinimum", "exclusiveMaximum", "$defs", "additionalProperties"}
+
+
+def _clean_schema(schema: dict) -> dict:
+    """Uppercase types and strip JSON-schema keys Google doesn't support."""
+    out = {}
+    for k, v in schema.items():
+        if k in _UNSUPPORTED_KEYS:
+            continue
+        if k == "type" and isinstance(v, str):
+            out[k] = v.upper()
+        elif isinstance(v, dict):
+            out[k] = _clean_schema(v)
+        elif isinstance(v, list):
+            out[k] = [_clean_schema(i) if isinstance(i, dict) else i for i in v]
+        else:
+            out[k] = v
+    return out
+
+
+def _tools_for_google() -> list:
+    from google.genai import types
+
+    decls = []
+    for t in TOOL_DEFINITIONS:
+        params = _clean_schema(t["parameters"])
+        decls.append(types.FunctionDeclaration(
+            name=t["name"],
+            description=t["description"],
+            parameters=params,
+        ))
+    return [types.Tool(function_declarations=decls)]
 
 
 class GoogleAgent(BaseAgent):

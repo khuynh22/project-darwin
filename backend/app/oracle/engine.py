@@ -142,7 +142,12 @@ async def run_turn(
             continue
 
         client = agents[db_agent.agent_id]
-        decision = await client.decide(state, db_agent)
+        try:
+            decision = await client.decide(state, db_agent)
+        except Exception as exc:  # noqa: BLE001
+            log.error("Agent %s decide() failed: %s", db_agent.agent_id, exc)
+            decision = AgentDecision(action="work", arguments={},
+                                     monologue=f"(API error -- falling back to work: {exc!s:.120})")
         outcome = await _apply_decision(session, turn=turn, agent=db_agent, decision=decision)
         session.add(
             ThoughtLog(
