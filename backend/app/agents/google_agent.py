@@ -76,7 +76,7 @@ class GoogleAgent(BaseAgent):
         from google import genai
 
         key = api_key or get_settings().google_api_key
-        self.client = genai.Client(api_key=key)
+        self.client = genai.Client(api_key=key, http_options={"timeout": 30000})
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent)
@@ -87,7 +87,7 @@ class GoogleAgent(BaseAgent):
             config={
                 "system_instruction": system,
                 "tools": _tools_for_google(),
-                "tool_config": {"function_calling_config": {"mode": "ANY"}},
+                "tool_config": {"function_calling_config": {"mode": "AUTO"}},
             },
         )
         monologue_parts: list[str] = []

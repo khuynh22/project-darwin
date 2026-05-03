@@ -41,7 +41,7 @@ class OpenAIAgent(BaseAgent):
         super().__init__(agent_id, model)
         from openai import AsyncOpenAI
 
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=30.0, max_retries=1)
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent)
@@ -53,7 +53,7 @@ class OpenAIAgent(BaseAgent):
                 {"role": "user", "content": user},
             ],
             tools=_tools_for_openai(),
-            tool_choice="required",
+            tool_choice="auto",
         )
         choice = resp.choices[0]
         monologue = (choice.message.content or "").strip()

@@ -26,7 +26,7 @@ class AnthropicAgent(BaseAgent):
         from anthropic import AsyncAnthropic
 
         key = api_key or get_settings().anthropic_api_key
-        self.client = AsyncAnthropic(api_key=key)
+        self.client = AsyncAnthropic(api_key=key, timeout=30.0)
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent)
@@ -36,7 +36,7 @@ class AnthropicAgent(BaseAgent):
             max_tokens=1024,
             system=system,
             tools=_tools_for_anthropic(),
-            tool_choice={"type": "any"},
+            tool_choice={"type": "auto"},
             messages=[{"role": "user", "content": user}],
         )
         monologue_parts: list[str] = []

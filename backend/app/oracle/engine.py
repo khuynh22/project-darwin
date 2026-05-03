@@ -92,6 +92,25 @@ async def _world_state(session: AsyncSession, turn: int) -> dict:
     }
 
 
+async def _agent_history(session: AsyncSession, agent_id: str, limit: int = 10) -> list[dict]:
+    """Fetch recent thought history for an agent (most recent first)."""
+    rows = (await session.execute(
+        select(ThoughtLog)
+        .where(ThoughtLog.agent_id == agent_id, ThoughtLog.action != "skip")
+        .order_by(ThoughtLog.id.desc())
+        .limit(limit)
+    )).scalars().all()
+    return [
+        {
+            "turn": t.turn,
+            "action": t.action,
+            "args": ", ".join(f"{k}={v}" for k, v in (t.arguments or {}).items()),
+            "outcome": t.outcome,
+        }
+        for t in rows
+    ]
+
+
 async def _apply_decision(
     session: AsyncSession, *, turn: int, agent: Agent, decision: AgentDecision
 ) -> str:
@@ -225,13 +244,19 @@ async def run_turn(
             continue
 
         client = agents[db_agent.agent_id]
+        # Fetch recent history so the agent can learn from past turns
+        history = await _agent_history(session, db_agent.agent_id)
+        state["_history"] = history  # injected for render_world_brief
         try:
-            decision = await client.decide(state, db_agent)
+            decision = await asyncio.wait_for(client.decide(state, db_agent), timeout=45)
             # Reset error counter on success
             db_agent.consecutive_errors = 0
             db_agent.last_error = None
         except Exception as exc:  # noqa: BLE001
-            log.error("Agent %s decide() failed: %s", db_agent.agent_id, exc)
+            # TimeoutError has an empty repr -- give it a useful message
+            if isinstance(exc, TimeoutError):
+                exc = TimeoutError(f"timed out after 45s")
+            log.error("Agent %s decide() failed: %r", db_agent.agent_id, exc)
             db_agent.consecutive_errors += 1
             db_agent.last_error = str(exc)[:512]
             permanent = _is_permanent_error(exc)

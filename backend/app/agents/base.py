@@ -48,13 +48,14 @@ def render_system_prompt(agent: Agent) -> str:
 
 
 def render_world_brief(state: dict, self_id: str) -> str:
+    history = state.get("_history")
     lines = [f"Turn {state['turn']}. World snapshot:"]
     for a in state["agents"]:
         marker = " <-- you" if a["agent_id"] == self_id else ""
         status = "alive" if a["alive"] else "ELIMINATED"
         social = []
         if a["spouse"]:
-            social.append(f"married→{a['spouse']}")
+            social.append(f"married->{a['spouse']}")
         if a["allies"]:
             social.append("allies=" + ",".join(a["allies"]))
         if a["enemies"]:
@@ -63,7 +64,17 @@ def render_world_brief(state: dict, self_id: str) -> str:
         lines.append(
             f"  - {a['display_name']} ({a['agent_id']}): ${a['balance']:.2f} [{status}]{social_str}{marker}"
         )
-    lines.append("\nChoose your action.")
+
+    # Include recent history so the agent can learn from past turns
+    if history:
+        lines.append("\nYOUR RECENT HISTORY (most recent first):")
+        for h in history:
+            lines.append(
+                f"  T{h['turn']}: {h['action']}({h['args']}) -> {h['outcome']}"
+            )
+        lines.append("")
+
+    lines.append("Choose your action.")
     return "\n".join(lines)
 
 

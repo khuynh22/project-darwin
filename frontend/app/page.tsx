@@ -14,6 +14,7 @@ export default function Page() {
   const [pauseInfo, setPauseInfo] = useState<PausedEvent | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const [pendingTurns, setPendingTurns] = useState(0);
 
   useEffect(() => {
     const close = connectOracle(
@@ -33,11 +34,18 @@ export default function Page() {
   async function step(turns = 1) {
     if (running || !hasAgents) return;
     setRunning(true);
+    setPendingTurns(turns);
     try {
       const res = await fetch(`${httpBase}/run?turns=${turns}`, { method: 'POST' });
       const data = await res.json();
       if (data.paused) {
-        setPauseInfo({ event: 'simulation_paused', turn: data.final_turn ?? data.turn, agent_id: data.agent_id, reason: data.reason, snapshot: snapshot! });
+        const startTurn = snapshot?.turn ?? 0;
+        const endTurn = data.final_turn ?? data.turn ?? startTurn;
+        const completed = endTurn - startTurn;
+        setPendingTurns(Math.max(0, turns - completed));
+        setPauseInfo({ event: 'simulation_paused', turn: endTurn, agent_id: data.agent_id, reason: data.reason, snapshot: snapshot! });
+      } else {
+        setPendingTurns(0);
       }
     } finally {
       setRunning(false);
@@ -47,11 +55,23 @@ export default function Page() {
   async function removeAgent(agentId: string) {
     await fetch(`${httpBase}/agents/${agentId}/remove`, { method: 'POST' });
     setPauseInfo(null);
+    // Auto-continue remaining turns after removing the failing agent
+    const remaining = pendingTurns;
+    if (remaining > 0) {
+      setPendingTurns(0);
+      setTimeout(() => step(remaining), 300);
+    }
   }
 
   async function resumeSimulation() {
     await fetch(`${httpBase}/simulation/resume`, { method: 'POST' });
     setPauseInfo(null);
+    // Auto-continue remaining turns after clearing errors
+    const remaining = pendingTurns;
+    if (remaining > 0) {
+      setPendingTurns(0);
+      setTimeout(() => step(remaining), 300);
+    }
   }
 
   return (
