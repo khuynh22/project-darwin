@@ -4,7 +4,6 @@ import json
 import logging
 
 from app.agents.base import AgentDecision, BaseAgent, render_system_prompt, render_world_brief
-from app.config import get_settings
 from app.models.agent import Agent
 from app.oracle.schemas import TOOL_DEFINITIONS
 

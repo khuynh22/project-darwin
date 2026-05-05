@@ -274,7 +274,6 @@ async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
                     "taxable_cash": taxable_cash,
                     "locked": locked_amount,
                     "hunger": hunger_penalty,
-                    "tech_discount": tech_held,
                 },
                 note=" + ".join(parts) + f" (cash ${taxable_cash:.2f})",
             )

@@ -1,8 +1,8 @@
 """Encrypted API key storage for dynamic agent configuration."""
+
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone
 
 from cryptography.fernet import Fernet
@@ -26,11 +26,14 @@ def _get_fernet() -> Fernet:
     if _fernet is not None:
         return _fernet
     from app.config import get_settings
+
     key = get_settings().encryption_key
     if not key:
         # Auto-generate and warn
         key = Fernet.generate_key().decode()
-        log.warning("No ENCRYPTION_KEY set -- generated ephemeral key (keys will not survive restart)")
+        log.warning(
+            "No ENCRYPTION_KEY set -- generated ephemeral key (keys will not survive restart)"
+        )
     # Fernet requires url-safe base64 key; if user provides a passphrase, derive one
     try:
         _fernet = Fernet(key.encode() if isinstance(key, str) else key)
@@ -38,6 +41,7 @@ def _get_fernet() -> Fernet:
         # Fallback: generate a key from the provided string via hash
         import base64
         import hashlib
+
         derived = base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest())
         _fernet = Fernet(derived)
     return _fernet
@@ -50,10 +54,14 @@ class ApiKeyStore(Base):
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     key_name: Mapped[str] = mapped_column(String(128), nullable=False)
     encrypted_key: Mapped[str] = mapped_column(String(1024), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
 
 
-async def store_key(session: AsyncSession, provider: str, label: str, raw_key: str) -> int:
+async def store_key(
+    session: AsyncSession, provider: str, label: str, raw_key: str
+) -> int:
     """Encrypt and store an API key, returning its ID."""
     f = _get_fernet()
     encrypted = f.encrypt(raw_key.encode()).decode()
@@ -74,9 +82,11 @@ async def get_key(session: AsyncSession, key_id: int) -> str | None:
 
 async def list_keys(session: AsyncSession) -> list[dict]:
     """List stored keys (ID, provider, label only -- never raw keys)."""
-    rows = (await session.execute(
-        select(ApiKeyStore).order_by(ApiKeyStore.id)
-    )).scalars().all()
+    rows = (
+        (await session.execute(select(ApiKeyStore).order_by(ApiKeyStore.id)))
+        .scalars()
+        .all()
+    )
     return [{"id": r.id, "provider": r.provider, "label": r.key_name} for r in rows]
 
 

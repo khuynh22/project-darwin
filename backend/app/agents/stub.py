@@ -238,7 +238,7 @@ class StubAgent(BaseAgent):
         if action == "bluff":
             return AgentDecision(
                 "bluff",
-                {"fake_action": f"invested $3.00"},
+                {"fake_action": "invested $3.00"},
                 monologue=f"({agent.display_name}) Bluffing.",
             )
 
@@ -269,7 +269,7 @@ class StubAgent(BaseAgent):
         if action == "gaslight":
             return AgentDecision(
                 "gaslight",
-                {"target": target, "fake_event": f"Someone slandered you"},
+                {"target": target, "fake_event": "Someone slandered you"},
                 monologue=f"({agent.display_name}) Gaslighting {target}.",
             )
 

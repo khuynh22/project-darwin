@@ -163,7 +163,6 @@ async def remove_api_key(key_id: int) -> dict:
 @app.post("/configure")
 async def configure_simulation(body: dict) -> dict:
     """Set up a new simulation with a dynamic agent roster."""
-    from app.agents.factory import build_agents
     from app.models.api_key import get_key
     from app.thought_export import start_export
 
