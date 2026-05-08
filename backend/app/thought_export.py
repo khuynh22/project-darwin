@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class ThoughtExporter:
     """Appends one JSONL row per agent-turn decision to a file."""
 
     def __init__(self, session_label: str | None = None) -> None:
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         label = session_label or "web"
         self._dir = Path("thought_logs")
         self._dir.mkdir(parents=True, exist_ok=True)
@@ -45,7 +45,7 @@ class ThoughtExporter:
             "action": action,
             "arguments": arguments,
             "outcome": outcome,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         self._fh.write(json.dumps(row, default=str) + "\n")
         self._fh.flush()

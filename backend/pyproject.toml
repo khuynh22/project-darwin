@@ -1,0 +1,34 @@
+[project]
+name = "project-darwin-oracle"
+version = "0.1.0"
+description = "FastAPI Oracle for Project Darwin: a research instrument for studying raw LLM behavior over long-horizon survival trajectories."
+readme = "../README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Project Darwin contributors" }]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", "venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length is enforced by formatter
+    "B008",  # FastAPI uses Depends() in defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

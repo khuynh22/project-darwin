@@ -63,7 +63,7 @@ async def init_db() -> None:
         def _get_columns(sync_conn):  # type: ignore[no-untyped-def]
             insp = inspect(sync_conn)
             result = {}
-            for tbl, col, _, _ in _MIGRATIONS:
+            for tbl, _col, _, _ in _MIGRATIONS:
                 if tbl not in result:
                     try:
                         result[tbl] = {c["name"] for c in insp.get_columns(tbl)}

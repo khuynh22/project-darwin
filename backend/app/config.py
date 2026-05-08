@@ -41,8 +41,6 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "gemma4"
 
-    chroma_path: str = "./chroma"
-
     encryption_key: str = ""
     min_agents: int = 3
     max_agents: int = 10

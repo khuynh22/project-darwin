@@ -2,6 +2,20 @@
   "name": "project-darwin-arena",
   "version": "0.1.0",
   "private": true,
+  "description": "Next.js viewer for Project Darwin: a research instrument for studying raw LLM behavior over long-horizon survival trajectories.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khuynh22/project-darwin.git",
+    "directory": "frontend"
+  },
+  "homepage": "https://github.com/khuynh22/project-darwin#readme",
+  "bugs": {
+    "url": "https://github.com/khuynh22/project-darwin/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",

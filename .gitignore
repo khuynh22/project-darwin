@@ -35,7 +35,6 @@ Thumbs.db
 
 # Project
 backend/data/
-backend/chroma/
 logs/
 *.log
 *.sqlite

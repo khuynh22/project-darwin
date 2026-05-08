@@ -17,13 +17,6 @@ anthropic==0.42.0
 openai==1.57.4
 google-genai==0.3.0
 
-# Orchestration
-langgraph==0.2.59
-langchain-core==0.3.25
-
-# Memory
-chromadb==0.5.23
-
 # Security
 cryptography==43.0.3
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from cryptography.fernet import Fernet
 from sqlalchemy import DateTime, Integer, String, select
@@ -18,7 +18,7 @@ _fernet: Fernet | None = None
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _get_fernet() -> Fernet:

@@ -588,7 +588,7 @@ async def run_turn(
     # Wait for ALL agents to finish (or fail)
     results: dict[str, AgentDecision | Exception] = {}
     done = await asyncio.gather(*tasks.values(), return_exceptions=True)
-    for agent_id, result in zip(tasks.keys(), done):
+    for agent_id, result in zip(tasks.keys(), done, strict=True):
         results[agent_id] = result
 
     # Phase 3: Apply decisions sequentially (DB writes must be serial)
