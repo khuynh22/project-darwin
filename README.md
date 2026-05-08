@@ -1,4 +1,4 @@
-# Project Darwin -- LLM Behavior Under Survival Pressure
+# Project Darwin - LLM Behavior Under Survival Pressure
 
 [![CI](https://github.com/khuynh22/project-darwin/actions/workflows/ci.yml/badge.svg)](https://github.com/khuynh22/project-darwin/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
