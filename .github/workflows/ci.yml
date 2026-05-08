@@ -33,7 +33,7 @@ jobs:
 
       - name: Tests (pytest)
         env:
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           STUB_MODE: "true"
         run: pytest -q
 
