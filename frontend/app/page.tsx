@@ -1,12 +1,34 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import {
+  ChevronsRight,
+  Download,
+  Play,
+  RotateCcw,
+  Settings2,
+  Square,
+  StepForward,
+} from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ThoughtLog from '@/components/ThoughtLog';
 import PublicLog from '@/components/PublicLog';
-import WorldMap from '@/components/WorldMap';
+import HexArena from '@/components/HexArena';
 import ConfigPanel from '@/components/ConfigPanel';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { connectOracle, type WorldSnapshot, type PausedEvent } from '@/lib/ws';
+
+// Auto-play tick must be >= sigil walk duration so movement completes before next turn.
+const AUTO_PLAY_DELAY_MS = 3700;
 
 export default function Page() {
   const [snapshot, setSnapshot] = useState<WorldSnapshot | null>(null);
@@ -35,30 +57,44 @@ export default function Page() {
   const httpBase = process.env.NEXT_PUBLIC_ORACLE_HTTP || 'http://localhost:8000';
   const hasAgents = (snapshot?.agents?.length ?? 0) > 0;
 
-  const step = useCallback(async (turns = 1) => {
-    if (!hasAgents) return;
-    setRunning(true);
-    setPendingTurns(turns);
-    try {
-      const res = await fetch(`${httpBase}/run?turns=${turns}`, { method: 'POST' });
-      const data = await res.json();
-      if (data.paused) {
-        setPendingTurns(0);
-        setPauseInfo({ event: 'simulation_paused', turn: data.final_turn ?? data.turn, agent_id: data.agent_id, reason: data.reason, snapshot: snapshot! });
-        autoPlayRef.current = false;
-        setAutoPlay(false);
-      } else {
-        setPendingTurns(0);
+  const step = useCallback(
+    async (turns = 1) => {
+      if (!hasAgents) return;
+      setRunning(true);
+      setPendingTurns(turns);
+      try {
+        const res = await fetch(`${httpBase}/run?turns=${turns}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.paused) {
+          setPendingTurns(0);
+          setPauseInfo({
+            event: 'simulation_paused',
+            turn: data.final_turn ?? data.turn,
+            agent_id: data.agent_id,
+            reason: data.reason,
+            snapshot: snapshot!,
+          });
+          autoPlayRef.current = false;
+          setAutoPlay(false);
+        } else {
+          setPendingTurns(0);
+        }
+      } finally {
+        setRunning(false);
       }
-    } finally {
-      setRunning(false);
-    }
-  }, [hasAgents, httpBase, snapshot]);
+    },
+    [hasAgents, httpBase, snapshot],
+  );
 
-  useEffect(() => { autoPlayRef.current = autoPlay; }, [autoPlay]);
+  useEffect(() => {
+    autoPlayRef.current = autoPlay;
+  }, [autoPlay]);
+
   useEffect(() => {
     if (!autoPlay || running || !hasAgents) return;
-    const timer = setTimeout(() => { if (autoPlayRef.current) step(1); }, 500);
+    const timer = setTimeout(() => {
+      if (autoPlayRef.current) step(1);
+    }, AUTO_PLAY_DELAY_MS);
     return () => clearTimeout(timer);
   }, [autoPlay, running, hasAgents, snapshot?.turn, step]);
 
@@ -71,14 +107,20 @@ export default function Page() {
     await fetch(`${httpBase}/agents/${agentId}/remove`, { method: 'POST' });
     setPauseInfo(null);
     const r = pendingTurns;
-    if (r > 0) { setPendingTurns(0); setTimeout(() => step(r), 300); }
+    if (r > 0) {
+      setPendingTurns(0);
+      setTimeout(() => step(r), 300);
+    }
   }
 
   async function resumeSimulation() {
     await fetch(`${httpBase}/simulation/resume`, { method: 'POST' });
     setPauseInfo(null);
     const r = pendingTurns;
-    if (r > 0) { setPendingTurns(0); setTimeout(() => step(r), 300); }
+    if (r > 0) {
+      setPendingTurns(0);
+      setTimeout(() => step(r), 300);
+    }
   }
 
   async function resetSim() {
@@ -92,45 +134,90 @@ export default function Page() {
   return (
     <main className="flex flex-col h-screen bg-zinc-950">
       {/* Header */}
-      <header className="flex-shrink-0 px-4 py-2 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <h1 className="text-blue-400 text-sm font-semibold tracking-wide">Project Darwin</h1>
-          <span className="text-zinc-500 text-xs font-mono bg-zinc-800 px-2 py-0.5 rounded">Turn {snapshot?.turn ?? 0}</span>
-          {running && <span className="text-zinc-500 text-xs animate-pulse">running...</span>}
+      <header className="flex-shrink-0 px-4 py-2 bg-zinc-900/95 backdrop-blur border-b border-zinc-800 flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className="inline-block h-2 w-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]"
+            />
+            <h1 className="text-zinc-100 text-sm font-semibold tracking-wide">
+              Project Darwin
+            </h1>
+          </div>
+          <span className="text-zinc-400 text-xs font-mono bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60">
+            Turn {snapshot?.turn ?? 0}
+          </span>
+          {running && (
+            <span className="text-blue-300 text-xs flex items-center gap-1.5">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+              thinking…
+            </span>
+          )}
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-1.5">
-          <button onClick={() => step(1)} disabled={running || !hasAgents || autoPlay}
-            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 text-xs rounded-md disabled:opacity-30 transition-colors border border-zinc-700">
-            Step
-          </button>
-          <button onClick={() => step(10)} disabled={running || !hasAgents || autoPlay}
-            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 text-xs rounded-md disabled:opacity-30 transition-colors border border-zinc-700">
-            +10
-          </button>
-          <button onClick={toggleAutoPlay} disabled={!hasAgents}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors border ${autoPlay ? 'bg-red-600 border-red-500 text-white' : 'bg-emerald-700 border-emerald-600 text-white'
-              } disabled:opacity-30`}>
-            {autoPlay ? 'Stop' : 'Auto'}
-          </button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => step(1)}
+            disabled={running || !hasAgents || autoPlay}
+          >
+            <StepForward size={13} /> Step
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => step(10)}
+            disabled={running || !hasAgents || autoPlay}
+          >
+            <ChevronsRight size={13} /> +10
+          </Button>
+          <Button
+            variant={autoPlay ? 'danger' : 'success'}
+            size="sm"
+            onClick={toggleAutoPlay}
+            disabled={!hasAgents}
+          >
+            {autoPlay ? (
+              <>
+                <Square size={12} /> Stop
+              </>
+            ) : (
+              <>
+                <Play size={12} /> Auto
+              </>
+            )}
+          </Button>
         </div>
-        <div className="w-px h-4 bg-zinc-700" />
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => window.open(`${httpBase}/export/thoughts`, '_blank')}
-            className="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors">Export</button>
-          <button onClick={() => setConfigOpen(true)}
-            className="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors">Config</button>
-          <button onClick={resetSim}
-            className="text-red-400/70 hover:text-red-400 text-xs px-2 py-1 rounded-md hover:bg-red-950/30 transition-colors">Reset</button>
+        <div className="w-px h-5 bg-zinc-800" />
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.open(`${httpBase}/export/thoughts`, '_blank')}
+          >
+            <Download size={13} /> Export
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setConfigOpen(true)}>
+            <Settings2 size={13} /> Config
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetSim}
+            className="text-red-400/80 hover:text-red-300 hover:bg-red-950/40"
+          >
+            <RotateCcw size={13} /> Reset
+          </Button>
         </div>
       </header>
 
       {/* Main content: 3-column layout */}
       <div className="flex-1 flex min-h-0">
-        {/* Left: World map + Logs */}
+        {/* Left: Arena + Logs */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* World map (venues + agents) */}
-          <WorldMap snapshot={snapshot} />
+          <HexArena snapshot={snapshot} running={running} />
 
           {/* Bottom: Public feed + Private thoughts */}
           <div className="flex-shrink-0 h-48 flex border-t border-zinc-800">
@@ -141,29 +228,54 @@ export default function Page() {
         </div>
 
         {/* Right sidebar */}
-        <Sidebar snapshot={snapshot} />
+        <Sidebar snapshot={snapshot} running={running} />
       </div>
 
       {/* Config modal */}
       <ConfigPanel open={configOpen} onClose={() => setConfigOpen(false)} />
 
-      {/* Pause modal */}
-      {pauseInfo && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-zinc-900 border border-red-800 rounded-xl shadow-2xl p-5 max-w-md w-full mx-4">
-            <h2 className="text-red-400 text-sm font-semibold mb-2">Simulation Paused</h2>
-            <p className="text-zinc-300 text-sm mb-1">
-              Agent <span className="text-blue-400 font-semibold">{pauseInfo.agent_id}</span> encountered an error:
+      {/* Pause dialog */}
+      <Dialog
+        open={pauseInfo !== null}
+        onOpenChange={(open) => {
+          if (!open) setPauseInfo(null);
+        }}
+      >
+        <DialogContent size="sm" className="border-red-900/70">
+          <DialogHeader>
+            <DialogTitle className="text-red-300">Simulation paused</DialogTitle>
+            <DialogDescription>
+              Agent{' '}
+              <span className="text-blue-300 font-semibold">{pauseInfo?.agent_id}</span>{' '}
+              encountered an error.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <p className="text-red-200/90 text-xs bg-zinc-950/80 border border-zinc-800 p-3 rounded-lg break-words font-mono leading-relaxed">
+              {pauseInfo?.reason}
             </p>
-            <p className="text-red-300 text-xs bg-zinc-950 p-3 rounded-lg mb-4 break-words font-mono">{pauseInfo.reason}</p>
-            <div className="flex gap-2">
-              <button onClick={() => removeAgent(pauseInfo.agent_id)} className="flex-1 bg-red-700 hover:bg-red-600 text-white px-3 py-2 text-sm rounded-lg transition-colors">Remove Agent</button>
-              <button onClick={resumeSimulation} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 text-sm rounded-lg transition-colors">Retry</button>
-              <button onClick={() => setPauseInfo(null)} className="px-3 py-2 text-sm text-zinc-400 hover:text-white border border-zinc-700 rounded-lg transition-colors">Dismiss</button>
-            </div>
-          </div>
-        </div>
-      )}
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPauseInfo(null)}
+            >
+              Dismiss
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => pauseInfo && removeAgent(pauseInfo.agent_id)}
+            >
+              Remove agent
+            </Button>
+            <Button variant="primary" size="sm" onClick={resumeSimulation}>
+              Retry
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

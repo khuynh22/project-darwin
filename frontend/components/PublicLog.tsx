@@ -1,5 +1,6 @@
 'use client';
 
+import { Radio } from 'lucide-react';
 import type { WorldSnapshot } from '@/lib/ws';
 
 const ACTION_COLORS: Record<string, string> = {
@@ -17,7 +18,9 @@ export default function PublicLog({ snapshot }: { snapshot: WorldSnapshot | null
 
   return (
     <section className="flex-1 bg-zinc-900/60 border-r border-zinc-800 overflow-y-auto p-3 text-xs">
-      <h2 className="text-zinc-500 text-[10px] tracking-widest font-medium uppercase mb-2">Public Feed</h2>
+      <h2 className="flex items-center gap-1.5 text-zinc-400 text-[10px] tracking-widest font-medium uppercase mb-2">
+        <Radio size={10} /> Public Feed
+      </h2>
       <ul className="space-y-0.5">
         {thoughts.slice(0, 40).map((t, i) => {
           const color = ACTION_COLORS[t.action] || 'text-zinc-500';
