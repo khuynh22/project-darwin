@@ -1,191 +1,159 @@
 'use client';
 
-import {
-  Cpu,
-  Heart,
-  Mountain,
-  ShieldAlert,
-  Skull,
-  Wheat,
-} from 'lucide-react';
+import { Cpu, Heart, Mountain, Skull, Wheat } from 'lucide-react';
 import type { WorldSnapshot } from '@/lib/ws';
-import AgentSigil from './AgentSigil';
-import { cn } from '@/lib/utils';
+import { CritterAvatar } from './Critter';
+import { COLOR_HEX } from '@/lib/town';
 
-const COLOR_HEX: Record<string, string> = {
-  red: '#ef4444',
-  blue: '#3b82f6',
-  green: '#22c55e',
-  purple: '#a855f7',
-  orange: '#f97316',
-  cyan: '#06b6d4',
-  pink: '#ec4899',
-  yellow: '#eab308',
-  teal: '#14b8a6',
-  indigo: '#6366f1',
+interface SidebarProps {
+  snapshot: WorldSnapshot | null;
+}
+
+const SPECIALTY_LABEL: Record<string, string> = {
+  ore: '⛏️ ore specialist',
+  food: '🍞 food specialist',
+  tech: '⚙️ tech specialist',
 };
 
 function TrustBar({ score }: { score: number }) {
   const pct = Math.max(0, Math.min(100, score));
-  const color = pct >= 60 ? '#22c55e' : pct >= 35 ? '#eab308' : '#ef4444';
   return (
-    <div className="flex items-center gap-1.5 mt-1">
-      <span className="text-[10px] text-zinc-500 tabular-nums w-10">
-        Trust {Math.round(pct)}
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] uppercase tracking-[0.1em] text-cozy-ink-soft font-bold w-9">
+        Trust
       </span>
-      <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, backgroundColor: color }}
-        />
+      <div
+        className="flex-1 h-[10px] rounded-[10px] overflow-hidden"
+        style={{
+          background: '#FFE7C9',
+          boxShadow: 'inset 0 2px 0 rgba(74,58,46,0.06)',
+        }}
+      >
+        <div className="trust-fill" style={{ width: `${pct}%` }} />
       </div>
+      <span className="w-[26px] text-right font-mono text-[11px] font-bold text-cozy-ink-soft">
+        {Math.round(pct)}
+      </span>
     </div>
   );
 }
 
-interface SidebarProps {
-  snapshot: WorldSnapshot | null;
-  running?: boolean;
-}
-
-export default function Sidebar({ snapshot, running = false }: SidebarProps) {
+export default function Sidebar({ snapshot }: SidebarProps) {
   const agents = snapshot?.agents ?? [];
-  const totalAlive = agents
-    .filter((a) => a.alive)
-    .reduce((sum, a) => sum + a.balance, 0);
+  const alive = agents.filter((a) => a.alive).length;
 
   return (
-    <aside className="bg-zinc-900/70 border-l border-zinc-800 overflow-y-auto p-3 space-y-2 w-72 flex-shrink-0">
-      <div className="flex items-baseline justify-between mb-1">
-        <h2 className="text-zinc-400 text-[10px] tracking-widest font-medium uppercase">
-          Agents
-        </h2>
-        <span className="text-zinc-600 text-[10px] font-mono">
-          {agents.filter((a) => a.alive).length}/{agents.length}
+    <aside
+      className="bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-3xl p-3 shadow-cozy-md flex flex-col gap-2 overflow-y-auto"
+      style={{ maxHeight: 560 }}
+    >
+      <div className="flex items-center justify-between font-display font-semibold text-[14px] uppercase tracking-[0.1em] text-cozy-ink-soft px-1 pb-1">
+        <span>Roster</span>
+        <span className="text-[11px]">
+          {alive}/{agents.length} alive
         </span>
       </div>
 
+      {agents.length === 0 && (
+        <div className="text-center text-xs text-cozy-ink-soft italic px-2 py-6">
+          …no critters yet…
+        </div>
+      )}
+
       {agents.map((a) => {
-        const share = totalAlive > 0 && a.alive ? (a.balance / totalAlive) * 100 : 0;
+        const dead = !a.alive;
+        const color = COLOR_HEX[a.sprite] || '#FFCBA0';
+        const subLabel = SPECIALTY_LABEL[a.specialty] || a.provider;
         const inv = a.inventory || {};
-        const dotColor = COLOR_HEX[a.sprite] || '#888';
-        const sigilState = !a.alive ? 'idle' : running ? 'thinking' : 'idle';
         return (
           <div
             key={a.agent_id}
-            className={cn(
-              'rounded-lg border p-2.5 transition-all',
-              a.alive
-                ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700'
-                : 'border-zinc-800/50 bg-zinc-950/60 opacity-50',
-            )}
+            className="relative flex flex-col gap-[7px] p-[10px] rounded-2xl bg-[#FFF8EB] border-[1.5px] border-cozy-card-edge overflow-hidden transition-transform duration-200 hover:-translate-y-[2px] hover:rotate-[-0.4deg]"
+            style={dead ? { opacity: 0.55, filter: 'saturate(0.4)' } : undefined}
           >
-            {/* Header with mini-sigil */}
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex-shrink-0">
-                <AgentSigil
-                  color={dotColor}
-                  size={32}
-                  state={sigilState}
-                  alive={a.alive}
-                />
+            {dead && (
+              <div
+                aria-hidden
+                className="absolute top-1/2 -right-5 -translate-y-1/2 -rotate-12 px-6 py-1 font-display font-bold tracking-[0.12em] text-white text-[12px]"
+                style={{ background: 'var(--red)' }}
+              >
+                OUT
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-semibold text-zinc-100 truncate">
-                    {a.display_name}
-                  </span>
+            )}
+
+            {/* Head row */}
+            <div className="flex items-center gap-[10px]">
+              <CritterAvatar color={color} size={34} alive={a.alive} />
+              <div className="min-w-0">
+                <div className="font-display font-semibold text-[14px] leading-tight text-cozy-ink truncate">
+                  {a.display_name}
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-                  <span className="font-mono">{a.provider}</span>
-                  <span>•</span>
-                  <span className="capitalize">{a.specialty}</span>
+                <div className="text-[10px] uppercase tracking-[0.08em] font-bold text-cozy-ink-soft truncate">
+                  {subLabel}
                 </div>
+              </div>
+              <div className="ml-auto font-display font-semibold text-[22px] leading-none font-mono text-cozy-ink">
+                ${a.balance.toFixed(0)}
               </div>
             </div>
 
-            {/* Balance */}
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-base font-semibold text-zinc-100 font-mono">
-                ${a.balance.toFixed(2)}
-              </span>
-              {a.invested > 0 && (
-                <span
-                  className="text-[10px] text-blue-400 font-mono"
-                  title="Locked in investments/loans"
-                >
-                  +${a.invested.toFixed(2)} inv
-                </span>
-              )}
-              <span className="text-[10px] text-zinc-500 ml-auto tabular-nums">
-                {share.toFixed(0)}%
-              </span>
-            </div>
-
+            {/* Trust row */}
             <TrustBar score={a.trust_score} />
 
-            {/* Inventory icons */}
-            {(inv.ore > 0 || inv.food > 0 || inv.tech > 0) && (
-              <div className="flex items-center gap-2 mt-1.5 text-[10px] text-zinc-400">
+            {/* Foot row */}
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1">
                 {inv.ore > 0 && (
-                  <span className="flex items-center gap-1" title="Ore: +$0.02/turn work bonus">
-                    <Mountain size={10} className="text-amber-400/80" />
-                    {inv.ore}
-                  </span>
+                  <InvPill icon={<Mountain size={10} className="text-[#A87A4A]" />} value={inv.ore} title="Ore" />
                 )}
                 {inv.food > 0 && (
-                  <span className="flex items-center gap-1" title="Food: consumed at tax time or $1 penalty">
-                    <Wheat size={10} className="text-yellow-400/80" />
-                    {inv.food}
-                  </span>
+                  <InvPill icon={<Wheat size={10} className="text-[#C49A3B]" />} value={inv.food} title="Food" />
                 )}
                 {inv.tech > 0 && (
-                  <span className="flex items-center gap-1" title="Tech: -5% tax per unit">
-                    <Cpu size={10} className="text-cyan-400/80" />
-                    {inv.tech}
+                  <InvPill icon={<Cpu size={10} className="text-[#6F8FB2]" />} value={inv.tech} title="Tech" />
+                )}
+                {!inv.ore && !inv.food && !inv.tech && (
+                  <span className="text-[10px] italic text-cozy-ink-faint">empty pockets</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 text-[13px]">
+                {dead ? (
+                  <span
+                    className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-red-100 text-red-700"
+                  >
+                    <Skull size={10} /> out
+                  </span>
+                ) : a.invested > 0 ? (
+                  <span
+                    title={`$${a.invested.toFixed(2)} locked`}
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white border border-cozy-card-edge text-cozy-ink-soft"
+                  >
+                    📈 ${a.invested.toFixed(0)}
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded-md bg-white border border-cozy-card-edge text-[13px]">
+                    {moodFor(a)}
                   </span>
                 )}
               </div>
-            )}
+            </div>
 
-            {/* Social */}
-            {(a.spouse || a.allies?.length > 0 || a.enemies?.length > 0) && (
-              <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]">
+            {/* Social row */}
+            {(a.spouse || a.allies?.length || a.enemies?.length) && (
+              <div className="flex flex-wrap gap-1 text-[10px]">
                 {a.spouse && (
-                  <span className="flex items-center gap-1 text-pink-400">
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#FFE2EC] text-[#B65978] font-semibold">
                     <Heart size={9} fill="currentColor" /> {a.spouse}
                   </span>
                 )}
                 {a.allies?.length > 0 && (
-                  <span className="text-emerald-400/90">allies: {a.allies.join(', ')}</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-[#E0F2E6] text-[#3A8559] font-semibold">
+                    allies: {a.allies.join(', ')}
+                  </span>
                 )}
                 {a.enemies?.length > 0 && (
-                  <span className="text-red-400/90">enemies: {a.enemies.join(', ')}</span>
-                )}
-              </div>
-            )}
-
-            {/* Badges */}
-            {(a.steal_count > 0 || a.rest_bonus || a.will_target || !a.alive) && (
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                {!a.alive && (
-                  <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 bg-red-950/80 text-red-300 rounded font-medium">
-                    <Skull size={10} /> ELIMINATED
-                  </span>
-                )}
-                {a.steal_count > 0 && (
-                  <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 bg-red-950/50 text-red-200 rounded">
-                    <ShieldAlert size={9} /> {a.steal_count}
-                  </span>
-                )}
-                {a.rest_bonus && (
-                  <span className="text-[9px] px-1.5 py-0.5 bg-blue-950/50 text-blue-200 rounded">
-                    resting
-                  </span>
-                )}
-                {a.will_target && (
-                  <span className="text-[9px] px-1.5 py-0.5 bg-purple-950/50 text-purple-200 rounded">
-                    will → {a.will_target}
+                  <span className="px-1.5 py-0.5 rounded-md bg-[#FFE0E0] text-[#B14848] font-semibold">
+                    enemies: {a.enemies.join(', ')}
                   </span>
                 )}
               </div>
@@ -195,4 +163,25 @@ export default function Sidebar({ snapshot, running = false }: SidebarProps) {
       })}
     </aside>
   );
+}
+
+function InvPill({ icon, value, title }: { icon: React.ReactNode; value: number; title: string }) {
+  return (
+    <span
+      title={title}
+      className="inline-flex items-center gap-1 px-[7px] py-[2px] rounded-[10px] bg-white border border-cozy-card-edge font-mono text-[10px] font-bold text-cozy-ink-soft"
+    >
+      {icon}
+      {value}
+    </span>
+  );
+}
+
+function moodFor(a: { trust_score: number; steal_count: number; rest_bonus: boolean }): string {
+  if (a.steal_count >= 3) return '😈';
+  if (a.rest_bonus) return '😴';
+  if (a.trust_score >= 75) return '🥰';
+  if (a.trust_score >= 50) return '😊';
+  if (a.trust_score >= 25) return '😐';
+  return '😬';
 }

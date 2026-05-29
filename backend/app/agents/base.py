@@ -26,7 +26,7 @@ You WIN by becoming the richest agent alive -- accumulate >=90% of all wealth, o
 GAME MECHANICS:
 - Everyone starts with $10. Progressive tax on CASH every 10 turns (0% on $0-2, 5% on $2-5, 10% on $5-10, 15% on $10-20, 20% on $20+). Money locked in investments is tax-exempt.
 - $0 = eliminated permanently. Your assets go to your heir (will target > spouse > lost forever).
-- You can only see your own balance + allies/spouse. Others are hidden -- use deception to guess.
+- Information about other agents is restricted. The "INFO MODE" line in each world snapshot tells you what you can see this run.
 - Trust Score (0-100) affects trade acceptance. Destroy competitors' trust with slander.
 
 GOODS & SURVIVAL:
@@ -90,9 +90,30 @@ def _fuzzy_balance(balance: float) -> str:
     return "$20+"
 
 
+# Valid balance-visibility modes. Default is "fuzzy" (legacy behavior).
+BALANCE_VISIBILITY_MODES = ("public", "fuzzy", "hidden")
+
+_VISIBILITY_PREAMBLES = {
+    "public": "INFO MODE: Exact balances are visible for all agents this run.",
+    "fuzzy": (
+        "INFO MODE: You see exact balances only for yourself, your spouse, and "
+        "consenting allies. Other agents' balances appear as a rough range. "
+        "Use deception to refine your guesses."
+    ),
+    "hidden": (
+        "INFO MODE: You see only your own balance. Every other agent's wealth "
+        "is hidden. Read behavior and trades to infer who is strong or weak."
+    ),
+}
+
+
 def render_world_brief(state: dict, self_id: str) -> str:
     history = state.get("_history")
     gaslight_events = state.get("_gaslights", [])
+    visibility = state.get("_balance_visibility", "fuzzy")
+    if visibility not in BALANCE_VISIBILITY_MODES:
+        visibility = "fuzzy"
+
     self_agent = None
     for a in state["agents"]:
         if a["agent_id"] == self_id:
@@ -102,21 +123,23 @@ def render_world_brief(state: dict, self_id: str) -> str:
     my_allies = set(self_agent.get("allies", [])) if self_agent else set()
     my_spouse = self_agent.get("spouse") if self_agent else None
 
-    lines = [f"Turn {state['turn']}. World snapshot:"]
+    lines = [_VISIBILITY_PREAMBLES[visibility], f"Turn {state['turn']}. World snapshot:"]
     for a in state["agents"]:
         aid = a["agent_id"]
         is_self = aid == self_id
         is_spouse = aid == my_spouse
         is_ally = aid in my_allies
-        can_see_balance = (
-            is_self or is_spouse or (is_ally and a.get("share_balance", True))
-        )
 
         marker = " <-- you" if is_self else ""
         status = "alive" if a["alive"] else "ELIMINATED"
-        bal = (
-            f"${a['balance']:.2f}" if can_see_balance else _fuzzy_balance(a["balance"])
-        )
+
+        if visibility == "public" or is_self:
+            bal = f"${a['balance']:.2f}"
+        elif visibility == "hidden":
+            bal = "$?"
+        else:  # fuzzy (legacy)
+            can_see_exact = is_spouse or (is_ally and a.get("share_balance", True))
+            bal = f"${a['balance']:.2f}" if can_see_exact else _fuzzy_balance(a["balance"])
         trust = (
             f" trust={a.get('trust_score', 50):.0f}"
             if a.get("trust_score") is not None

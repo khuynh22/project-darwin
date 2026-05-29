@@ -29,10 +29,13 @@ export type ThoughtSnap = {
   outcome: string;
 };
 
+export type BalanceVisibility = "public" | "fuzzy" | "hidden";
+
 export type WorldSnapshot = {
   turn: number;
   agents: AgentSnap[];
   recent_thoughts: ThoughtSnap[];
+  balance_visibility?: BalanceVisibility;
 };
 
 export type PausedEvent = {

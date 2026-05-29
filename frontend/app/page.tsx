@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronsRight,
   Download,
+  Eye,
+  EyeOff,
   Play,
   RotateCcw,
+  ScanEye,
   Settings2,
   Square,
   StepForward,
@@ -13,7 +16,7 @@ import {
 import Sidebar from '@/components/Sidebar';
 import ThoughtLog from '@/components/ThoughtLog';
 import PublicLog from '@/components/PublicLog';
-import HexArena from '@/components/HexArena';
+import Town from '@/components/Town';
 import ConfigPanel from '@/components/ConfigPanel';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,9 +28,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { connectOracle, type WorldSnapshot, type PausedEvent } from '@/lib/ws';
+import { connectOracle, type PausedEvent, type WorldSnapshot } from '@/lib/ws';
 
-// Auto-play tick must be >= sigil walk duration so movement completes before next turn.
+// Auto-play tick must be >= walk duration so movement completes before next turn.
 const AUTO_PLAY_DELAY_MS = 3700;
 
 export default function Page() {
@@ -131,57 +134,89 @@ export default function Page() {
     setConfigOpen(true);
   }
 
+  // Keyboard shortcuts: S = Step, Space = Auto, R = Reset
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        if (hasAgents) toggleAutoPlay();
+      } else if (e.key === 's' || e.key === 'S') {
+        if (hasAgents && !running && !autoPlay) step(1);
+      } else if (e.key === 'r' || e.key === 'R') {
+        resetSim();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPlay, running, hasAgents]);
+
+  const turn = snapshot?.turn ?? 0;
+  const aliveCount = snapshot?.agents.filter((a) => a.alive).length ?? 0;
+  const totalAgents = snapshot?.agents.length ?? 0;
+  const treasury = snapshot?.agents.reduce((sum, a) => sum + a.balance, 0) ?? 0;
+  const vis = snapshot?.balance_visibility;
+
   return (
-    <main className="flex flex-col h-screen bg-zinc-950">
+    <main className="relative z-[1] mx-auto max-w-[1440px] px-[22px] pt-[14px] pb-[22px]">
       {/* Header */}
-      <header className="flex-shrink-0 px-4 py-2 bg-zinc-900/95 backdrop-blur border-b border-zinc-800 flex items-center gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="inline-block h-2 w-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]"
-            />
-            <h1 className="text-zinc-100 text-sm font-semibold tracking-wide">
+      <header className="flex items-center justify-between gap-6 bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-[22px] px-4 py-[10px] shadow-cozy mb-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-[38px] h-[38px] rounded-[12px] grid place-items-center text-[20px]"
+            style={{ background: '#FFC089', boxShadow: '0 2px 0 rgba(74,58,46,0.08)' }}
+          >
+            🌱
+          </div>
+          <div>
+            <h1 className="font-display font-semibold text-[19px] leading-none text-cozy-ink">
               Project Darwin
             </h1>
+            <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-cozy-ink-soft mt-[3px]">
+              A tiny town of LLM critters
+            </div>
           </div>
-          <span className="text-zinc-400 text-xs font-mono bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60">
-            Turn {snapshot?.turn ?? 0}
-          </span>
+        </div>
+
+        <div className="flex items-center gap-[10px]">
+          <StatPill label="Turn" value={String(turn).padStart(2, '0')} mono />
+          <StatPill label="Alive" value={`${aliveCount}/${totalAgents}`} />
+          <StatPill label="Treasury" value={`$${treasury.toFixed(0)}`} mono />
+          {vis && hasAgents && <VisPill vis={vis} />}
           {running && (
-            <span className="text-blue-300 text-xs flex items-center gap-1.5">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-cozy-accent">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-cozy-accent animate-pulse" />
               thinking…
             </span>
           )}
         </div>
-        <div className="flex-1" />
-        <div className="flex items-center gap-1.5">
+
+        <div className="flex items-center gap-[10px]">
           <Button
             variant="default"
-            size="sm"
             onClick={() => step(1)}
             disabled={running || !hasAgents || autoPlay}
           >
-            <StepForward size={13} /> Step
+            <StepForward size={14} /> Step
           </Button>
           <Button
             variant="default"
-            size="sm"
             onClick={() => step(10)}
             disabled={running || !hasAgents || autoPlay}
           >
-            <ChevronsRight size={13} /> +10
+            <ChevronsRight size={14} /> +10
           </Button>
           <Button
-            variant={autoPlay ? 'danger' : 'success'}
-            size="sm"
+            variant={autoPlay ? 'success' : 'primary'}
             onClick={toggleAutoPlay}
             disabled={!hasAgents}
           >
+            <span className="dot" />
             {autoPlay ? (
               <>
-                <Square size={12} /> Stop
+                <Square size={12} /> Auto · ON
               </>
             ) : (
               <>
@@ -189,93 +224,115 @@ export default function Page() {
               </>
             )}
           </Button>
-        </div>
-        <div className="w-px h-5 bg-zinc-800" />
-        <div className="flex items-center gap-1">
+          <div className="w-px h-6 bg-cozy-card-edge mx-1" />
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => window.open(`${httpBase}/export/thoughts`, '_blank')}
           >
-            <Download size={13} /> Export
+            <Download size={14} /> Export
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setConfigOpen(true)}>
-            <Settings2 size={13} /> Config
+          <Button variant="ghost" onClick={() => setConfigOpen(true)}>
+            <Settings2 size={14} /> Config
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={resetSim}
-            className="text-red-400/80 hover:text-red-300 hover:bg-red-950/40"
-          >
-            <RotateCcw size={13} /> Reset
+          <Button variant="ghost" onClick={resetSim}>
+            <RotateCcw size={14} /> Reset
           </Button>
         </div>
       </header>
 
-      {/* Main content: 3-column layout */}
-      <div className="flex-1 flex min-h-0">
-        {/* Left: Arena + Logs */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <HexArena snapshot={snapshot} running={running} />
-
-          {/* Bottom: Public feed + Private thoughts */}
-          <div className="flex-shrink-0 h-48 flex border-t border-zinc-800">
-            <PublicLog snapshot={snapshot} />
-            <div className="w-px bg-zinc-800" />
-            <ThoughtLog snapshot={snapshot} />
-          </div>
-        </div>
-
-        {/* Right sidebar */}
-        <Sidebar snapshot={snapshot} running={running} />
+      {/* Main: Town + Roster */}
+      <div className="grid grid-cols-[1fr_340px] gap-[14px] mb-3">
+        <Town snapshot={snapshot} running={running} />
+        <Sidebar snapshot={snapshot} />
       </div>
 
-      {/* Config modal */}
+      {/* Logs */}
+      <div className="grid grid-cols-2 gap-[14px]">
+        <PublicLog snapshot={snapshot} />
+        <ThoughtLog snapshot={snapshot} />
+      </div>
+
+      <div className="text-center text-[11px] font-semibold text-cozy-ink-soft mt-3">
+        <Kbd>S</Kbd> Step &nbsp;·&nbsp; <Kbd>Space</Kbd> Auto &nbsp;·&nbsp; <Kbd>R</Kbd> Reset
+      </div>
+
       <ConfigPanel open={configOpen} onClose={() => setConfigOpen(false)} />
 
-      {/* Pause dialog */}
       <Dialog
         open={pauseInfo !== null}
         onOpenChange={(open) => {
           if (!open) setPauseInfo(null);
         }}
       >
-        <DialogContent size="sm" className="border-red-900/70">
+        <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle className="text-red-300">Simulation paused</DialogTitle>
+            <DialogTitle className="!text-[#B14848]">A critter got stuck</DialogTitle>
             <DialogDescription>
-              Agent{' '}
-              <span className="text-blue-300 font-semibold">{pauseInfo?.agent_id}</span>{' '}
-              encountered an error.
+              Agent <span className="font-display font-semibold text-cozy-ink">{pauseInfo?.agent_id}</span>{' '}
+              ran into an error.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <p className="text-red-200/90 text-xs bg-zinc-950/80 border border-zinc-800 p-3 rounded-lg break-words font-mono leading-relaxed">
+            <p className="text-[12px] font-mono leading-relaxed bg-[#FFF6E6] border border-cozy-card-edge p-3 rounded-xl break-words text-cozy-ink-soft">
               {pauseInfo?.reason}
             </p>
           </DialogBody>
           <DialogFooter>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPauseInfo(null)}
-            >
+            <Button variant="ghost" onClick={() => setPauseInfo(null)}>
               Dismiss
             </Button>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => pauseInfo && removeAgent(pauseInfo.agent_id)}
             >
               Remove agent
             </Button>
-            <Button variant="primary" size="sm" onClick={resumeSimulation}>
+            <Button variant="primary" onClick={resumeSimulation}>
               Retry
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </main>
+  );
+}
+
+function StatPill({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div
+      className="flex flex-col gap-[2px] px-3 py-[6px] rounded-[14px] border-[1.5px] border-cozy-card-edge"
+      style={{ background: '#FFF6E6', minWidth: 76 }}
+    >
+      <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-cozy-ink-soft">
+        {label}
+      </span>
+      <span
+        className={`font-display font-semibold text-[18px] leading-none text-cozy-ink ${
+          mono ? 'font-mono' : ''
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function VisPill({ vis }: { vis: 'public' | 'fuzzy' | 'hidden' }) {
+  const Icon = vis === 'public' ? Eye : vis === 'hidden' ? EyeOff : ScanEye;
+  return (
+    <span
+      title={`Balance visibility for this run: ${vis}`}
+      className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-cozy-ink-soft px-2 py-1 rounded-lg border border-cozy-card-edge bg-[#FFF6E6]"
+    >
+      <Icon size={11} /> {vis}
+    </span>
+  );
+}
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="font-mono bg-cozy-card border border-cozy-card-edge rounded-md px-[6px] py-[1px] text-[10px] shadow-[0_2px_0_rgba(74,58,46,0.08)] text-cozy-ink">
+      {children}
+    </kbd>
   );
 }

@@ -90,6 +90,11 @@ _turn_lock = asyncio.Lock()
 _current_turn = 0
 _active_roster: list[dict] | None = None  # set by /configure, None = use default
 
+# Per-simulation balance visibility: "public" | "fuzzy" | "hidden". Set on /configure.
+BALANCE_VISIBILITY_DEFAULT = "fuzzy"
+_balance_visibility: str = BALANCE_VISIBILITY_DEFAULT
+_VALID_VISIBILITY = {"public", "fuzzy", "hidden"}
+
 
 @app.get("/health")
 async def health() -> dict:
@@ -166,13 +171,19 @@ async def configure_simulation(body: dict) -> dict:
     from app.models.api_key import get_key
     from app.thought_export import start_export
 
-    global _current_turn, _active_roster
+    global _current_turn, _active_roster, _balance_visibility
 
     agents_list = body.get("agents", [])
     settings = get_settings()
     if not (settings.min_agents <= len(agents_list) <= settings.max_agents):
         return {
             "error": f"Need {settings.min_agents}-{settings.max_agents} agents, got {len(agents_list)}"
+        }
+
+    visibility = body.get("balance_visibility", BALANCE_VISIBILITY_DEFAULT)
+    if visibility not in _VALID_VISIBILITY:
+        return {
+            "error": f"balance_visibility must be one of {sorted(_VALID_VISIBILITY)}, got {visibility!r}"
         }
 
     # Validate + resolve API keys
@@ -229,6 +240,7 @@ async def configure_simulation(body: dict) -> dict:
 
     _active_roster = roster
     _current_turn = 0
+    _balance_visibility = visibility
     start_export()
 
     # Broadcast new state
@@ -270,6 +282,7 @@ async def state() -> dict:
             )
     return {
         "turn": _current_turn,
+        "balance_visibility": _balance_visibility,
         "agents": [
             {
                 "agent_id": a.agent_id,
@@ -363,7 +376,12 @@ async def step_turn() -> dict:
         _current_turn += 1
         agents = build_agents(roster=_active_roster)
         async with SessionLocal() as session:
-            result = await run_turn(session, turn=_current_turn, agents=agents)
+            result = await run_turn(
+                session,
+                turn=_current_turn,
+                agents=agents,
+                balance_visibility=_balance_visibility,
+            )
         snapshot = await state()
         if result.paused:
             await broadcaster.broadcast(
@@ -396,7 +414,7 @@ async def reset_simulation() -> dict:
     """Drop all data and return to a clean state. User must reconfigure."""
     from app.thought_export import stop_export
 
-    global _current_turn, _active_roster
+    global _current_turn, _active_roster, _balance_visibility
     from app.db import Base, engine
 
     async with engine.begin() as conn:
@@ -404,6 +422,7 @@ async def reset_simulation() -> dict:
         await conn.run_sync(Base.metadata.create_all)
     _current_turn = 0
     _active_roster = None
+    _balance_visibility = BALANCE_VISIBILITY_DEFAULT
     stop_export()
     snapshot = await state()
     await broadcaster.broadcast({"event": "snapshot", "snapshot": snapshot})
@@ -425,7 +444,12 @@ async def run_many(turns: int = 10) -> dict:
         for _ in range(cap):
             _current_turn += 1
             async with SessionLocal() as session:
-                result = await run_turn(session, turn=_current_turn, agents=agents)
+                result = await run_turn(
+                    session,
+                    turn=_current_turn,
+                    agents=agents,
+                    balance_visibility=_balance_visibility,
+                )
             snapshot = await state()
             if result.paused:
                 await broadcaster.broadcast(

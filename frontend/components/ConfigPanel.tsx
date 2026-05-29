@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CheckCircle2, KeyRound, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckCircle2, Eye, EyeOff, KeyRound, Plus, ScanEye, Sparkles, Trash2 } from 'lucide-react';
+import type { BalanceVisibility } from '@/lib/ws';
 import {
   Dialog,
   DialogBody,
@@ -12,7 +13,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import AgentSigil from '@/components/AgentSigil';
+import { CritterAvatar } from '@/components/Critter';
+import { COLOR_HEX } from '@/lib/town';
 
 type ProviderInfo = { name: string; default_model: string; requires_key: boolean };
 type StoredKey = { id: number; provider: string; label: string };
@@ -23,27 +25,14 @@ type AgentConfig = {
   provider: string;
   model: string;
   personality: string;
-  sprite: string; // color name
-};
-
-const COLOR_HEX: Record<string, string> = {
-  red: '#ef4444',
-  blue: '#3b82f6',
-  green: '#22c55e',
-  purple: '#a855f7',
-  orange: '#f97316',
-  cyan: '#06b6d4',
-  pink: '#ec4899',
-  yellow: '#eab308',
-  teal: '#14b8a6',
-  indigo: '#6366f1',
+  sprite: string;
 };
 
 function emptyAgent(index: number): AgentConfig {
   const colors = Object.keys(COLOR_HEX);
   return {
     agent_id: `agent_${index + 1}`,
-    display_name: `Agent ${index + 1}`,
+    display_name: `Critter ${index + 1}`,
     provider: 'stub',
     model: '',
     personality: '',
@@ -66,6 +55,7 @@ export default function ConfigPanel({ open, onClose }: { open: boolean; onClose:
   const [providerKeys, setProviderKeys] = useState<
     Record<string, { keyId: number | null; rawKey: string }>
   >({});
+  const [visibility, setVisibility] = useState<BalanceVisibility>('fuzzy');
 
   useEffect(() => {
     if (!open) return;
@@ -141,7 +131,7 @@ export default function ConfigPanel({ open, onClose }: { open: boolean; onClose:
       const res = await fetch(`${httpBase}/configure`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agents: payload }),
+        body: JSON.stringify({ agents: payload, balance_visibility: visibility }),
       });
       const data = await res.json();
       if (data.error) setError(data.error);
@@ -157,8 +147,6 @@ export default function ConfigPanel({ open, onClose }: { open: boolean; onClose:
   const providersNeedingKeys = usedProviders.filter(
     (p) => providers.find((pr) => pr.name === p)?.requires_key,
   );
-
-  // Colors already chosen by other agents (so we can grey them out)
   const usedColors = new Set(agents.map((a) => a.sprite));
 
   return (
@@ -166,32 +154,27 @@ export default function ConfigPanel({ open, onClose }: { open: boolean; onClose:
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles size={16} className="text-blue-400" /> Configure Simulation
+            <Sparkles size={16} className="text-cozy-accent" /> Configure the Town
           </DialogTitle>
-          <DialogDescription>Set up 3–10 agents to begin a new run.</DialogDescription>
+          <DialogDescription>
+            Pick 3–10 critters and the providers that will be thinking inside them.
+          </DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-4">
-          {/* API Keys section */}
           {providersNeedingKeys.length > 0 && (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <KeyRound size={13} className="text-zinc-400" />
-                <h3 className="text-zinc-200 text-xs font-semibold uppercase tracking-wider">
-                  API Keys
-                </h3>
-              </div>
+            <Section icon={<KeyRound size={13} className="text-cozy-ink-soft" />} title="API Keys">
               <div className="space-y-2">
                 {providersNeedingKeys.map((provider) => {
                   const pk = providerKeys[provider] || { keyId: null, rawKey: '' };
                   const saved = storedKeys.filter((k) => k.provider === provider);
                   return (
                     <div key={provider} className="flex items-center gap-3">
-                      <span className="text-zinc-300 text-sm w-20 font-medium capitalize">
+                      <span className="text-cozy-ink text-sm w-20 font-display font-semibold capitalize">
                         {provider}
                       </span>
                       {pk.keyId ? (
-                        <span className="text-emerald-400 text-xs flex items-center gap-1.5 flex-1">
+                        <span className="text-cozy-green text-xs flex items-center gap-1.5 flex-1 font-semibold">
                           <CheckCircle2 size={12} /> Key saved
                         </span>
                       ) : (
@@ -205,7 +188,7 @@ export default function ConfigPanel({ open, onClose }: { open: boolean; onClose:
                                 [provider]: { ...pk, rawKey: e.target.value },
                               }))
                             }
-                            className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm px-3 py-1.5 rounded-md flex-1 focus:border-blue-500 focus:outline-none"
+                            className="cozy-input flex-1"
                             placeholder={`Enter ${provider} API key`}
                           />
                           {pk.rawKey && (
@@ -227,7 +210,7 @@ export default function ConfigPanel({ open, onClose }: { open: boolean; onClose:
                               [provider]: { keyId: Number(e.target.value), rawKey: '' },
                             }))
                           }
-                          className="bg-zinc-900 border border-zinc-700 text-zinc-300 text-sm px-2 py-1.5 rounded-md"
+                          className="cozy-select"
                           defaultValue=""
                         >
                           <option value="" disabled>
@@ -244,112 +227,191 @@ export default function ConfigPanel({ open, onClose }: { open: boolean; onClose:
                   );
                 })}
               </div>
-            </div>
+            </Section>
           )}
 
-          {/* Agents */}
-          <div className="space-y-2">
-            {agents.map((a, i) => (
-              <div
-                key={i}
-                className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 hover:border-zinc-700 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center">
-                    <AgentSigil color={COLOR_HEX[a.sprite] || '#888'} size={36} state="idle" />
-                  </div>
-                  <input
-                    value={a.display_name}
-                    onChange={(e) =>
-                      updateAgent(i, {
-                        display_name: e.target.value,
-                        agent_id: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-                      })
+          <Section icon={<ScanEye size={13} className="text-cozy-ink-soft" />} title="Balance visibility">
+            <p className="text-cozy-ink-soft text-[11px] mb-3">
+              Controls what each critter can learn about everyone else&apos;s coins. Tighter
+              modes push them toward deception; looser modes invite direct targeting.
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { id: 'public' as const, label: 'Public', desc: 'Everyone sees exact balances.', Icon: Eye },
+                {
+                  id: 'fuzzy' as const,
+                  label: 'Fuzzy',
+                  desc: 'Range buckets for others; exact for spouse/allies. (default)',
+                  Icon: ScanEye,
+                },
+                {
+                  id: 'hidden' as const,
+                  label: 'Hidden',
+                  desc: 'No info on others; infer from behavior.',
+                  Icon: EyeOff,
+                },
+              ]).map((opt) => {
+                const active = visibility === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setVisibility(opt.id)}
+                    aria-pressed={active}
+                    className={
+                      'flex flex-col items-start gap-1 rounded-2xl border-[1.5px] px-3 py-2 text-left transition-colors ' +
+                      (active
+                        ? 'border-cozy-accent bg-[#FFE6BF]/60'
+                        : 'border-cozy-card-edge bg-[#FFF8EB] hover:border-cozy-accent/60')
                     }
-                    className="bg-zinc-900 border border-zinc-700 text-zinc-100 text-sm px-2 py-1 rounded w-32 focus:border-blue-500 focus:outline-none"
-                    placeholder="Name"
-                  />
-                  <select
-                    value={a.provider}
-                    onChange={(e) => onProviderChange(i, e.target.value)}
-                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm px-2 py-1 rounded"
                   >
-                    {providers.map((p) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={a.model}
-                    onChange={(e) => updateAgent(i, { model: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm px-2 py-1 rounded flex-1 focus:border-blue-500 focus:outline-none"
-                    placeholder="Model ID (optional)"
-                  />
-                  <select
-                    value={a.sprite}
-                    onChange={(e) => updateAgent(i, { sprite: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm px-2 py-1 rounded w-24"
-                    style={{ color: COLOR_HEX[a.sprite] }}
-                  >
-                    {Object.keys(COLOR_HEX).map((c) => (
-                      <option
-                        key={c}
-                        value={c}
-                        disabled={usedColors.has(c) && c !== a.sprite}
+                    <div className="flex items-center gap-1.5">
+                      <opt.Icon
+                        size={12}
+                        className={active ? 'text-cozy-accent' : 'text-cozy-ink-soft'}
+                      />
+                      <span
+                        className={`font-display text-[13px] font-semibold ${
+                          active ? 'text-cozy-ink' : 'text-cozy-ink'
+                        }`}
                       >
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                  {agents.length > 3 && (
-                    <button
-                      onClick={() => removeAgent(i)}
-                      className="text-zinc-500 hover:text-red-400 p-1.5 rounded hover:bg-zinc-800 transition-colors"
-                      aria-label="Remove agent"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-                <details className="mt-2">
-                  <summary className="text-zinc-500 text-xs cursor-pointer hover:text-zinc-300 select-none">
-                    Personality (optional)
-                  </summary>
-                  <textarea
-                    value={a.personality}
-                    onChange={(e) => updateAgent(i, { personality: e.target.value })}
-                    className="mt-1.5 bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs px-2 py-1.5 rounded w-full h-16 resize-none focus:border-blue-500 focus:outline-none"
-                    placeholder="Leave empty for auto-generated personality"
-                  />
-                </details>
-              </div>
-            ))}
-          </div>
+                        {opt.label}
+                      </span>
+                    </div>
+                    <span className="text-[10px] leading-snug text-cozy-ink-soft">{opt.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
 
-          {agents.length < 10 && (
-            <Button variant="ghost" size="sm" onClick={addAgent} className="text-blue-400 hover:text-blue-300">
-              <Plus size={13} /> Add agent
-            </Button>
-          )}
+          <Section icon={<Sparkles size={13} className="text-cozy-ink-soft" />} title={`Critters · ${agents.length}`}>
+            <div className="space-y-2">
+              {agents.map((a, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl border-[1.5px] border-cozy-card-edge bg-[#FFF8EB] p-3 transition-colors hover:border-cozy-accent/60"
+                >
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <CritterAvatar color={COLOR_HEX[a.sprite] || '#FFCBA0'} size={36} />
+                    <input
+                      value={a.display_name}
+                      onChange={(e) =>
+                        updateAgent(i, {
+                          display_name: e.target.value,
+                          agent_id: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+                        })
+                      }
+                      className="cozy-input w-36"
+                      placeholder="Name"
+                    />
+                    <select
+                      value={a.provider}
+                      onChange={(e) => onProviderChange(i, e.target.value)}
+                      className="cozy-select"
+                    >
+                      {providers.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={a.model}
+                      onChange={(e) => updateAgent(i, { model: e.target.value })}
+                      className="cozy-input flex-1 min-w-[160px]"
+                      placeholder="Model ID (optional)"
+                    />
+                    <select
+                      value={a.sprite}
+                      onChange={(e) => updateAgent(i, { sprite: e.target.value })}
+                      className="cozy-select w-28"
+                      style={{ color: COLOR_HEX[a.sprite] || '#FFCBA0' }}
+                    >
+                      {Object.keys(COLOR_HEX).map((c) => (
+                        <option
+                          key={c}
+                          value={c}
+                          disabled={usedColors.has(c) && c !== a.sprite}
+                        >
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    {agents.length > 3 && (
+                      <button
+                        onClick={() => removeAgent(i)}
+                        className="text-cozy-ink-soft hover:text-[#B14848] p-1.5 rounded-lg hover:bg-white transition-colors"
+                        aria-label="Remove agent"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <details className="mt-2">
+                    <summary className="text-cozy-ink-soft text-xs cursor-pointer hover:text-cozy-ink select-none font-semibold">
+                      Personality (optional)
+                    </summary>
+                    <textarea
+                      value={a.personality}
+                      onChange={(e) => updateAgent(i, { personality: e.target.value })}
+                      className="cozy-textarea mt-1.5 w-full h-16"
+                      placeholder="Leave empty for auto-generated personality"
+                    />
+                  </details>
+                </div>
+              ))}
+            </div>
+
+            {agents.length < 10 && (
+              <button
+                onClick={addAgent}
+                className="mt-3 flex items-center gap-1.5 text-cozy-accent hover:text-[#B86640] text-sm font-display font-semibold"
+              >
+                <Plus size={14} /> Add a critter
+              </button>
+            )}
+          </Section>
 
           {error && (
-            <p className="text-red-400 text-sm bg-red-950/40 border border-red-900/60 rounded px-3 py-2">
+            <p className="text-[#B14848] text-sm bg-[#FFE0E0] border border-[#E6A8A8] rounded-xl px-3 py-2">
               {error}
             </p>
           )}
         </DialogBody>
 
         <DialogFooter>
-          <span className="text-zinc-500 text-xs mr-auto">{agents.length} agents</span>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <span className="text-cozy-ink-soft text-xs mr-auto">{agents.length} critters</span>
+          <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" onClick={submit} disabled={submitting}>
+          <Button variant="primary" onClick={submit} disabled={submitting}>
             {submitting ? 'Starting…' : 'Start simulation'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Section({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border-[1.5px] border-cozy-card-edge bg-[#FFF6E6] p-4">
+      <div className="flex items-center gap-2 mb-3">
+        {icon}
+        <h3 className="font-display text-cozy-ink text-[13px] font-semibold uppercase tracking-[0.1em]">
+          {title}
+        </h3>
+      </div>
+      {children}
+    </div>
   );
 }

@@ -1,24 +1,22 @@
 'use client';
 
 export default function ErrorBoundary({
-    error,
-    reset,
+  error,
+  reset,
 }: {
-    error: Error & { digest?: string };
-    reset: () => void;
+  error: Error & { digest?: string };
+  reset: () => void;
 }) {
-    return (
-        <div className="flex flex-col items-center justify-center h-screen bg-arena-bg text-white gap-4">
-            <h2 className="text-arena-accent text-lg">Something went wrong</h2>
-            <pre className="text-xs text-red-400 max-w-lg overflow-auto p-4 bg-black/50 rounded">
-                {error.message}
-            </pre>
-            <button
-                onClick={reset}
-                className="bg-arena-accent text-black px-4 py-2 text-sm"
-            >
-                Try again
-            </button>
-        </div>
-    );
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-6 text-center">
+      <div className="text-4xl">🐛</div>
+      <h2 className="font-display text-cozy-ink text-xl">A critter tripped on the carpet</h2>
+      <pre className="text-xs text-[#B14848] max-w-lg overflow-auto p-4 bg-[#FFE0E0] border border-[#E6A8A8] rounded-xl text-left">
+        {error.message}
+      </pre>
+      <button onClick={reset} className="btn-cozy primary">
+        Try again
+      </button>
+    </div>
+  );
 }

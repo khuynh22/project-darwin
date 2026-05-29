@@ -17,7 +17,7 @@ export const DialogOverlay = forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-40 bg-black/75 backdrop-blur-sm',
+      'fixed inset-0 z-40 bg-[#4A3A2E]/30 backdrop-blur-sm',
       'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
       className,
     )}
@@ -48,7 +48,7 @@ export const DialogContent = forwardRef<
       ref={ref}
       className={cn(
         'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2',
-        'rounded-2xl border border-zinc-700/70 bg-zinc-900 shadow-2xl shadow-black/40',
+        'rounded-3xl border-[1.5px] border-cozy-card-edge bg-cozy-card text-cozy-ink shadow-cozy-lg',
         'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out',
         'max-h-[90vh] overflow-y-auto',
         SIZE_CLASSES[size],
@@ -60,7 +60,7 @@ export const DialogContent = forwardRef<
       {showClose && (
         <DialogPrimitive.Close
           aria-label="Close"
-          className="absolute right-3 top-3 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-600"
+          className="absolute right-3 top-3 rounded-lg p-1.5 text-cozy-ink-soft hover:bg-[#FFE6BF] hover:text-cozy-ink focus:outline-none focus:ring-2 focus:ring-cozy-accent"
         >
           <X className="h-4 w-4" />
         </DialogPrimitive.Close>
@@ -76,7 +76,9 @@ export function DialogHeader({ children, className }: { children: ReactNode; cla
 
 export function DialogTitle({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <DialogPrimitive.Title className={cn('text-lg font-semibold text-zinc-100', className)}>
+    <DialogPrimitive.Title
+      className={cn('font-display text-[19px] font-semibold text-cozy-ink', className)}
+    >
       {children}
     </DialogPrimitive.Title>
   );
@@ -84,7 +86,7 @@ export function DialogTitle({ children, className }: { children: ReactNode; clas
 
 export function DialogDescription({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <DialogPrimitive.Description className={cn('mt-1 text-sm text-zinc-400', className)}>
+    <DialogPrimitive.Description className={cn('mt-1 text-sm text-cozy-ink-soft', className)}>
       {children}
     </DialogPrimitive.Description>
   );
@@ -96,7 +98,12 @@ export function DialogBody({ children, className }: { children: ReactNode; class
 
 export function DialogFooter({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('flex items-center justify-end gap-2 border-t border-zinc-800/80 px-6 py-3', className)}>
+    <div
+      className={cn(
+        'flex items-center justify-end gap-2 border-t border-dashed border-cozy-card-edge px-6 py-3',
+        className,
+      )}
+    >
       {children}
     </div>
   );

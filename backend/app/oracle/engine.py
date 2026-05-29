@@ -512,7 +512,11 @@ async def _decide_one(
 
 
 async def run_turn(
-    session: AsyncSession, *, turn: int, agents: dict[str, BaseAgent]
+    session: AsyncSession,
+    *,
+    turn: int,
+    agents: dict[str, BaseAgent],
+    balance_visibility: str = "fuzzy",
 ) -> TurnResult:
     """Execute one full turn for every alive agent, then apply tax if cycle boundary.
 
@@ -527,6 +531,7 @@ async def run_turn(
 
     db_agents = (await session.execute(select(Agent))).scalars().all()
     state = await _world_state(session, turn)
+    state["_balance_visibility"] = balance_visibility
 
     # Phase 1: Handle skipped agents, collect active agents for parallel decide
     active: list[Agent] = []
