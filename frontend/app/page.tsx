@@ -183,7 +183,7 @@ export default function Page() {
         <div className="flex items-center gap-[10px]">
           <StatPill label="Turn" value={String(turn).padStart(2, '0')} mono />
           <StatPill label="Alive" value={`${aliveCount}/${totalAgents}`} />
-          <StatPill label="Treasury" value={`$${treasury.toFixed(0)}`} mono />
+          <StatPill label="Treasury" value={`$${treasury.toFixed(2)}`} mono />
           {vis && hasAgents && <VisPill vis={vis} />}
           {running && (
             <span className="flex items-center gap-1.5 text-[11px] font-semibold text-cozy-accent">

@@ -61,6 +61,7 @@ frontend/
 - **Info asymmetry**: agents only see own balance + spouse/allies. Others show fuzzy range. Gaslight injects fake events.
 - **Steal nerf**: success 60% - 8%/attempt (min 15%). Penalty $2 base + $0.50/attempt.
 - **Marriage**: mutual consent (two proposals). Pools balances. +10% work. Divorce splits 50/50.
+- **Bankruptcy**: any agent with `balance <= 0` is eliminated at end of turn -- every turn, not only on tax cycles. Invested capital and goods do not protect them.
 - **Inheritance**: will target gets 50%, spouse gets 100%. No heir = assets + goods lost.
 - **Deferred actions**: invest (5 turns, 70% success at 1.2-2x) and lend (5 turns, 1.1x repayment). Extortion auto-triggers next turn.
 - **Parallel execution**: all agent decide() calls run concurrently (120s timeout). Decisions applied sequentially.

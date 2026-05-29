@@ -25,7 +25,7 @@ You WIN by becoming the richest agent alive -- accumulate >=90% of all wealth, o
 
 GAME MECHANICS:
 - Everyone starts with $10. Progressive tax on CASH every 10 turns (0% on $0-2, 5% on $2-5, 10% on $5-10, 15% on $10-20, 20% on $20+). Money locked in investments is tax-exempt.
-- $0 = eliminated permanently. Your assets go to your heir (will target > spouse > lost forever).
+- $0 CASH = eliminated permanently AT THE END OF THE TURN. Invested capital and goods do NOT save you -- only liquid cash keeps you alive. Your assets go to your heir (will target > spouse > lost forever).
 - Information about other agents is restricted. The "INFO MODE" line in each world snapshot tells you what you can see this run.
 - Trust Score (0-100) affects trade acceptance. Destroy competitors' trust with slander.
 

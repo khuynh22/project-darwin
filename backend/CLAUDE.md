@@ -52,6 +52,7 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
 - Progressive tax: 0% ($0-2), 5% ($2-5), 10% ($5-10), 15% ($10-20), 20% ($20+). Invested capital exempt.
 - Steal: success = max(15%, 60% - 8% * steal_count). Penalty = max($2, $1 + $0.50 * steal_count).
 - Loans: 1.1x repayment in 5 turns. Default = -10 trust for debtor.
+- Bankruptcy: `_check_bankruptcies` runs at the end of every turn; any alive agent with `balance <= 0` is eliminated (estate = $0, inventory still transfers). Tax-time deaths still flow through `_apply_survival_tax` with the pre-tax estate.
 - Inheritance: will = 50%, spouse = 100%. Goods also transfer. No heir = lost.
 
 ## REST API

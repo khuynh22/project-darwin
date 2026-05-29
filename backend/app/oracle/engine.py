@@ -281,50 +281,83 @@ async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
         if a.balance <= 0:
             # Calculate pre-death estate (balance before this tax wiped them)
             estate = round(max(a.balance + total_cost, 0), 2)
-            a.alive = False
-            a.eliminated_at_turn = turn
-            a.balance = 0.0
+            await _eliminate_agent(session, a, turn=turn, estate=estate)
             eliminated.append(a.agent_id)
+    return eliminated
 
-            # Determine heir: will target first, then spouse
-            heir_id = a.will_target or a.spouse_id
-            if heir_id and estate > 0:
-                heir = await _get_agent_by_id(session, heir_id)
-                if heir and heir.alive:
-                    # Will = 50% of estate, spouse = 100% of estate
-                    pct = 0.5 if a.will_target and a.will_target == heir_id else 1.0
-                    inheritance = round(estate * pct, 2)
-                    heir.balance = round(heir.balance + inheritance, 2)
-                    via = "will" if a.will_target == heir_id else "spouse"
-                    session.add(
-                        Transaction(
-                            turn=turn,
-                            actor_id=a.agent_id,
-                            target_id=heir_id,
-                            action="inherit",
-                            delta=inheritance,
-                            payload={"via": via, "estate": estate},
-                            note=f"${inheritance:.2f} inherited by {heir_id} ({via})",
-                        )
-                    )
 
-            # Also transfer inventory to heir
-            if heir_id and a.inventory:
-                heir2 = await _get_agent_by_id(session, heir_id)
-                if heir2 and heir2.alive:
-                    h_inv = dict(heir2.inventory or {"ore": 0, "food": 0, "tech": 0})
-                    for g, qty in (a.inventory or {}).items():
-                        h_inv[g] = h_inv.get(g, 0) + qty
-                    heir2.inventory = h_inv
-                a.inventory = {"ore": 0, "food": 0, "tech": 0}
+async def _eliminate_agent(
+    session: AsyncSession,
+    agent: Agent,
+    *,
+    turn: int,
+    estate: float,
+) -> None:
+    """Mark an agent eliminated, pass any estate + inventory to heir, log it.
 
+    `estate` is the pre-death liquid balance available for inheritance.
+    Pure bankruptcies (instant $0 elimination outside the tax sweep) pass
+    estate=0 — only inventory transfers in that case.
+    """
+    agent.alive = False
+    agent.eliminated_at_turn = turn
+    agent.balance = 0.0
+
+    heir_id = agent.will_target or agent.spouse_id
+    if heir_id and estate > 0:
+        heir = await _get_agent_by_id(session, heir_id)
+        if heir and heir.alive:
+            # Will = 50% of estate, spouse = 100% of estate
+            pct = 0.5 if agent.will_target and agent.will_target == heir_id else 1.0
+            inheritance = round(estate * pct, 2)
+            heir.balance = round(heir.balance + inheritance, 2)
+            via = "will" if agent.will_target == heir_id else "spouse"
             session.add(
-                WorldEvent(
+                Transaction(
                     turn=turn,
-                    kind="bankruptcy",
-                    payload={"agent_id": a.agent_id, "heir": heir_id, "estate": estate},
+                    actor_id=agent.agent_id,
+                    target_id=heir_id,
+                    action="inherit",
+                    delta=inheritance,
+                    payload={"via": via, "estate": estate},
+                    note=f"${inheritance:.2f} inherited by {heir_id} ({via})",
                 )
             )
+
+    if heir_id and agent.inventory:
+        heir2 = await _get_agent_by_id(session, heir_id)
+        if heir2 and heir2.alive:
+            h_inv = dict(heir2.inventory or {"ore": 0, "food": 0, "tech": 0})
+            for g, qty in (agent.inventory or {}).items():
+                h_inv[g] = h_inv.get(g, 0) + qty
+            heir2.inventory = h_inv
+        agent.inventory = {"ore": 0, "food": 0, "tech": 0}
+
+    session.add(
+        WorldEvent(
+            turn=turn,
+            kind="bankruptcy",
+            payload={"agent_id": agent.agent_id, "heir": heir_id, "estate": estate},
+        )
+    )
+
+
+async def _check_bankruptcies(session: AsyncSession, turn: int) -> list[str]:
+    """Eliminate any alive agent that has run out of cash.
+
+    Runs every turn -- a $0 balance is fatal even outside the tax sweep,
+    regardless of invested capital or inventory holdings.
+    """
+    rows = (
+        (await session.execute(select(Agent).where(Agent.alive.is_(True))))
+        .scalars()
+        .all()
+    )
+    eliminated: list[str] = []
+    for a in rows:
+        if a.balance <= 0:
+            await _eliminate_agent(session, a, turn=turn, estate=0.0)
+            eliminated.append(a.agent_id)
     return eliminated
 
 
@@ -714,6 +747,9 @@ async def run_turn(
     eliminated: list[str] = []
     if turn > 0 and turn % settings.tax_interval_turns == 0:
         eliminated = await _apply_survival_tax(session, turn)
+
+    # Sweep every turn: $0 cash = eliminated, regardless of investments or goods.
+    eliminated.extend(await _check_bankruptcies(session, turn))
 
     refreshed = (await session.execute(select(Agent))).scalars().all()
     apex = _apex_holder(refreshed, settings.apex_wealth_fraction)

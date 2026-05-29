@@ -92,8 +92,8 @@ export default function Sidebar({ snapshot }: SidebarProps) {
                   {subLabel}
                 </div>
               </div>
-              <div className="ml-auto font-display font-semibold text-[22px] leading-none font-mono text-cozy-ink">
-                ${a.balance.toFixed(0)}
+              <div className="ml-auto font-display font-semibold text-[20px] leading-none font-mono text-cozy-ink tabular-nums">
+                ${a.balance.toFixed(2)}
               </div>
             </div>
 
@@ -126,9 +126,9 @@ export default function Sidebar({ snapshot }: SidebarProps) {
                 ) : a.invested > 0 ? (
                   <span
                     title={`$${a.invested.toFixed(2)} locked`}
-                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white border border-cozy-card-edge text-cozy-ink-soft"
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white border border-cozy-card-edge text-cozy-ink-soft tabular-nums"
                   >
-                    📈 ${a.invested.toFixed(0)}
+                    📈 ${a.invested.toFixed(2)}
                   </span>
                 ) : (
                   <span className="px-1.5 py-0.5 rounded-md bg-white border border-cozy-card-edge text-[13px]">
