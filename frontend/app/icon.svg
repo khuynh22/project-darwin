@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#FFC089"/>
+  <text
+    x="50%"
+    y="52%"
+    font-size="42"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif"
+  >🌱</text>
+</svg>
