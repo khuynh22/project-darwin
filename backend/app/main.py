@@ -361,12 +361,16 @@ async def _drive_turns(session_id: str, count: int):
         return _not_found(session_id)
 
     settings = get_settings()
-    cap = min(count, settings.max_turns)
+    cap = max(0, min(count, settings.max_turns))
     agents = build_agents(roster=runtime.roster)
     apex = None
     eliminated: list[str] = []
 
     async with runtime.lock:
+        # Reflect the real current turn even if cap == 0 (no-op call).
+        async with SessionLocal() as session:
+            sim0 = await session.get(SimSession, session_id)
+            turn = sim0.current_turn if sim0 else 0
         for _ in range(cap):
             async with SessionLocal() as session:
                 sim = await session.get(SimSession, session_id)
