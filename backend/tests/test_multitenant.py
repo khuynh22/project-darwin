@@ -84,3 +84,44 @@ async def test_transactions_are_tagged_with_session(session):
     b_red = await session.get(Agent, (SID_B, "red"))
     b_blue = await session.get(Agent, (SID_B, "blue"))
     assert b_red.balance == 10.0 and b_blue.balance == 10.0
+
+
+@pytest.mark.asyncio
+async def test_engine_settlement_paths_are_session_isolated(session):
+    """Run session A through a full tax cycle; session B must stay pristine.
+
+    This exercises the engine's settlement queries (_apply_survival_tax,
+    _process_deferred, _check_bankruptcies, apex sweep) which run over
+    ``select(Agent)`` — a missing session filter there would tax/settle both
+    worlds together.
+    """
+    from app.agents.stub import StubAgent
+    from app.models.ledger import ThoughtLog, WorldEvent
+    from app.oracle.engine import run_turn
+
+    async def snapshot_b() -> dict:
+        rows = (
+            (await session.execute(select(Agent).where(Agent.session_id == SID_B)))
+            .scalars()
+            .all()
+        )
+        return {a.agent_id: (a.balance, a.alive, a.trust_score) for a in rows}
+
+    before = await snapshot_b()
+
+    agents_a = {aid: StubAgent(agent_id=aid, model="stub") for aid in ("red", "blue")}
+    # 12 turns crosses the tax cycle boundary (tax_interval_turns defaults to 10).
+    for t in range(1, 13):
+        await run_turn(session, session_id=SID_A, turn=t, agents=agents_a)
+
+    after = await snapshot_b()
+    assert after == before, f"session B mutated by A's turns: {before} -> {after}"
+
+    # No A-driven ledger/thought/event rows leaked into B.
+    for model in (Transaction, ThoughtLog, WorldEvent):
+        rows = (
+            (await session.execute(select(model).where(model.session_id == SID_B)))
+            .scalars()
+            .all()
+        )
+        assert rows == [], f"{model.__name__} rows leaked into session B"
