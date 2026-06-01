@@ -11,6 +11,8 @@ from app.db import Base
 from app.models.agent import Agent
 from app.oracle.engine import _check_bankruptcies
 
+SID = "test"
+
 
 @pytest_asyncio.fixture
 async def session() -> AsyncSession:
@@ -22,6 +24,7 @@ async def session() -> AsyncSession:
         s.add_all(
             [
                 Agent(
+                    session_id=SID,
                     agent_id="broke",
                     display_name="Broke",
                     provider="stub",
@@ -33,6 +36,7 @@ async def session() -> AsyncSession:
                     inventory={"ore": 5, "food": 5, "tech": 5},
                 ),
                 Agent(
+                    session_id=SID,
                     agent_id="rich",
                     display_name="Rich",
                     provider="stub",
@@ -54,11 +58,11 @@ async def test_zero_balance_eliminates_even_with_full_inventory(session):
     # `broke` has $0 cash but 15 goods in inventory — old behavior would
     # have kept them alive (and the tax sweep would have left them at $0).
     # New rule: $0 cash = eliminated, full stop.
-    eliminated = await _check_bankruptcies(session, turn=5)
+    eliminated = await _check_bankruptcies(session, SID, turn=5)
     await session.commit()
 
-    broke = await session.get(Agent, "broke")
-    rich = await session.get(Agent, "rich")
+    broke = await session.get(Agent, (SID, "broke"))
+    rich = await session.get(Agent, (SID, "rich"))
 
     assert "broke" in eliminated
     assert broke.alive is False
@@ -70,21 +74,21 @@ async def test_zero_balance_eliminates_even_with_full_inventory(session):
 
 @pytest.mark.asyncio
 async def test_positive_balance_survives(session):
-    eliminated = await _check_bankruptcies(session, turn=3)
-    rich = await session.get(Agent, "rich")
+    eliminated = await _check_bankruptcies(session, SID, turn=3)
+    rich = await session.get(Agent, (SID, "rich"))
     assert "rich" not in eliminated
     assert rich.alive is True
 
 
 @pytest.mark.asyncio
 async def test_dead_agent_is_not_re_eliminated(session):
-    broke = await session.get(Agent, "broke")
+    broke = await session.get(Agent, (SID, "broke"))
     broke.alive = False
     broke.eliminated_at_turn = 1
     await session.commit()
 
-    eliminated = await _check_bankruptcies(session, turn=5)
+    eliminated = await _check_bankruptcies(session, SID, turn=5)
     assert "broke" not in eliminated
     # Original elimination turn preserved.
-    broke_again = await session.get(Agent, "broke")
+    broke_again = await session.get(Agent, (SID, "broke"))
     assert broke_again.eliminated_at_turn == 1

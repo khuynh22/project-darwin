@@ -54,3 +54,7 @@ def get_settings() -> Settings:
 # Default roster — empty. Users must configure agents via the UI (POST /configure).
 # The simulation will not start until at least min_agents are configured.
 AGENT_ROSTER: list[dict] = []
+
+# Fixed session id used by the CLI runner (scripts/run_simulation.py) and the
+# default for non-web code paths. Web sessions use random slugs.
+CLI_SESSION_ID = "cli"

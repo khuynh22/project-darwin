@@ -20,9 +20,17 @@ class Agent(Base):
 
     __tablename__ = "agents"
 
+    # Composite primary key: an agent_id (e.g. "red") is unique only within a session.
+    session_id: Mapped[str] = mapped_column(
+        String(32), primary_key=True, index=True, default="cli"
+    )
     agent_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     display_name: Mapped[str] = mapped_column(String(64), nullable=False)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Provider model id (persisted so it survives a lazy session reload after restart).
+    model: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="", server_default=""
+    )
     personality: Mapped[str] = mapped_column(String(2048), nullable=False)
     sprite: Mapped[str] = mapped_column(String(32), nullable=False)
 

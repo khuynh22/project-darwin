@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 from sqlalchemy import select  # noqa: E402
 
 from app.agents.factory import build_agents  # noqa: E402
-from app.config import get_settings  # noqa: E402
+from app.config import CLI_SESSION_ID, get_settings  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.models.agent import Agent  # noqa: E402
 from app.models.ledger import ThoughtLog, Transaction, WorldEvent  # noqa: E402
@@ -32,7 +32,13 @@ async def _export_thoughts(out_path: Path) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     count = 0
     async with SessionLocal() as session:
-        thoughts = (await session.execute(select(ThoughtLog).order_by(ThoughtLog.id))).scalars().all()
+        thoughts = (
+            await session.execute(
+                select(ThoughtLog)
+                .where(ThoughtLog.session_id == CLI_SESSION_ID)
+                .order_by(ThoughtLog.id)
+            )
+        ).scalars().all()
         with out_path.open("w", encoding="utf-8") as f:
             for t in thoughts:
                 f.write(
@@ -54,9 +60,23 @@ async def _export_thoughts(out_path: Path) -> int:
 
 async def _print_summary() -> None:
     async with SessionLocal() as session:
-        agents = (await session.execute(select(Agent).order_by(Agent.balance.desc()))).scalars().all()
-        events = (await session.execute(select(WorldEvent))).scalars().all()
-        tx_count = (await session.execute(select(Transaction))).scalars().all()
+        agents = (
+            await session.execute(
+                select(Agent)
+                .where(Agent.session_id == CLI_SESSION_ID)
+                .order_by(Agent.balance.desc())
+            )
+        ).scalars().all()
+        events = (
+            await session.execute(
+                select(WorldEvent).where(WorldEvent.session_id == CLI_SESSION_ID)
+            )
+        ).scalars().all()
+        tx_count = (
+            await session.execute(
+                select(Transaction).where(Transaction.session_id == CLI_SESSION_ID)
+            )
+        ).scalars().all()
     print("\n=== FINAL STANDINGS ===")
     for a in agents:
         status = "ALIVE" if a.alive else f"ELIM@T{a.eliminated_at_turn}"
@@ -101,13 +121,15 @@ async def main() -> None:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.drop_all)
                 await conn.run_sync(Base.metadata.create_all)
-        await seed_roster(session, roster=roster)
+        await seed_roster(session, CLI_SESSION_ID, roster=roster)
 
     agents = build_agents(roster=roster)
 
     for turn in range(1, args.turns + 1):
         async with SessionLocal() as session:
-            result = await run_turn(session, turn=turn, agents=agents)
+            result = await run_turn(
+                session, session_id=CLI_SESSION_ID, turn=turn, agents=agents
+            )
         if result.eliminated:
             print(f"  T{turn}: eliminated -> {result.eliminated}")
         if result.apex_declared:

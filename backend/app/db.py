@@ -33,7 +33,7 @@ async def init_db() -> None:
 
     from sqlalchemy import inspect, text
 
-    from app.models import agent, api_key, deferred, ledger  # noqa: F401
+    from app.models import agent, api_key, deferred, ledger, session  # noqa: F401
 
     log = logging.getLogger(__name__)
 
@@ -43,6 +43,17 @@ async def init_db() -> None:
     # --- Backfill missing columns on pre-existing tables ---------------------
     _MIGRATIONS: list[tuple[str, str, str, str]] = [
         # (table, column, pg_type, default)
+        # NOTE: the multi-tenant `session_id` columns below are backfilled onto
+        # pre-existing tables, but the Agent primary key change to
+        # (session_id, agent_id) cannot be ALTERed in place -- a one-time DB
+        # reset is required when upgrading to multi-tenancy.
+        ("agents", "session_id", "VARCHAR(32)", "'cli'"),
+        ("agents", "model", "VARCHAR(64)", "''"),
+        ("transactions", "session_id", "VARCHAR(32)", "'cli'"),
+        ("thoughts", "session_id", "VARCHAR(32)", "'cli'"),
+        ("world_events", "session_id", "VARCHAR(32)", "'cli'"),
+        ("deferred_actions", "session_id", "VARCHAR(32)", "'cli'"),
+        ("api_keys", "session_id", "VARCHAR(32)", "'cli'"),
         ("agents", "consecutive_errors", "INTEGER", "0"),
         ("agents", "last_error", "VARCHAR(512)", "NULL"),
         ("agents", "trust_score", "FLOAT", "50.0"),

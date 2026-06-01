@@ -18,6 +18,9 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True, default="cli"
+    )
     turn: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     actor_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     target_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
@@ -36,6 +39,9 @@ class ThoughtLog(Base):
     __tablename__ = "thoughts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True, default="cli"
+    )
     turn: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     agent_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     monologue: Mapped[str] = mapped_column(String(8192), nullable=False, default="")
@@ -56,6 +62,9 @@ class WorldEvent(Base):
     __tablename__ = "world_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True, default="cli"
+    )
     turn: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

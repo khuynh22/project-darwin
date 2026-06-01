@@ -1,8 +1,10 @@
 """The Oracle — turn loop, survival tax, bankruptcy, apex check.
 
-Exposes a single coroutine `run_turn` that orchestrates one tick of the world,
-plus `start_simulation` that initialises the roster and runs N turns. The
-engine is provider-agnostic — it talks to agents through `app.agents.base.BaseAgent`.
+Exposes a single coroutine `run_turn` that orchestrates one tick of one
+session's world, plus `start_simulation` for the CLI runner. Every DB query is
+scoped to a ``session_id`` so independent sessions never see each other's data.
+The engine is provider-agnostic — it talks to agents through
+`app.agents.base.BaseAgent`.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import AgentDecision, BaseAgent
-from app.config import AGENT_ROSTER, get_settings
+from app.config import AGENT_ROSTER, CLI_SESSION_ID, get_settings
 from app.db import SessionLocal, init_db
 from app.models.agent import Agent
 from app.models.ledger import ThoughtLog, Transaction, WorldEvent
@@ -56,19 +58,27 @@ def _is_permanent_error(exc: Exception) -> bool:
     return False
 
 
-async def seed_roster(session: AsyncSession, roster: list[dict] | None = None) -> None:
+async def seed_roster(
+    session: AsyncSession, session_id: str, roster: list[dict] | None = None
+) -> None:
     settings = get_settings()
     specs = roster or AGENT_ROSTER
-    existing = (await session.execute(select(Agent.agent_id))).scalars().all()
+    existing = (
+        await session.execute(
+            select(Agent.agent_id).where(Agent.session_id == session_id)
+        )
+    ).scalars().all()
     have = set(existing)
     for spec in specs:
         if spec["agent_id"] in have:
             continue
         session.add(
             Agent(
+                session_id=session_id,
                 agent_id=spec["agent_id"],
                 display_name=spec["display_name"],
                 provider=spec["provider"],
+                model=spec.get("model", "") or "",
                 personality=spec.get("personality", "Adaptive agent."),
                 sprite=spec.get("sprite", "blue"),
                 specialty=random.choice(["ore", "food", "tech"]),
@@ -81,14 +91,24 @@ async def seed_roster(session: AsyncSession, roster: list[dict] | None = None) -
     await session.commit()
 
 
-async def _get_agent_by_id(session: AsyncSession, agent_id: str) -> Agent | None:
+async def _get_agent_by_id(
+    session: AsyncSession, session_id: str, agent_id: str
+) -> Agent | None:
     return (
-        await session.execute(select(Agent).where(Agent.agent_id == agent_id))
+        await session.execute(
+            select(Agent).where(
+                Agent.session_id == session_id, Agent.agent_id == agent_id
+            )
+        )
     ).scalar_one_or_none()
 
 
-async def _world_state(session: AsyncSession, turn: int) -> dict:
-    rows = (await session.execute(select(Agent))).scalars().all()
+async def _world_state(session: AsyncSession, session_id: str, turn: int) -> dict:
+    rows = (
+        (await session.execute(select(Agent).where(Agent.session_id == session_id)))
+        .scalars()
+        .all()
+    )
     return {
         "turn": turn,
         "agents": [
@@ -117,14 +137,18 @@ async def _world_state(session: AsyncSession, turn: int) -> dict:
 
 
 async def _agent_history(
-    session: AsyncSession, agent_id: str, limit: int = 10
+    session: AsyncSession, session_id: str, agent_id: str, limit: int = 10
 ) -> list[dict]:
     """Fetch recent thought history for an agent (most recent first)."""
     rows = (
         (
             await session.execute(
                 select(ThoughtLog)
-                .where(ThoughtLog.agent_id == agent_id, ThoughtLog.action != "skip")
+                .where(
+                    ThoughtLog.session_id == session_id,
+                    ThoughtLog.agent_id == agent_id,
+                    ThoughtLog.action != "skip",
+                )
                 .order_by(ThoughtLog.id.desc())
                 .limit(limit)
             )
@@ -144,7 +168,12 @@ async def _agent_history(
 
 
 async def _apply_decision(
-    session: AsyncSession, *, turn: int, agent: Agent, decision: AgentDecision
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    agent: Agent,
+    decision: AgentDecision,
 ) -> str:
     handler = ACTION_TABLE.get(decision.action)
     if handler is None:
@@ -160,7 +189,9 @@ async def _apply_decision(
     validated.pop(
         "public_message", None
     )  # public_message stored separately on ThoughtLog
-    result = await handler(session, turn=turn, actor_id=agent.agent_id, **validated)
+    result = await handler(
+        session, session_id=session_id, turn=turn, actor_id=agent.agent_id, **validated
+    )
     return result.note + (" [ok]" if result.success else " [rejected]")
 
 
@@ -187,18 +218,21 @@ def _compute_tax(cash: float) -> float:
     return round(tax, 2)
 
 
-async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
+async def _apply_survival_tax(
+    session: AsyncSession, session_id: str, turn: int
+) -> list[str]:
     from app.models.deferred import DeferredAction
 
     eliminated: list[str] = []
 
     # Check for active strikes -- if 3+ agents struck this turn, tax is waived
-    strike_count = 0
     thoughts = (
         (
             await session.execute(
                 select(ThoughtLog).where(
-                    ThoughtLog.turn == turn, ThoughtLog.action == "strike"
+                    ThoughtLog.session_id == session_id,
+                    ThoughtLog.turn == turn,
+                    ThoughtLog.action == "strike",
                 )
             )
         )
@@ -209,6 +243,7 @@ async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
     if strike_count >= 3:
         session.add(
             WorldEvent(
+                session_id=session_id,
                 turn=turn,
                 kind="strike_success",
                 payload={
@@ -220,7 +255,13 @@ async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
         return eliminated
 
     rows = (
-        (await session.execute(select(Agent).where(Agent.alive.is_(True))))
+        (
+            await session.execute(
+                select(Agent).where(
+                    Agent.session_id == session_id, Agent.alive.is_(True)
+                )
+            )
+        )
         .scalars()
         .all()
     )
@@ -230,6 +271,7 @@ async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
             (
                 await session.execute(
                     select(DeferredAction).where(
+                        DeferredAction.session_id == session_id,
                         DeferredAction.actor_id == a.agent_id,
                         DeferredAction.resolved.is_(False),
                     )
@@ -265,6 +307,7 @@ async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
             parts.append(f"hunger ${hunger_penalty:.2f}")
         session.add(
             Transaction(
+                session_id=session_id,
                 turn=turn,
                 actor_id=a.agent_id,
                 target_id=None,
@@ -281,13 +324,14 @@ async def _apply_survival_tax(session: AsyncSession, turn: int) -> list[str]:
         if a.balance <= 0:
             # Calculate pre-death estate (balance before this tax wiped them)
             estate = round(max(a.balance + total_cost, 0), 2)
-            await _eliminate_agent(session, a, turn=turn, estate=estate)
+            await _eliminate_agent(session, session_id, a, turn=turn, estate=estate)
             eliminated.append(a.agent_id)
     return eliminated
 
 
 async def _eliminate_agent(
     session: AsyncSession,
+    session_id: str,
     agent: Agent,
     *,
     turn: int,
@@ -305,7 +349,7 @@ async def _eliminate_agent(
 
     heir_id = agent.will_target or agent.spouse_id
     if heir_id and estate > 0:
-        heir = await _get_agent_by_id(session, heir_id)
+        heir = await _get_agent_by_id(session, session_id, heir_id)
         if heir and heir.alive:
             # Will = 50% of estate, spouse = 100% of estate
             pct = 0.5 if agent.will_target and agent.will_target == heir_id else 1.0
@@ -314,6 +358,7 @@ async def _eliminate_agent(
             via = "will" if agent.will_target == heir_id else "spouse"
             session.add(
                 Transaction(
+                    session_id=session_id,
                     turn=turn,
                     actor_id=agent.agent_id,
                     target_id=heir_id,
@@ -325,7 +370,7 @@ async def _eliminate_agent(
             )
 
     if heir_id and agent.inventory:
-        heir2 = await _get_agent_by_id(session, heir_id)
+        heir2 = await _get_agent_by_id(session, session_id, heir_id)
         if heir2 and heir2.alive:
             h_inv = dict(heir2.inventory or {"ore": 0, "food": 0, "tech": 0})
             for g, qty in (agent.inventory or {}).items():
@@ -335,6 +380,7 @@ async def _eliminate_agent(
 
     session.add(
         WorldEvent(
+            session_id=session_id,
             turn=turn,
             kind="bankruptcy",
             payload={"agent_id": agent.agent_id, "heir": heir_id, "estate": estate},
@@ -342,21 +388,29 @@ async def _eliminate_agent(
     )
 
 
-async def _check_bankruptcies(session: AsyncSession, turn: int) -> list[str]:
+async def _check_bankruptcies(
+    session: AsyncSession, session_id: str, turn: int
+) -> list[str]:
     """Eliminate any alive agent that has run out of cash.
 
     Runs every turn -- a $0 balance is fatal even outside the tax sweep,
     regardless of invested capital or inventory holdings.
     """
     rows = (
-        (await session.execute(select(Agent).where(Agent.alive.is_(True))))
+        (
+            await session.execute(
+                select(Agent).where(
+                    Agent.session_id == session_id, Agent.alive.is_(True)
+                )
+            )
+        )
         .scalars()
         .all()
     )
     eliminated: list[str] = []
     for a in rows:
         if a.balance <= 0:
-            await _eliminate_agent(session, a, turn=turn, estate=0.0)
+            await _eliminate_agent(session, session_id, a, turn=turn, estate=0.0)
             eliminated.append(a.agent_id)
     return eliminated
 
@@ -374,7 +428,9 @@ def _apex_holder(agents: list[Agent], threshold: float) -> str | None:
     return None
 
 
-async def _process_deferred(session: AsyncSession, turn: int) -> None:
+async def _process_deferred(
+    session: AsyncSession, session_id: str, turn: int
+) -> None:
     """Settle investments and loans that mature this turn."""
     from app.models.deferred import DeferredAction
 
@@ -382,6 +438,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
         (
             await session.execute(
                 select(DeferredAction).where(
+                    DeferredAction.session_id == session_id,
                     DeferredAction.maturity_turn == turn,
                     DeferredAction.resolved.is_(False),
                 )
@@ -394,9 +451,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
     for d in rows:
         d.resolved = True
         if d.kind == "investment":
-            actor = (
-                await session.execute(select(Agent).where(Agent.agent_id == d.actor_id))
-            ).scalar_one_or_none()
+            actor = await _get_agent_by_id(session, session_id, d.actor_id)
             if actor is None or not actor.alive:
                 continue
             success = random.random() < 0.70
@@ -405,6 +460,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
                 actor.balance = round(actor.balance + ret, 2)
                 session.add(
                     Transaction(
+                        session_id=session_id,
                         turn=turn,
                         actor_id=d.actor_id,
                         target_id=None,
@@ -417,6 +473,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
             else:
                 session.add(
                     Transaction(
+                        session_id=session_id,
                         turn=turn,
                         actor_id=d.actor_id,
                         target_id=None,
@@ -428,14 +485,8 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
                 )
 
         elif d.kind == "loan":
-            creditor = (
-                await session.execute(select(Agent).where(Agent.agent_id == d.actor_id))
-            ).scalar_one_or_none()
-            debtor = (
-                await session.execute(
-                    select(Agent).where(Agent.agent_id == d.target_id)
-                )
-            ).scalar_one_or_none()
+            creditor = await _get_agent_by_id(session, session_id, d.actor_id)
+            debtor = await _get_agent_by_id(session, session_id, d.target_id)
             repayment = d.payload.get("repayment", round(d.amount * 1.3, 2))
             if debtor and debtor.alive and debtor.balance >= repayment:
                 debtor.balance = round(debtor.balance - repayment, 2)
@@ -443,6 +494,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
                     creditor.balance = round(creditor.balance + repayment, 2)
                 session.add(
                     Transaction(
+                        session_id=session_id,
                         turn=turn,
                         actor_id=d.target_id,
                         target_id=d.actor_id,
@@ -458,6 +510,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
                     debtor.trust_score = max(0, debtor.trust_score - 10)
                 session.add(
                     Transaction(
+                        session_id=session_id,
                         turn=turn,
                         actor_id=d.actor_id,
                         target_id=d.target_id,
@@ -473,7 +526,9 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
         (
             await session.execute(
                 select(Agent).where(
-                    Agent.extortion_pending.isnot(None), Agent.alive.is_(True)
+                    Agent.session_id == session_id,
+                    Agent.extortion_pending.isnot(None),
+                    Agent.alive.is_(True),
                 )
             )
         )
@@ -490,6 +545,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
             (
                 await session.execute(
                     select(Transaction).where(
+                        Transaction.session_id == session_id,
                         Transaction.actor_id == target_agent.agent_id,
                         Transaction.target_id == extorter_id,
                         Transaction.turn > ext.get("turn", 0),
@@ -507,6 +563,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
                 target_agent.skip_next_turn = True
                 session.add(
                     Transaction(
+                        session_id=session_id,
                         turn=turn,
                         actor_id=extorter_id,
                         target_id=target_agent.agent_id,
@@ -520,6 +577,7 @@ async def _process_deferred(session: AsyncSession, turn: int) -> None:
                 target_agent.trust_score = max(0, target_agent.trust_score - 8)
                 session.add(
                     Transaction(
+                        session_id=session_id,
                         turn=turn,
                         actor_id=extorter_id,
                         target_id=target_agent.agent_id,
@@ -547,23 +605,29 @@ async def _decide_one(
 async def run_turn(
     session: AsyncSession,
     *,
+    session_id: str = CLI_SESSION_ID,
     turn: int,
     agents: dict[str, BaseAgent],
     balance_visibility: str = "fuzzy",
 ) -> TurnResult:
-    """Execute one full turn for every alive agent, then apply tax if cycle boundary.
+    """Execute one full turn for every alive agent in a session.
 
     All agent decide() calls run in **parallel** -- total turn time is the
     slowest agent, not the sum of all agents.  Decisions are then applied
-    sequentially to avoid DB race conditions.
+    sequentially to avoid DB race conditions. Every query is scoped to
+    ``session_id``.
     """
     settings = get_settings()
 
     # Settle maturing investments and loans before agent decisions
-    await _process_deferred(session, turn)
+    await _process_deferred(session, session_id, turn)
 
-    db_agents = (await session.execute(select(Agent))).scalars().all()
-    state = await _world_state(session, turn)
+    db_agents = (
+        (await session.execute(select(Agent).where(Agent.session_id == session_id)))
+        .scalars()
+        .all()
+    )
+    state = await _world_state(session, session_id, turn)
     state["_balance_visibility"] = balance_visibility
 
     # Phase 1: Handle skipped agents, collect active agents for parallel decide
@@ -575,6 +639,7 @@ async def run_turn(
             db_agent.skip_next_turn = False
             session.add(
                 ThoughtLog(
+                    session_id=session_id,
                     turn=turn,
                     agent_id=db_agent.agent_id,
                     monologue="(sabotaged -- turn skipped)",
@@ -590,12 +655,15 @@ async def run_turn(
     histories: dict[str, list[dict]] = {}
     gaslights: dict[str, list[str]] = {}
     for db_agent in active:
-        histories[db_agent.agent_id] = await _agent_history(session, db_agent.agent_id)
+        histories[db_agent.agent_id] = await _agent_history(
+            session, session_id, db_agent.agent_id
+        )
         # Fetch gaslight events targeting this agent from recent turns
         gl_rows = (
             (
                 await session.execute(
                     select(WorldEvent).where(
+                        WorldEvent.session_id == session_id,
                         WorldEvent.kind == "gaslight",
                         WorldEvent.turn >= max(1, turn - 3),
                     )
@@ -654,6 +722,7 @@ async def run_turn(
                 )
                 session.add(
                     ThoughtLog(
+                        session_id=session_id,
                         turn=turn,
                         agent_id=db_agent.agent_id,
                         monologue=f"(Provider failure -- simulation paused: {reason})",
@@ -664,6 +733,7 @@ async def run_turn(
                 )
                 session.add(
                     WorldEvent(
+                        session_id=session_id,
                         turn=turn,
                         kind="provider_failure",
                         payload={
@@ -696,7 +766,7 @@ async def run_turn(
 
         # Apply major action
         outcome = await _apply_decision(
-            session, turn=turn, agent=db_agent, decision=decision
+            session, session_id=session_id, turn=turn, agent=db_agent, decision=decision
         )
         public_msg = (
             decision.arguments.pop("public_message", "")
@@ -715,7 +785,11 @@ async def run_turn(
                     arguments=decision.free_arguments,
                 )
                 free_outcome = await _apply_decision(
-                    session, turn=turn, agent=db_agent, decision=free_decision
+                    session,
+                    session_id=session_id,
+                    turn=turn,
+                    agent=db_agent,
+                    decision=free_decision,
                 )
                 free_outcome = f" | free: {decision.free_action} -> {free_outcome}"
             else:
@@ -725,6 +799,7 @@ async def run_turn(
 
         session.add(
             ThoughtLog(
+                session_id=session_id,
                 turn=turn,
                 agent_id=db_agent.agent_id,
                 monologue=decision.monologue,
@@ -746,15 +821,23 @@ async def run_turn(
 
     eliminated: list[str] = []
     if turn > 0 and turn % settings.tax_interval_turns == 0:
-        eliminated = await _apply_survival_tax(session, turn)
+        eliminated = await _apply_survival_tax(session, session_id, turn)
 
     # Sweep every turn: $0 cash = eliminated, regardless of investments or goods.
-    eliminated.extend(await _check_bankruptcies(session, turn))
+    eliminated.extend(await _check_bankruptcies(session, session_id, turn))
 
-    refreshed = (await session.execute(select(Agent))).scalars().all()
+    refreshed = (
+        (await session.execute(select(Agent).where(Agent.session_id == session_id)))
+        .scalars()
+        .all()
+    )
     apex = _apex_holder(refreshed, settings.apex_wealth_fraction)
     if apex:
-        session.add(WorldEvent(turn=turn, kind="apex", payload={"agent_id": apex}))
+        session.add(
+            WorldEvent(
+                session_id=session_id, turn=turn, kind="apex", payload={"agent_id": apex}
+            )
+        )
 
     await session.commit()
     return TurnResult(turn=turn, apex_declared=apex, eliminated=eliminated)
@@ -762,10 +845,11 @@ async def run_turn(
 
 async def start_simulation(
     *,
+    session_id: str = CLI_SESSION_ID,
     max_turns: int | None = None,
     on_turn=None,
 ) -> None:
-    """Initialise the DB + roster + agent clients, then run the turn loop."""
+    """Initialise the DB + roster + agent clients, then run the turn loop (CLI)."""
     from app.agents.factory import build_agents  # local import avoids cycle
 
     settings = get_settings()
@@ -773,13 +857,15 @@ async def start_simulation(
 
     await init_db()
     async with SessionLocal() as session:
-        await seed_roster(session)
+        await seed_roster(session, session_id)
 
     agents = build_agents()
 
     for turn in range(1, target_turns + 1):
         async with SessionLocal() as session:
-            result = await run_turn(session, turn=turn, agents=agents)
+            result = await run_turn(
+                session, session_id=session_id, turn=turn, agents=agents
+            )
         if on_turn:
             await on_turn(result)
         if result.paused:

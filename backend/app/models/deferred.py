@@ -17,6 +17,9 @@ class DeferredAction(Base):
     __tablename__ = "deferred_actions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True, default="cli"
+    )
     kind: Mapped[str] = mapped_column(String(32), nullable=False)  # "investment", "loan"
     actor_id: Mapped[str] = mapped_column(String(64), nullable=False)
     target_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
