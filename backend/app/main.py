@@ -201,13 +201,12 @@ async def create_session() -> dict:
 
 @app.post("/sessions/{session_id}/configure")
 async def configure_simulation(session_id: str, body: dict):
-    """Set up a roster for a session. Resets only THIS session's data."""
-    settings = get_settings()
+    """Set up a roster for a session. Resets only THIS session's data.
 
-    async with SessionLocal() as session:
-        sim = await session.get(SimSession, session_id)
-        if sim is None:
-            return _not_found(session_id)
+    Upserts the session row, so a shared/bookmarked ``/session/{id}`` link works
+    even if the row was never created via ``POST /sessions``.
+    """
+    settings = get_settings()
 
     agents_list = body.get("agents", [])
     if not (settings.min_agents <= len(agents_list) <= settings.max_agents):
@@ -269,6 +268,9 @@ async def configure_simulation(session_id: str, body: dict):
     async with SessionLocal() as session:
         await seed_roster(session, session_id, roster=roster)
         sim = await session.get(SimSession, session_id)
+        if sim is None:  # upsert: link was navigated to before /sessions created a row
+            sim = SimSession(session_id=session_id)
+            session.add(sim)
         sim.current_turn = 0
         sim.balance_visibility = visibility
         sim.status = "ready"

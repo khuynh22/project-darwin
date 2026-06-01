@@ -55,9 +55,26 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
 - Bankruptcy: `_check_bankruptcies` runs at the end of every turn; any alive agent with `balance <= 0` is eliminated (estate = $0, inventory still transfers). Tax-time deaths still flow through `_apply_survival_tax` with the pre-tax estate.
 - Inheritance: will = 50%, spouse = 100%. Goods also transfer. No heir = lost.
 
+## Multi-tenancy
+
+- Everything is scoped by `session_id`. `Agent` PK is composite `(session_id, agent_id)`; the
+  other tables carry a `session_id` column. **Every** `select(...)`/`session.add(...)` in
+  `oracle/` and `main.py` must filter/set it — reads funnel through `actions._get_agent` /
+  `engine._get_agent_by_id`, writes through `actions._record`.
+- `models/session.py::SimSession` owns `current_turn` + `balance_visibility` (were globals).
+- `runtime.py::SessionRegistry` caches per-session `asyncio.Lock` + decrypted roster in memory
+  (single-process), reloaded lazily from the DB on first access after a restart.
+- API keys are per-`(session_id, provider)`, encrypted (`models/api_key.py`). Set `ENCRYPTION_KEY`
+  in production or stored keys won't survive a restart (agents silently fall back to stub).
+- `configure`/`reset` do a **scoped DELETE** — never `drop_all` (that would nuke every session).
+- CLI (`scripts/run_simulation.py`) uses the fixed `config.CLI_SESSION_ID`.
+
 ## REST API
 
-`POST /configure`, `POST /run?turns=N`, `POST /reset`, `GET /state` (includes invested capital), `GET /providers`, `POST/GET/DELETE /api-keys`, `GET /export/thoughts`, `POST /agents/{id}/remove`, `POST /simulation/resume`
+Session-scoped: `POST /sessions`, `POST /sessions/{id}/configure`, `/run?turns=N`, `/turn`,
+`/reset`, `GET /sessions/{id}/state` (includes invested capital), `/ledger`, `/events`,
+`/export/thoughts`, `POST /sessions/{id}/agents/{aid}/remove`, `/simulation/resume`,
+`WS /ws/{id}`. Global: `GET /providers`, `GET /health`.
 
 ## Conventions
 

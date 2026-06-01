@@ -14,6 +14,14 @@ Next.js (React)  <-- WS/REST -->  FastAPI (Oracle)  --> Postgres
 
 The Oracle is authoritative. Frontend is a pure viewer. No game logic in the frontend.
 
+**Multi-tenancy:** the server hosts many isolated **sessions** at once. Every row
+(`agents`, `transactions`, `thoughts`, `world_events`, `deferred_actions`, `api_keys`) is
+scoped by `session_id`; `Agent`'s PK is composite `(session_id, agent_id)`. Anonymous
+shareable sessions live at `/session/{id}` in the UI. Per-session BYOK keys are encrypted at
+rest and never shared. Live per-session state (turn lock + decrypted roster) lives in
+`app/runtime.py::SessionRegistry` (single-process); the DB is the source of truth and sessions
+reload lazily after a restart. See `docs/superpowers/specs/2026-06-01-multi-tenant-sessions-design.md`.
+
 ## Repo layout
 
 ```
@@ -93,15 +101,20 @@ docker compose down -v        # fresh reset (drops DB volumes)
 
 ## REST API
 
-- `POST /configure` -- set up 3-10 agents, resets DB
-- `POST /run?turns=N` -- run N turns (parallel agent calls)
-- `POST /reset` -- wipe everything
-- `GET /state` -- full snapshot (includes invested capital for moderator)
-- `GET /providers` -- provider list + color options
-- `POST/GET/DELETE /api-keys` -- encrypted key CRUD
-- `GET /export/thoughts` -- JSONL download
-- `POST /agents/{id}/remove` -- eliminate failing agent
-- `POST /simulation/resume` -- clear errors and continue
+All simulation endpoints are scoped to a session id. `GET /providers` and `GET /health` are global.
+
+- `POST /sessions` -- create an empty session, returns `{session_id}`
+- `POST /sessions/{id}/configure` -- set up 3-10 agents + per-provider BYOK `keys`; resets only this session
+- `POST /sessions/{id}/run?turns=N` -- run N turns (parallel agent calls)
+- `POST /sessions/{id}/turn` -- single turn (debug)
+- `POST /sessions/{id}/reset` -- wipe only this session (keeps the id so links survive)
+- `GET /sessions/{id}/state` -- full snapshot (includes invested capital for moderator)
+- `GET /sessions/{id}/ledger` / `GET /sessions/{id}/events`
+- `GET /sessions/{id}/export/thoughts` -- JSONL download (queried live from the DB)
+- `POST /sessions/{id}/agents/{aid}/remove` -- eliminate failing agent
+- `POST /sessions/{id}/simulation/resume` -- clear errors and continue
+- `WS /ws/{id}` -- live per-session event room
+- `GET /providers` -- provider list + color options (global)
 
 ## Things NOT to do
 
