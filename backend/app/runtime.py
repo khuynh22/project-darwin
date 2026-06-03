@@ -18,6 +18,8 @@ class SessionRuntime:
     roster: list[dict]
     # Serializes turns within this session; distinct sessions run concurrently.
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # Set by POST /stop (without the lock) to break a running turn loop.
+    stop_requested: bool = False
 
 
 class SessionRegistry:

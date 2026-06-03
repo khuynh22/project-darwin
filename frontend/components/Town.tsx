@@ -234,60 +234,52 @@ export default function Town({ snapshot, running = false }: TownProps) {
 }
 
 function VenueHouse({ venue }: { venue: (typeof VENUES)[number] }) {
+  // A storybook cottage: gable roof + eaves, a chimney with smoke, a mullioned
+  // window, and the venue emoji as the shop sign. Tinted per venue.
   return (
     <div
       className="absolute text-center group"
-      style={{ left: venue.x, top: venue.y, width: 120, transform: 'translate(-50%, -50%)' }}
+      style={{ left: venue.x, top: venue.y, width: 116, transform: 'translate(-50%, -50%)' }}
     >
-      <div
-        className="relative mx-auto mt-[18px] grid place-items-center"
-        style={{
-          width: 84,
-          height: 64,
-          borderRadius: '12px 12px 14px 14px',
-          background: venue.body,
-          boxShadow: '0 4px 0 rgba(74,58,46,0.08), 0 10px 20px rgba(74,58,46,0.10)',
-          fontSize: 28,
-          transition: 'transform 0.25s cubic-bezier(0.4,1.4,0.5,1)',
-        }}
-      >
-        {/* Pitched roof — CSS-border triangle */}
-        <div
+      <div className="relative mx-auto" style={{ width: 96, height: 80 }}>
+        <svg
+          viewBox="0 0 96 80"
+          width={96}
+          height={80}
+          className="absolute inset-0 overflow-visible transition-transform duration-200 ease-out group-hover:-translate-y-[3px]"
           aria-hidden
-          style={{
-            position: 'absolute',
-            bottom: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 0,
-            height: 0,
-            borderLeft: '50px solid transparent',
-            borderRight: '50px solid transparent',
-            borderBottom: `22px solid ${venue.roof}`,
-            marginBottom: -1,
-            filter: 'drop-shadow(0 2px 0 rgba(74,58,46,0.08))',
-          }}
-        />
-        {/* Window */}
-        <div
-          aria-hidden
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            width: 12,
-            height: 12,
-            borderRadius: 3,
-            background: 'rgba(255,255,255,0.7)',
-            boxShadow: 'inset 0 -2px 0 rgba(74,58,46,0.08)',
-          }}
-        />
-        <span className="relative z-[1] leading-none">{venue.icon}</span>
+        >
+          <ellipse cx="48" cy="76" rx="30" ry="5" fill="rgba(74,58,46,0.10)" />
+          {/* chimney + smoke (behind the roof) */}
+          <rect x="64" y="14" width="8" height="18" rx="2" fill="rgba(74,58,46,0.38)" />
+          <circle cx="68" cy="12" r="3" fill="rgba(255,255,255,0.5)" />
+          <circle cx="72" cy="7" r="2.3" fill="rgba(255,255,255,0.4)" />
+          <circle cx="76" cy="4" r="1.7" fill="rgba(255,255,255,0.3)" />
+          {/* roof with overhanging eaves */}
+          <path
+            d="M10,42 L46,16 Q48,14 50,16 L86,42 Q90,44 85,45 L11,45 Q6,44 10,42 Z"
+            fill={venue.roof}
+          />
+          <path d="M15,42 L47,18 L50,20 L19,43 Z" fill="rgba(255,255,255,0.16)" />
+          {/* body */}
+          <rect x="18" y="44" width="60" height="32" rx="9" fill={venue.body} />
+          {/* mullioned window */}
+          <rect x="25" y="51" width="13" height="13" rx="3.5" fill="#FFF7E8" />
+          <line x1="31.5" y1="51" x2="31.5" y2="64" stroke="rgba(74,58,46,0.22)" strokeWidth="1" />
+          <line x1="25" y1="57.5" x2="38" y2="57.5" stroke="rgba(74,58,46,0.22)" strokeWidth="1" />
+        </svg>
+        {/* venue emoji — the shop sign, beside the window */}
+        <span
+          className="absolute leading-none"
+          style={{ left: '58%', top: '72%', transform: 'translate(-50%, -50%)', fontSize: 24 }}
+        >
+          {venue.icon}
+        </span>
       </div>
-      <div className="mt-[10px] font-display font-semibold text-[13px] text-cozy-ink">
+      <div className="mt-[7px] font-display font-semibold text-[13px] text-cozy-ink">
         {venue.label}
       </div>
-      <div className="mt-[2px] text-[9px] uppercase font-bold text-cozy-ink-soft tracking-[0.12em]">
+      <div className="mt-[1px] text-[9px] uppercase font-bold text-cozy-ink-soft tracking-[0.12em]">
         {venue.sub}
       </div>
     </div>
@@ -299,8 +291,8 @@ function TownSquare({ turn, running }: { turn: number; running: boolean }) {
     <div
       className="absolute left-1/2 top-1/2 grid place-items-center text-center"
       style={{
-        width: 160,
-        height: 160,
+        width: 150,
+        height: 150,
         transform: 'translate(-50%, -50%)',
         borderRadius: '50%',
         background: '#FFE6BF',

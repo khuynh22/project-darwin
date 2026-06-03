@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import {
   Check,
   ChevronsRight,
+  CircleStop,
   Download,
   Eye,
   EyeOff,
@@ -117,6 +118,18 @@ export default function SessionPage() {
   function toggleAutoPlay() {
     autoPlayRef.current = !autoPlay;
     setAutoPlay(!autoPlay);
+  }
+
+  // Force-stop: halt auto-play and break any in-flight multi-turn run server-side.
+  async function stopRun() {
+    autoPlayRef.current = false;
+    setAutoPlay(false);
+    setPendingTurns(0);
+    try {
+      await fetch(`${base}/stop`, { method: 'POST' });
+    } catch {
+      /* best-effort */
+    }
   }
 
   async function shareLink() {
@@ -247,6 +260,11 @@ export default function SessionPage() {
               </>
             )}
           </Button>
+          {(running || autoPlay) && (
+            <Button variant="danger" onClick={stopRun}>
+              <CircleStop size={14} /> Stop
+            </Button>
+          )}
           <div className="w-px h-6 bg-cozy-card-edge mx-1" />
           <Button variant="ghost" onClick={shareLink}>
             {copied ? <Check size={14} /> : <Share2 size={14} />} {copied ? 'Copied' : 'Share'}

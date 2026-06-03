@@ -368,11 +368,14 @@ async def _drive_turns(session_id: str, count: int):
     eliminated: list[str] = []
 
     async with runtime.lock:
+        runtime.stop_requested = False
         # Reflect the real current turn even if cap == 0 (no-op call).
         async with SessionLocal() as session:
             sim0 = await session.get(SimSession, session_id)
             turn = sim0.current_turn if sim0 else 0
         for _ in range(cap):
+            if runtime.stop_requested:
+                break
             async with SessionLocal() as session:
                 sim = await session.get(SimSession, session_id)
                 if sim is None:
@@ -420,6 +423,7 @@ async def _drive_turns(session_id: str, count: int):
         "final_turn": turn,
         "apex": apex,
         "eliminated": eliminated,
+        "stopped": runtime.stop_requested,
     }
 
 
@@ -433,6 +437,16 @@ async def step_turn(session_id: str):
 async def run_many(session_id: str, turns: int = 10):
     """Run N turns; returns when finished, apex declared, or paused on error."""
     return await _drive_turns(session_id, turns)
+
+
+@app.post("/sessions/{session_id}/stop")
+async def stop_run(session_id: str):
+    """Request a running turn loop to halt at the next turn boundary."""
+    runtime = await registry.get_or_load(session_id)
+    if runtime is None:
+        return _not_found(session_id)
+    runtime.stop_requested = True  # set without the lock so it can interrupt /run
+    return {"stopped": True, "session_id": session_id}
 
 
 @app.post("/sessions/{session_id}/reset")

@@ -69,3 +69,17 @@ def test_configure_requires_openrouter_key():
         # The model id is surfaced per agent in the snapshot (the research variable).
         state = client.get(f"/sessions/{s}/state").json()
         assert all(a["model"] == "openai/gpt-5" for a in state["agents"]), state["agents"]
+
+
+def test_stop_endpoint():
+    with TestClient(app) as client:
+        s = client.post("/sessions").json()["session_id"]
+        client.post(
+            f"/sessions/{s}/configure",
+            json={"agents": [
+                {"agent_id": c, "display_name": c, "provider": "stub", "sprite": c}
+                for c in ("red", "blue", "green")
+            ]},
+        )
+        assert client.post(f"/sessions/{s}/stop").json() == {"stopped": True, "session_id": s}
+        assert client.post("/sessions/nope/stop").status_code == 404

@@ -101,9 +101,12 @@ export default function Sidebar({ snapshot }: SidebarProps) {
             {a.model && (
               <span
                 title={a.model}
-                className="inline-flex items-center gap-1.5 self-start max-w-full px-2 py-[3px] rounded-md bg-[#FFF1DC] border border-cozy-card-edge font-mono text-[11px] font-medium text-cozy-ink truncate"
+                className="inline-flex items-center gap-1.5 self-start max-w-full rounded-full bg-[#FBE7C7] pl-1.5 pr-2.5 py-[3px] font-mono text-[11px] text-[#7A5A3A] truncate"
               >
-                <Cpu size={11} className="shrink-0 text-cozy-accent" />
+                <span
+                  className="h-[7px] w-[7px] rounded-full shrink-0"
+                  style={{ background: color }}
+                />
                 <span className="truncate">{a.model}</span>
               </span>
             )}
