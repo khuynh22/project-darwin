@@ -27,8 +27,8 @@ python -m venv .venv && source .venv/Scripts/activate   # or .venv/bin/activate 
 pip install -r requirements.txt
 cp .env.example .env
 
-# CLI run with sqlite (no postgres needed):
-DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
+# CLI run with sqlite (no postgres needed) — uses offline stub agents:
+DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
   python -m scripts.run_simulation --turns 50 --reset
 
 # Dev server (needs postgres):

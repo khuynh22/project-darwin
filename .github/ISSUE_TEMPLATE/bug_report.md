@@ -17,9 +17,9 @@ What you expected to happen instead.
 
 Steps to reproduce. The minimum useful info:
 
-- Provider mix (e.g. 3 stubs, 1 anthropic, 1 openai)
+- Model mix (e.g. 3x anthropic/claude-opus-4.7, 2x openai/gpt-5), or CLI stub run
 - Turn count when the issue appeared
-- Whether you were in stub mode or using real keys
+- Web session or headless CLI
 - Operating system and how you ran it (docker compose / local backend / local frontend)
 
 ```

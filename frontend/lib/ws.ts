@@ -2,6 +2,7 @@ export type AgentSnap = {
   agent_id: string;
   display_name: string;
   provider: string;
+  model: string;
   balance: number;
   alive: boolean;
   spouse: string | null;
@@ -32,6 +33,7 @@ export type ThoughtSnap = {
 export type BalanceVisibility = "public" | "fuzzy" | "hidden";
 
 export type WorldSnapshot = {
+  session_id?: string;
   turn: number;
   agents: AgentSnap[];
   recent_thoughts: ThoughtSnap[];
@@ -46,15 +48,29 @@ export type PausedEvent = {
   snapshot: WorldSnapshot;
 };
 
+export const ORACLE_HTTP =
+  process.env.NEXT_PUBLIC_ORACLE_HTTP || "http://localhost:8000";
+
+// Base WS origin (no path). Tolerates a legacy "ws://host/ws" env value.
+const ORACLE_WS_BASE = (
+  process.env.NEXT_PUBLIC_ORACLE_WS || "ws://localhost:8000"
+).replace(/\/ws\/?$/, "");
+
+/** Create a fresh, empty simulation session. Returns its id. */
+export async function createSession(): Promise<string> {
+  const r = await fetch(`${ORACLE_HTTP}/sessions`, { method: "POST" });
+  const data = await r.json();
+  return data.session_id as string;
+}
+
 export function connectOracle(
+  sessionId: string,
   onSnapshot: (snap: WorldSnapshot) => void,
   onPaused?: (evt: PausedEvent) => void,
 ): () => void {
-  const httpBase =
-    process.env.NEXT_PUBLIC_ORACLE_HTTP || "http://localhost:8000";
-  const wsUrl = process.env.NEXT_PUBLIC_ORACLE_WS || "ws://localhost:8000/ws";
+  const wsUrl = `${ORACLE_WS_BASE}/ws/${sessionId}`;
 
-  fetch(`${httpBase}/state`)
+  fetch(`${ORACLE_HTTP}/sessions/${sessionId}/state`)
     .then((r) => r.json())
     .then((snap: WorldSnapshot) => onSnapshot(snap))
     .catch(() => {});

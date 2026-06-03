@@ -51,6 +51,10 @@ class ApiKeyStore(Base):
     __tablename__ = "api_keys"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # API keys are BYOK and scoped to a single session (never shared across sessions).
+    session_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True, default="cli"
+    )
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     key_name: Mapped[str] = mapped_column(String(128), nullable=False)
     encrypted_key: Mapped[str] = mapped_column(String(1024), nullable=False)
@@ -97,3 +101,63 @@ async def delete_key(session: AsyncSession, key_id: int) -> bool:
         return False
     await session.delete(entry)
     return True
+
+
+# --- Per-session BYOK helpers --------------------------------------------------
+
+
+async def store_session_key(
+    session: AsyncSession, session_id: str, provider: str, raw_key: str
+) -> None:
+    """Encrypt and store a provider key scoped to a session (overwrites prior)."""
+    from sqlalchemy import delete as sa_delete
+
+    f = _get_fernet()
+    encrypted = f.encrypt(raw_key.encode()).decode()
+    # Replace any existing key for this (session, provider).
+    await session.execute(
+        sa_delete(ApiKeyStore).where(
+            ApiKeyStore.session_id == session_id, ApiKeyStore.provider == provider
+        )
+    )
+    session.add(
+        ApiKeyStore(
+            session_id=session_id,
+            provider=provider,
+            key_name=f"{provider} key",
+            encrypted_key=encrypted,
+        )
+    )
+    await session.flush()
+
+
+async def get_session_keys(session: AsyncSession, session_id: str) -> dict[str, str]:
+    """Return decrypted ``{provider: raw_key}`` for every key stored on a session."""
+    rows = (
+        (
+            await session.execute(
+                select(ApiKeyStore).where(ApiKeyStore.session_id == session_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    f = _get_fernet()
+    out: dict[str, str] = {}
+    for r in rows:
+        try:
+            out[r.provider] = f.decrypt(r.encrypted_key.encode()).decode()
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "Failed to decrypt key for session=%s provider=%s", session_id, r.provider
+            )
+    return out
+
+
+async def delete_session_keys(session: AsyncSession, session_id: str) -> None:
+    """Delete every stored key for a session."""
+    from sqlalchemy import delete as sa_delete
+
+    await session.execute(
+        sa_delete(ApiKeyStore).where(ApiKeyStore.session_id == session_id)
+    )

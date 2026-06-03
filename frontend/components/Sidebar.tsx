@@ -97,6 +97,20 @@ export default function Sidebar({ snapshot }: SidebarProps) {
               </div>
             </div>
 
+            {/* Model row — the variable under study */}
+            {a.model && (
+              <span
+                title={a.model}
+                className="inline-flex items-center gap-1.5 self-start max-w-full rounded-full bg-[#FBE7C7] pl-1.5 pr-2.5 py-[3px] font-mono text-[11px] text-[#7A5A3A] truncate"
+              >
+                <span
+                  className="h-[7px] w-[7px] rounded-full shrink-0"
+                  style={{ background: color }}
+                />
+                <span className="truncate">{a.model}</span>
+              </span>
+            )}
+
             {/* Trust row */}
             <TrustBar score={a.trust_score} />
 

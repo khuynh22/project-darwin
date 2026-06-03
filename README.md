@@ -7,7 +7,7 @@
 
 A research instrument for studying how LLMs behave over **long-horizon, multi-step trajectories** when survival is the only objective. Each turn, every agent picks from 20 actions — work, trade, steal, deceive, form alliances, betray — using only its native tool-calling against a deliberately minimal harness: a tool list, a world brief, and a rolling 10-turn self-history. No critic loops, no plan-and-execute wrappers, no external retrieval. Agents that fail to acquire resources die; the last one standing (or first to hold ≥90% of all wealth) wins.
 
-Every turn produces a complete trace of the model's private reasoning, chosen action, arguments, and the Oracle's outcome — exported as JSONL for downstream behavioral analysis across providers (Anthropic, OpenAI, Google, xAI Grok, Ollama).
+Every turn produces a complete trace of the model's private reasoning, chosen action, arguments, and the Oracle's outcome — exported as JSONL for downstream behavioral analysis across any model reachable through OpenRouter (Claude, GPT, Gemini, Grok, Llama, and more).
 
 ## Why you might want this
 
@@ -38,21 +38,19 @@ Or you just want to watch Claude try to extort GPT over a unit of food. Also a v
 - **Trust system** (0-100) modifiable via slander, vouch, betrayal — affects trade acceptance
 - **Progressive taxation** on cash (invested capital exempt), with a collective strike mechanic
 - **Marriage, inheritance, deferred actions** (invest, lend) for longer-horizon strategy
-- **Provider-agnostic** — Anthropic, OpenAI, Google, xAI Grok, Ollama, or deterministic stubs in any mix
+- **Model-agnostic** — any model on OpenRouter (Claude, GPT, Gemini, Grok, Llama, …) in any mix; one key
 
 ## Quickstart
 
 ```bash
 git clone https://github.com/khuynh22/project-darwin.git
 cd project-darwin
-cp .env.example .env       # paste API keys, or leave blank for stub mode
+cp .env.example .env       # set ENCRYPTION_KEY (and optional operator OPENROUTER_API_KEY)
 docker compose up --build  # postgres + oracle + arena
 # open http://localhost:3000
 ```
 
-The ConfigPanel opens automatically. Set up 3-10 agents (name, provider, model, color), enter API keys once per provider, and click Start.
-
-With an empty `.env` and all agents set to `stub` provider, the simulation runs with deterministic fake responses -- no API keys needed.
+Click **New simulation** for your own shareable session at `/session/{id}` (anonymous — the link is your save). In the config panel, paste your **OpenRouter** key and give each of 3–10 critters a model id (`anthropic/claude-opus-4.7`, `openai/gpt-5`, `x-ai/grok-4`, …). One key reaches every model; mix them to compare trajectories. No key? Use the headless CLI (below) with offline stub agents.
 
 ## Architecture
 
@@ -63,7 +61,7 @@ Next.js (React)  <-- WS/REST -->  FastAPI (Oracle)  --> Postgres
    PublicLog                         trust + goods + tax
    ConfigPanel                       deferred actions (invest/lend)
                                      parallel agent decide()
-                                  --> LLM providers (Anthropic, OpenAI, Google, Grok, Ollama)
+                                  --> OpenRouter (one OpenAI-compatible gateway to every model)
 ```
 
 The Oracle is the single source of truth. Frontend is a pure viewer.
@@ -131,31 +129,38 @@ cd frontend && npm install && npm run dev
 
 ### 3. Run it
 
-`roster.json` body shape (the request envelope `/configure` expects):
+`roster.json` body shape (the envelope `/sessions/{id}/configure` expects). All
+models are OpenRouter ids; the BYOK key is sent inline and scoped to the session:
 
 ```json
 {
   "agents": [
-    {"agent_id": "claude_1", "display_name": "CLAUDE 1", "provider": "anthropic", "model": "claude-opus-4-7", "sprite": "red",  "personality": "Adaptive strategist."},
-    {"agent_id": "gpt_1",    "display_name": "GPT 1",    "provider": "openai",    "model": "gpt-5",          "sprite": "blue", "personality": "Adaptive strategist."}
-  ]
+    {"agent_id": "claude_1", "display_name": "CLAUDE 1", "provider": "openrouter", "model": "anthropic/claude-opus-4.7", "sprite": "red",  "personality": "Adaptive strategist."},
+    {"agent_id": "gpt_1",    "display_name": "GPT 1",    "provider": "openrouter", "model": "openai/gpt-5",              "sprite": "blue", "personality": "Adaptive strategist."}
+  ],
+  "balance_visibility": "fuzzy",
+  "keys": {"openrouter": "sk-or-..."}
 }
 ```
 
 ```bash
-# configure roster (resets DB)
-curl -X POST localhost:8000/configure \
-     -H 'content-type: application/json' \
-     -d @roster.json
+# 1. create a session (returns {"session_id": "..."})
+SID=$(curl -sX POST localhost:8000/sessions | jq -r .session_id)
 
-# run N turns
-curl -X POST 'localhost:8000/run?turns=200'
+# 2. configure its roster (resets only this session)
+curl -X POST "localhost:8000/sessions/$SID/configure" \
+     -H 'content-type: application/json' -d @roster.json
 
-# export the trace
-curl localhost:8000/export/thoughts > run.jsonl
+# 3. run N turns
+curl -X POST "localhost:8000/sessions/$SID/run?turns=200"
+
+# 4. export the trace
+curl "localhost:8000/sessions/$SID/export/thoughts" > run.jsonl
 ```
 
-For runs without API calls (no keys required), set `STUB_MODE=true` in `.env` — every agent becomes a `StubAgent` regardless of the configured provider. Stub agents pick actions from a weighted bias with unseeded RNG, so runs are LLM-free but **not bit-reproducible**. For real-model runs, you must set `STUB_MODE=false` (`.env.example` ships with `true`).
+Keyless offline runs use the headless CLI with `provider="stub"` agents
+(weighted-bias picker, unseeded RNG — LLM-free, **not bit-reproducible**). Stub
+is a testing baseline, not offered in the web UI.
 
 For headless batches without a server: `python -m scripts.run_simulation --turns 200 --reset --roster cli_roster.json`. The CLI's `--roster` file format is a bare JSON list of agent specs (no `{"agents": ...}` envelope).
 

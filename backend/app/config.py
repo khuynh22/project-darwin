@@ -24,22 +24,17 @@ class Settings(BaseSettings):
     max_turns: int = 500
     apex_wealth_fraction: float = 0.90
 
-    stub_mode: bool = True
-
     error_threshold: int = 3
 
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
-    google_api_key: str = ""
-    grok_api_key: str = ""
+    # Per-agent decision timeout (seconds). Reasoning / "pro" models often need
+    # more than the default; raise this if those models time out.
+    agent_timeout_seconds: int = 120
 
-    anthropic_model: str = "claude-opus-4-7"
-    openai_model: str = "gpt-5"
-    google_model: str = "gemini-3.1-pro-preview"
-    grok_model: str = "grok-4.3"
-
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "gemma4"
+    # All models go through OpenRouter (OpenAI-compatible). Per-session BYOK key;
+    # the setting below is only an operator/CLI fallback.
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "anthropic/claude-opus-4.7"
 
     encryption_key: str = ""
     min_agents: int = 3
@@ -54,3 +49,7 @@ def get_settings() -> Settings:
 # Default roster — empty. Users must configure agents via the UI (POST /configure).
 # The simulation will not start until at least min_agents are configured.
 AGENT_ROSTER: list[dict] = []
+
+# Fixed session id used by the CLI runner (scripts/run_simulation.py) and the
+# default for non-web code paths. Web sessions use random slugs.
+CLI_SESSION_ID = "cli"

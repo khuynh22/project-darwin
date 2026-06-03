@@ -1,4 +1,5 @@
-"""Action handlers — pure functions over the agent table + ledger."""
+"""Action handlers over the agent table + ledger. All scoped by ``session_id``:
+reads funnel through ``_get_agent``, writes through ``_record``."""
 
 from __future__ import annotations
 
@@ -28,15 +29,23 @@ class ActionResult:
         }
 
 
-async def _get_agent(session: AsyncSession, agent_id: str) -> Agent | None:
+async def _get_agent(
+    session: AsyncSession, session_id: str, agent_id: str
+) -> Agent | None:
+    """Single read path for all handlers — always session-scoped."""
     return (
-        await session.execute(select(Agent).where(Agent.agent_id == agent_id))
+        await session.execute(
+            select(Agent).where(
+                Agent.session_id == session_id, Agent.agent_id == agent_id
+            )
+        )
     ).scalar_one_or_none()
 
 
 async def _record(
     session: AsyncSession,
     *,
+    session_id: str,
     turn: int,
     actor_id: str,
     target_id: str | None,
@@ -45,8 +54,10 @@ async def _record(
     payload: dict,
     note: str,
 ) -> None:
+    """The single write path for ledger rows — always session-scoped."""
     session.add(
         Transaction(
+            session_id=session_id,
             turn=turn,
             actor_id=actor_id,
             target_id=target_id,
@@ -58,8 +69,10 @@ async def _record(
     )
 
 
-async def do_work(session: AsyncSession, *, turn: int, actor_id: str) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
+async def do_work(
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str
+) -> ActionResult:
+    actor = await _get_agent(session, session_id, actor_id)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
 
@@ -88,6 +101,7 @@ async def do_work(session: AsyncSession, *, turn: int, actor_id: str) -> ActionR
     prod_str = ", ".join(f"{v} {k}" for k, v in produced.items())
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=None,
@@ -102,6 +116,7 @@ async def do_work(session: AsyncSession, *, turn: int, actor_id: str) -> ActionR
 async def do_trade(
     session: AsyncSession,
     *,
+    session_id: str,
     turn: int,
     actor_id: str,
     target: str,
@@ -109,8 +124,8 @@ async def do_trade(
     good: str | None = None,
     want_good: str | None = None,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "trade target invalid")
     if amount > 0 and actor.balance < amount:
@@ -161,6 +176,7 @@ async def do_trade(
 
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -171,6 +187,7 @@ async def do_trade(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=target,
         target_id=actor_id,
@@ -185,9 +202,15 @@ async def do_trade(
 
 
 async def do_bet(
-    session: AsyncSession, *, turn: int, actor_id: str, amount: float, bet_type: str
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    amount: float,
+    bet_type: str,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
+    actor = await _get_agent(session, session_id, actor_id)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
     if actor.balance < amount:
@@ -204,6 +227,7 @@ async def do_bet(
     actor.balance = round(actor.balance + delta, 2)
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=None,
@@ -216,10 +240,16 @@ async def do_bet(
 
 
 async def do_socialize(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str, proposal_type: str
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    target: str,
+    proposal_type: str,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "social target invalid")
 
@@ -240,6 +270,7 @@ async def do_socialize(
                 other.allies = [*other.allies, actor_id]
             session.add(
                 WorldEvent(
+                    session_id=session_id,
                     turn=turn,
                     kind="marriage",
                     payload={"a": actor_id, "b": target, "pooled": pooled},
@@ -247,6 +278,7 @@ async def do_socialize(
             )
             await _record(
                 session,
+                session_id=session_id,
                 turn=turn,
                 actor_id=actor_id,
                 target_id=target,
@@ -265,6 +297,7 @@ async def do_socialize(
             actor.marriage_pending = target
             await _record(
                 session,
+                session_id=session_id,
                 turn=turn,
                 actor_id=actor_id,
                 target_id=target,
@@ -289,10 +322,16 @@ async def do_socialize(
         actor.allies = [a for a in actor.allies if a != target]
         other.allies = [a for a in other.allies if a != actor_id]
         session.add(
-            WorldEvent(turn=turn, kind="divorce", payload={"a": actor_id, "b": target})
+            WorldEvent(
+                session_id=session_id,
+                turn=turn,
+                kind="divorce",
+                payload={"a": actor_id, "b": target},
+            )
         )
         await _record(
             session,
+            session_id=session_id,
             turn=turn,
             actor_id=actor_id,
             target_id=target,
@@ -310,6 +349,7 @@ async def do_socialize(
             other.allies = [*other.allies, actor_id]
         await _record(
             session,
+            session_id=session_id,
             turn=turn,
             actor_id=actor_id,
             target_id=target,
@@ -327,6 +367,7 @@ async def do_socialize(
             other.enemies = [*other.enemies, actor_id]
         await _record(
             session,
+            session_id=session_id,
             turn=turn,
             actor_id=actor_id,
             target_id=target,
@@ -341,10 +382,16 @@ async def do_socialize(
 
 
 async def do_sabotage(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str, cost: float
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    target: str,
+    cost: float,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "sabotage target invalid")
     if cost < 1.00:
@@ -360,6 +407,7 @@ async def do_sabotage(
         other.enemies = [*other.enemies, actor_id]
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -372,11 +420,11 @@ async def do_sabotage(
 
 
 async def do_invest(
-    session: AsyncSession, *, turn: int, actor_id: str, amount: float
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, amount: float
 ) -> ActionResult:
     from app.models.deferred import DeferredAction
 
-    actor = await _get_agent(session, actor_id)
+    actor = await _get_agent(session, session_id, actor_id)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
     if actor.balance < amount:
@@ -386,6 +434,7 @@ async def do_invest(
     maturity = turn + 5
     session.add(
         DeferredAction(
+            session_id=session_id,
             kind="investment",
             actor_id=actor_id,
             target_id=None,
@@ -397,6 +446,7 @@ async def do_invest(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=None,
@@ -411,10 +461,10 @@ async def do_invest(
 
 
 async def do_steal(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, target: str
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "steal target invalid")
 
@@ -438,6 +488,7 @@ async def do_steal(
         actor.trust_score = max(0, actor.trust_score - 3)
         await _record(
             session,
+            session_id=session_id,
             turn=turn,
             actor_id=actor_id,
             target_id=target,
@@ -448,6 +499,7 @@ async def do_steal(
         )
         await _record(
             session,
+            session_id=session_id,
             turn=turn,
             actor_id=target,
             target_id=actor_id,
@@ -464,6 +516,7 @@ async def do_steal(
         actor.trust_score = max(0, actor.trust_score - 5)
         await _record(
             session,
+            session_id=session_id,
             turn=turn,
             actor_id=actor_id,
             target_id=target,
@@ -493,12 +546,18 @@ async def do_steal(
 
 
 async def do_lend(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str, amount: float
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    target: str,
+    amount: float,
 ) -> ActionResult:
     from app.models.deferred import DeferredAction
 
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "lend target invalid")
     if actor.balance < amount:
@@ -510,6 +569,7 @@ async def do_lend(
     repayment = round(amount * 1.1, 2)
     session.add(
         DeferredAction(
+            session_id=session_id,
             kind="loan",
             actor_id=actor_id,
             target_id=target,
@@ -521,6 +581,7 @@ async def do_lend(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -531,6 +592,7 @@ async def do_lend(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=target,
         target_id=actor_id,
@@ -545,26 +607,31 @@ async def do_lend(
 async def do_charity(
     session: AsyncSession,
     *,
+    session_id: str,
     turn: int,
     actor_id: str,
     amount: float,
     target: str | None = None,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
+    actor = await _get_agent(session, session_id, actor_id)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
     if actor.balance < amount:
         return ActionResult(False, "insufficient funds for charity")
 
     if target:
-        recipient = await _get_agent(session, target)
+        recipient = await _get_agent(session, session_id, target)
     else:
         # Find poorest alive agent (not self)
         rows = (
             (
                 await session.execute(
                     select(Agent)
-                    .where(Agent.alive.is_(True), Agent.agent_id != actor_id)
+                    .where(
+                        Agent.session_id == session_id,
+                        Agent.alive.is_(True),
+                        Agent.agent_id != actor_id,
+                    )
                     .order_by(Agent.balance)
                 )
             )
@@ -588,6 +655,7 @@ async def do_charity(
 
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=rid,
@@ -598,6 +666,7 @@ async def do_charity(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=rid,
         target_id=actor_id,
@@ -612,19 +681,21 @@ async def do_charity(
 async def do_propose_deal(
     session: AsyncSession,
     *,
+    session_id: str,
     turn: int,
     actor_id: str,
     target: str,
     offer: str,
     ask: str,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "deal target invalid")
 
     session.add(
         WorldEvent(
+            session_id=session_id,
             turn=turn,
             kind="deal_proposed",
             payload={"from": actor_id, "to": target, "offer": offer, "ask": ask},
@@ -632,6 +703,7 @@ async def do_propose_deal(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -644,10 +716,16 @@ async def do_propose_deal(
 
 
 async def do_slander(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str, rumor: str
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    target: str,
+    rumor: str,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "slander target invalid")
     cost = 0.20
@@ -658,6 +736,7 @@ async def do_slander(
     other.trust_score = max(0, other.trust_score - drop)
     session.add(
         WorldEvent(
+            session_id=session_id,
             turn=turn,
             kind="slander",
             payload={
@@ -670,6 +749,7 @@ async def do_slander(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -682,20 +762,24 @@ async def do_slander(
 
 
 async def do_vouch(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, target: str
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "vouch target invalid")
     other.trust_score = min(100, other.trust_score + 5)
     session.add(
         WorldEvent(
-            turn=turn, kind="vouch", payload={"from": actor_id, "target": target}
+            session_id=session_id,
+            turn=turn,
+            kind="vouch",
+            payload={"from": actor_id, "target": target},
         )
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -708,10 +792,16 @@ async def do_vouch(
 
 
 async def do_gift(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str, amount: float
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    target: str,
+    amount: float,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "gift target invalid")
     if actor.balance < amount:
@@ -722,6 +812,7 @@ async def do_gift(
     other.trust_score = min(100, other.trust_score + 2)
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -732,6 +823,7 @@ async def do_gift(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=target,
         target_id=actor_id,
@@ -744,9 +836,9 @@ async def do_gift(
 
 
 async def do_bluff(
-    session: AsyncSession, *, turn: int, actor_id: str, fake_action: str
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, fake_action: str
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
+    actor = await _get_agent(session, session_id, actor_id)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
     cost = 0.10
@@ -756,6 +848,7 @@ async def do_bluff(
     # The fake action appears in the public log as if it were real
     session.add(
         WorldEvent(
+            session_id=session_id,
             turn=turn,
             kind="bluff",
             payload={
@@ -766,6 +859,7 @@ async def do_bluff(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=None,
@@ -780,14 +874,15 @@ async def do_bluff(
 async def do_extort(
     session: AsyncSession,
     *,
+    session_id: str,
     turn: int,
     actor_id: str,
     target: str,
     amount: float,
     threat: str = "sabotage",
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "extort target invalid")
     # Set pending extortion on the target
@@ -799,6 +894,7 @@ async def do_extort(
     }
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -810,12 +906,15 @@ async def do_extort(
     return ActionResult(True, f"extorting {target} for ${amount:.2f}")
 
 
-async def do_strike(session: AsyncSession, *, turn: int, actor_id: str) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
+async def do_strike(
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str
+) -> ActionResult:
+    actor = await _get_agent(session, session_id, actor_id)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=None,
@@ -827,13 +926,16 @@ async def do_strike(session: AsyncSession, *, turn: int, actor_id: str) -> Actio
     return ActionResult(True, "joined strike")
 
 
-async def do_rest(session: AsyncSession, *, turn: int, actor_id: str) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
+async def do_rest(
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str
+) -> ActionResult:
+    actor = await _get_agent(session, session_id, actor_id)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
     actor.rest_bonus = True
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=None,
@@ -846,10 +948,10 @@ async def do_rest(session: AsyncSession, *, turn: int, actor_id: str) -> ActionR
 
 
 async def do_will(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, target: str
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or not actor.alive:
         return ActionResult(False, "actor not alive")
     if other is None or not other.alive:
@@ -857,6 +959,7 @@ async def do_will(
     actor.will_target = target
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -869,10 +972,16 @@ async def do_will(
 
 
 async def do_gaslight(
-    session: AsyncSession, *, turn: int, actor_id: str, target: str, fake_event: str
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    target: str,
+    fake_event: str,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "gaslight target invalid")
     cost = 0.15
@@ -882,6 +991,7 @@ async def do_gaslight(
     # The fake event is injected into the target's next history view
     session.add(
         WorldEvent(
+            session_id=session_id,
             turn=turn,
             kind="gaslight",
             payload={
@@ -893,6 +1003,7 @@ async def do_gaslight(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -907,14 +1018,15 @@ async def do_gaslight(
 async def do_bribe(
     session: AsyncSession,
     *,
+    session_id: str,
     turn: int,
     actor_id: str,
     target: str,
     amount: float,
     desired_action: str,
 ) -> ActionResult:
-    actor = await _get_agent(session, actor_id)
-    other = await _get_agent(session, target)
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
     if actor is None or other is None or not actor.alive or not other.alive:
         return ActionResult(False, "bribe target invalid")
     if actor.balance < amount:
@@ -931,6 +1043,7 @@ async def do_bribe(
     }
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=actor_id,
         target_id=target,
@@ -941,6 +1054,7 @@ async def do_bribe(
     )
     await _record(
         session,
+        session_id=session_id,
         turn=turn,
         actor_id=target,
         target_id=actor_id,
