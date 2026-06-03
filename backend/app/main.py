@@ -140,6 +140,7 @@ async def _state(session_id: str) -> dict:
                 "agent_id": a.agent_id,
                 "display_name": a.display_name,
                 "provider": a.provider,
+                "model": a.model,
                 "balance": a.balance,
                 "alive": a.alive,
                 "spouse": a.spouse_id,

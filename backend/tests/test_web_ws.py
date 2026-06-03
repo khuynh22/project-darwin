@@ -65,3 +65,7 @@ def test_configure_requires_openrouter_key():
             json={"agents": real, "keys": {"openrouter": "sk-or-test"}},
         )
         assert r2.json().get("agent_count") == 3, r2.text
+
+        # The model id is surfaced per agent in the snapshot (the research variable).
+        state = client.get(f"/sessions/{s}/state").json()
+        assert all(a["model"] == "openai/gpt-5" for a in state["agents"]), state["agents"]

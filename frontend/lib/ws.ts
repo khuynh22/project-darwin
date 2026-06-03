@@ -2,6 +2,7 @@ export type AgentSnap = {
   agent_id: string;
   display_name: string;
   provider: string;
+  model: string;
   balance: number;
   alive: boolean;
   spouse: string | null;
