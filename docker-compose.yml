@@ -1,6 +1,6 @@
 # Project Darwin — full stack in one command.
 #
-#   1. cp .env.example .env     # then paste your API keys (or leave blank for stub mode)
+#   1. cp .env.example .env     # set ENCRYPTION_KEY (users bring OpenRouter keys per session)
 #   2. docker compose up --build
 #   3. open http://localhost:3000
 #
@@ -33,19 +33,13 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://darwin:darwin@postgres:5432/darwin
-      # Pull every supported key + model id from the root .env. Empty values are
-      # fine — the agent factory falls back to the deterministic stub per agent.
-      STUB_MODE: ${STUB_MODE:-true}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-      GROK_API_KEY: ${GROK_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-7}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5}
-      GOOGLE_MODEL: ${GOOGLE_MODEL:-gemini-3.1-pro-preview}
-      GROK_MODEL: ${GROK_MODEL:-grok-4.3}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4}
+      # Models go through OpenRouter (one OpenAI-compatible gateway). Users bring
+      # their own key per session (BYOK); the key below is an optional operator
+      # fallback — leave blank for a public deploy.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-opus-4.7}
+      # Required in production so per-session BYOK keys survive a restart.
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ERROR_THRESHOLD: ${ERROR_THRESHOLD:-3}
     volumes:

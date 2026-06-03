@@ -25,9 +25,10 @@ def _tools_for_openai() -> list[dict]:
 
 
 class OpenAIAgent(BaseAgent):
-    """Used for OpenAI, Grok, and Ollama -- all OpenAI-compatible APIs."""
+    """OpenAI-compatible chat client. Used for OpenRouter (every real model is
+    reached through it via ``base_url``)."""
 
-    provider = "openai"
+    provider = "openrouter"
 
     def __init__(
         self,

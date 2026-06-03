@@ -17,24 +17,22 @@ import { Button } from '@/components/ui/button';
 import { CritterAvatar } from '@/components/Critter';
 import { COLOR_HEX } from '@/lib/town';
 
-type ProviderInfo = { name: string; default_model: string; requires_key: boolean };
+const FALLBACK_MODEL = 'anthropic/claude-opus-4.7';
 
 type AgentConfig = {
   agent_id: string;
   display_name: string;
-  provider: string;
   model: string;
   personality: string;
   sprite: string;
 };
 
-function emptyAgent(index: number): AgentConfig {
+function emptyAgent(index: number, model: string): AgentConfig {
   const colors = Object.keys(COLOR_HEX);
   return {
     agent_id: `agent_${index + 1}`,
     display_name: `Critter ${index + 1}`,
-    provider: 'stub',
-    model: '',
+    model,
     personality: '',
     sprite: colors[index % colors.length],
   };
@@ -49,23 +47,31 @@ export default function ConfigPanel({
   open: boolean;
   onClose: () => void;
 }) {
+  const [defaultModel, setDefaultModel] = useState(FALLBACK_MODEL);
   const [agents, setAgents] = useState<AgentConfig[]>([
-    emptyAgent(0),
-    emptyAgent(1),
-    emptyAgent(2),
+    emptyAgent(0, FALLBACK_MODEL),
+    emptyAgent(1, FALLBACK_MODEL),
+    emptyAgent(2, FALLBACK_MODEL),
   ]);
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [openrouterKey, setOpenrouterKey] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  // Per-provider BYOK keys, sent inline with configure and scoped to this session.
-  const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
   const [visibility, setVisibility] = useState<BalanceVisibility>('fuzzy');
 
   useEffect(() => {
     if (!open) return;
     fetch(`${ORACLE_HTTP}/providers`)
       .then((r) => r.json())
-      .then((d) => setProviders(d.providers || []))
+      .then((d) => {
+        const model = d.providers?.[0]?.default_model || FALLBACK_MODEL;
+        setDefaultModel(model);
+        // Prefill any agent still on a blank/fallback model with the live default.
+        setAgents((prev) =>
+          prev.map((a) =>
+            !a.model || a.model === FALLBACK_MODEL ? { ...a, model } : a,
+          ),
+        );
+      })
       .catch(() => {});
   }, [open]);
 
@@ -75,7 +81,7 @@ export default function ConfigPanel({
 
   function addAgent() {
     if (agents.length >= 10) return;
-    setAgents((prev) => [...prev, emptyAgent(prev.length)]);
+    setAgents((prev) => [...prev, emptyAgent(prev.length, defaultModel)]);
   }
 
   function removeAgent(i: number) {
@@ -83,35 +89,29 @@ export default function ConfigPanel({
     setAgents((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  function onProviderChange(i: number, provider: string) {
-    const info = providers.find((p) => p.name === provider);
-    updateAgent(i, { provider, model: info?.default_model || '' });
-  }
-
   async function submit() {
     setError('');
+    if (!openrouterKey.trim()) {
+      setError('Enter your OpenRouter API key to run real models.');
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = agents.map((a) => ({
         agent_id: a.agent_id,
         display_name: a.display_name,
-        provider: a.provider,
-        model: a.model,
+        provider: 'openrouter',
+        model: a.model || defaultModel,
         personality: a.personality || undefined,
         sprite: a.sprite,
       }));
-      // Only send keys for providers actually in use that require one.
-      const keys: Record<string, string> = {};
-      for (const p of providersNeedingKeys) {
-        if (providerKeys[p]) keys[p] = providerKeys[p];
-      }
       const res = await fetch(`${ORACLE_HTTP}/sessions/${sessionId}/configure`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agents: payload,
           balance_visibility: visibility,
-          keys,
+          keys: { openrouter: openrouterKey.trim() },
         }),
       });
       const data = await res.json();
@@ -124,10 +124,6 @@ export default function ConfigPanel({
     }
   }
 
-  const usedProviders = [...new Set(agents.map((a) => a.provider))];
-  const providersNeedingKeys = usedProviders.filter(
-    (p) => providers.find((pr) => pr.name === p)?.requires_key,
-  );
   const usedColors = new Set(agents.map((a) => a.sprite));
 
   return (
@@ -138,40 +134,33 @@ export default function ConfigPanel({
             <Sparkles size={16} className="text-cozy-accent" /> Configure the Town
           </DialogTitle>
           <DialogDescription>
-            Pick 3–10 critters and the providers that will be thinking inside them.
+            Pick 3–10 critters and the models thinking inside them.
           </DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-4">
-          {providersNeedingKeys.length > 0 && (
-            <Section icon={<KeyRound size={13} className="text-cozy-ink-soft" />} title="API Keys">
-              <p className="text-cozy-ink-soft text-[11px] mb-3">
-                Bring your own keys. They&apos;re encrypted and scoped to this
-                simulation only — never shared with other sessions.
-              </p>
-              <div className="space-y-2">
-                {providersNeedingKeys.map((provider) => (
-                  <div key={provider} className="flex items-center gap-3">
-                    <span className="text-cozy-ink text-sm w-20 font-display font-semibold capitalize">
-                      {provider}
-                    </span>
-                    <input
-                      type="password"
-                      value={providerKeys[provider] || ''}
-                      onChange={(e) =>
-                        setProviderKeys((prev) => ({
-                          ...prev,
-                          [provider]: e.target.value,
-                        }))
-                      }
-                      className="cozy-input flex-1"
-                      placeholder={`Enter ${provider} API key`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
+          <Section icon={<KeyRound size={13} className="text-cozy-ink-soft" />} title="OpenRouter">
+            <p className="text-cozy-ink-soft text-[11px] mb-3">
+              Every model runs through{' '}
+              <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noreferrer"
+                className="text-cozy-accent font-semibold underline"
+              >
+                OpenRouter
+              </a>{' '}
+              — one key reaches any model. Encrypted and scoped to this simulation
+              only; never shared with other sessions.
+            </p>
+            <input
+              type="password"
+              value={openrouterKey}
+              onChange={(e) => setOpenrouterKey(e.target.value)}
+              className="cozy-input w-full"
+              placeholder="sk-or-... (OpenRouter API key)"
+            />
+          </Section>
 
           <Section icon={<ScanEye size={13} className="text-cozy-ink-soft" />} title="Balance visibility">
             <p className="text-cozy-ink-soft text-[11px] mb-3">
@@ -213,11 +202,7 @@ export default function ConfigPanel({
                         size={12}
                         className={active ? 'text-cozy-accent' : 'text-cozy-ink-soft'}
                       />
-                      <span
-                        className={`font-display text-[13px] font-semibold ${
-                          active ? 'text-cozy-ink' : 'text-cozy-ink'
-                        }`}
-                      >
+                      <span className="font-display text-[13px] font-semibold text-cozy-ink">
                         {opt.label}
                       </span>
                     </div>
@@ -229,6 +214,13 @@ export default function ConfigPanel({
           </Section>
 
           <Section icon={<Sparkles size={13} className="text-cozy-ink-soft" />} title={`Critters · ${agents.length}`}>
+            <p className="text-cozy-ink-soft text-[11px] mb-3">
+              Use OpenRouter model ids — e.g.{' '}
+              <code className="font-mono text-cozy-ink">anthropic/claude-opus-4.7</code>,{' '}
+              <code className="font-mono text-cozy-ink">openai/gpt-5</code>,{' '}
+              <code className="font-mono text-cozy-ink">x-ai/grok-4</code>. Mix models to
+              compare trajectories.
+            </p>
             <div className="space-y-2">
               {agents.map((a, i) => (
                 <div
@@ -248,22 +240,11 @@ export default function ConfigPanel({
                       className="cozy-input w-36"
                       placeholder="Name"
                     />
-                    <select
-                      value={a.provider}
-                      onChange={(e) => onProviderChange(i, e.target.value)}
-                      className="cozy-select"
-                    >
-                      {providers.map((p) => (
-                        <option key={p.name} value={p.name}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
                     <input
                       value={a.model}
                       onChange={(e) => updateAgent(i, { model: e.target.value })}
-                      className="cozy-input flex-1 min-w-[160px]"
-                      placeholder="Model ID (optional)"
+                      className="cozy-input flex-1 min-w-[200px] font-mono text-[12px]"
+                      placeholder="provider/model-id"
                     />
                     <select
                       value={a.sprite}

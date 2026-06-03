@@ -25,7 +25,7 @@ Talks to `http://localhost:8000` (REST) and `ws://localhost:8000/ws` (WS). Overr
 - **`components/Sidebar.tsx`** -- Roster cards: avatar, name + specialty sub-label, balance, gradient trust bar, inventory pills, mood / invested badge, social tags. Dead state grays the card and pins an "OUT" ribbon.
 - **`components/PublicLog.tsx`** -- "Town Square" public feed: agent-color dot, bolded name, family-tinted action intent, outcome, optional public_message in italic quote.
 - **`components/ThoughtLog.tsx`** -- "Inner Thoughts" private monologue (italic, observer only).
-- **`components/ConfigPanel.tsx`** -- Agent setup modal. Takes a `sessionId` prop; posts to `/sessions/{id}/configure`. Per-provider BYOK keys sent inline as `keys: {provider: rawKey}` (encrypted + scoped to the session by the backend; no global key pool). Color picker. Balance visibility (public/fuzzy/hidden). Optional personality.
+- **`components/ConfigPanel.tsx`** -- Agent setup modal. Takes a `sessionId` prop; posts to `/sessions/{id}/configure`. One session-level **OpenRouter** API key (sent inline as `keys: {openrouter: rawKey}`, encrypted + scoped to the session) + a per-agent **model id** text field (any OpenRouter id, e.g. `openai/gpt-5`). No provider dropdown. Color picker. Balance visibility (public/fuzzy/hidden). Optional personality.
 
 ## Layout
 

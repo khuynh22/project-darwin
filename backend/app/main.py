@@ -13,7 +13,7 @@ from sqlalchemy import desc, select
 from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.models.agent import Agent
-from app.models.api_key import ApiKeyStore, delete_session_keys, store_session_key
+from app.models.api_key import ApiKeyStore, store_session_key
 from app.models.deferred import DeferredAction
 from app.models.ledger import ThoughtLog, Transaction, WorldEvent
 from app.models.session import SimSession
@@ -47,14 +47,12 @@ _VALID_VISIBILITY = {"public", "fuzzy", "hidden"}
 
 # --- Provider metadata (global) ------------------------------------------------
 
+# Every model is reached through OpenRouter — a single OpenAI-compatible gateway.
+# The UI offers only this; users pick any model id (e.g. "openai/gpt-5").
 PROVIDER_DEFAULTS = [
-    {"name": "anthropic", "default_model": "claude-opus-4-7", "requires_key": True},
-    {"name": "openai", "default_model": "gpt-5", "requires_key": True},
-    {"name": "google", "default_model": "gemini-3.1-pro-preview", "requires_key": True},
-    {"name": "grok", "default_model": "grok-4.3", "requires_key": True},
-    {"name": "ollama", "default_model": "gemma4", "requires_key": False},
-    {"name": "stub", "default_model": "stub", "requires_key": False},
+    {"name": "openrouter", "default_model": "anthropic/claude-opus-4.7", "requires_key": True},
 ]
+_KEY_REQUIRED = {p["name"] for p in PROVIDER_DEFAULTS if p["requires_key"]}
 
 COLOR_OPTIONS = [
     "red", "blue", "green", "purple", "orange",
@@ -257,6 +255,13 @@ async def configure_simulation(session_id: str, body: dict):
     ids = [r["agent_id"] for r in roster]
     if len(set(ids)) != len(ids):
         return {"error": "Duplicate agent_id found"}
+
+    # Every key-requiring provider in use must have a key (no silent stub fallback).
+    missing = sorted(
+        {r["provider"] for r in roster if r["provider"] in _KEY_REQUIRED and not keys.get(r["provider"])}
+    )
+    if missing:
+        return {"error": f"Missing API key for: {', '.join(missing)}"}
 
     # Reset ONLY this session, store keys, seed roster
     async with SessionLocal() as session:

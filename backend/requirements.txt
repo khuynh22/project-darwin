@@ -12,10 +12,8 @@ python-dotenv==1.0.1
 httpx==0.28.1
 tenacity==9.0.0
 
-# LLM providers (openai client also used for Grok and Ollama)
-anthropic==0.42.0
+# LLM access: every model is reached through OpenRouter via the OpenAI client.
 openai==1.57.4
-google-genai==0.3.0
 
 # Security
 cryptography==43.0.3

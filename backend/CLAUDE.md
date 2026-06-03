@@ -10,8 +10,8 @@ pip install -r requirements.txt && cp .env.example .env
 pytest                    # unit tests
 uvicorn app.main:app --reload  # dev server (needs postgres)
 
-# CLI simulation (sqlite, no server)
-DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
+# CLI simulation (sqlite, no server) — runs offline with stub agents
+DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
   python -m scripts.run_simulation --turns 50 --reset
 ```
 
@@ -24,7 +24,7 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite STUB_MODE=true \
 - **`oracle/engine.py`** -- `run_turn()` (parallel decide, sequential apply), `_process_deferred()` (investments, loans, extortion), `_apply_survival_tax()` (progressive brackets, food consumption, strikes, inheritance).
 - **`agents/base.py`** -- `AgentDecision` (major + free action fields), aggressive system prompt, `render_world_brief()` with info asymmetry (fuzzy balances, gaslight injection).
 - **`agents/stub.py`** -- `StubAgent` with `DEFAULT_BIAS` for 20 actions. `_pick_major()` + 40% chance free action.
-- **`agents/{anthropic,openai,google}_agent.py`** -- Extract 1-2 tool calls from LLM response. OpenAI client used for Grok/Ollama too.
+- **`agents/openai_agent.py`** -- OpenAI-compatible client; extracts 1-2 tool calls. Every real model is reached through **OpenRouter** (`base_url`). `stub.py` is internal-only (tests/CLI). Providers other than OpenRouter were removed.
 - **`models/agent.py`** -- Agent ORM: balance, trust_score, steal_count, specialty, inventory, social state, will_target, extortion/bribe pending.
 - **`models/deferred.py`** -- DeferredAction for investments/loans maturing over turns.
 - **`models/api_key.py`** -- Fernet-encrypted API key storage.

@@ -3,7 +3,7 @@
 Usage:
     python -m scripts.run_simulation --turns 100 --out thought_logs/run-001.jsonl
 
-Honors STUB_MODE from .env so it works without API keys.
+Uses ``provider="stub"`` agents by default so it runs offline without API keys.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 from sqlalchemy import select  # noqa: E402
 
 from app.agents.factory import build_agents  # noqa: E402
-from app.config import CLI_SESSION_ID, get_settings  # noqa: E402
+from app.config import CLI_SESSION_ID  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.models.agent import Agent  # noqa: E402
 from app.models.ledger import ThoughtLog, Transaction, WorldEvent  # noqa: E402
@@ -96,8 +96,6 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    settings = get_settings()
-
     # Load roster from file or generate a default stub roster for CLI use
     if args.roster:
         roster = json.loads(args.roster.read_text(encoding="utf-8"))
@@ -111,7 +109,7 @@ async def main() -> None:
         ]
         print("[darwin] no --roster provided, using 3 stub agents")
 
-    print(f"[darwin] starting sim -- {args.turns} turns, stub_mode={settings.stub_mode}")
+    print(f"[darwin] starting sim -- {args.turns} turns")
 
     await init_db()
     async with SessionLocal() as session:

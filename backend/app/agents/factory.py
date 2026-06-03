@@ -1,8 +1,13 @@
-"""Build the runtime agent clients for the seeded roster.
+"""Build the runtime agent clients for a roster.
 
-For each spec in AGENT_ROSTER (or a dynamic roster), instantiate the right
-provider client. If the required API key is missing OR STUB_MODE is true,
-fall back to StubAgent so the simulation still runs end-to-end.
+Every real agent is reached through **OpenRouter** — a single OpenAI-compatible
+gateway to models from every provider. Users bring their own OpenRouter key per
+session and pick any model id (e.g. "anthropic/claude-opus-4.7", "openai/gpt-5").
+
+The ``stub`` provider is internal only (tests / CLI dry-runs); it is never
+offered in the UI. If a real agent has no key available the factory falls back
+to a stub so the turn loop never crashes — but `configure` validates keys up
+front, so that path effectively only happens for keyless CLI runs.
 """
 from __future__ import annotations
 
@@ -18,59 +23,36 @@ log = logging.getLogger(__name__)
 def _build_one(spec: dict, api_key: str | None = None) -> BaseAgent:
     """Build a single agent client from a roster spec.
 
-    If *api_key* is provided (dynamic roster), it overrides the global settings key.
+    *api_key* (when present) is the session's OpenRouter key.
     """
     settings = get_settings()
-    provider = spec["provider"]
+    provider = spec.get("provider", "openrouter")
     agent_id = spec["agent_id"]
-    model = spec.get("model")  # dynamic roster can specify model
+    model = spec.get("model") or settings.openrouter_model
 
-    if settings.stub_mode:
+    if provider == "stub":
         return StubAgent(agent_id=agent_id, model="stub")
 
-    if provider == "anthropic":
-        key = api_key or settings.anthropic_api_key
-        if key:
-            from app.agents.anthropic_agent import AnthropicAgent
-            return AnthropicAgent(agent_id=agent_id, model=model or settings.anthropic_model, api_key=key)
-
-    elif provider == "openai":
-        key = api_key or settings.openai_api_key
-        if key:
-            from app.agents.openai_agent import OpenAIAgent
-            return OpenAIAgent(agent_id=agent_id, model=model or settings.openai_model, api_key=key)
-
-    elif provider == "grok":
-        key = api_key or settings.grok_api_key
-        if key:
-            from app.agents.openai_agent import OpenAIAgent
-            return OpenAIAgent(
-                agent_id=agent_id, model=model or settings.grok_model,
-                api_key=key, base_url="https://api.x.ai/v1",
-            )
-
-    elif provider == "ollama":
+    # Everything else routes through OpenRouter.
+    key = api_key or settings.openrouter_api_key
+    if key:
         from app.agents.openai_agent import OpenAIAgent
+
         return OpenAIAgent(
-            agent_id=agent_id, model=model or settings.ollama_model,
-            api_key="ollama", base_url=settings.ollama_base_url + "/v1",
+            agent_id=agent_id,
+            model=model,
+            api_key=key,
+            base_url=settings.openrouter_base_url,
         )
 
-    elif provider == "google":
-        key = api_key or settings.google_api_key
-        if key:
-            from app.agents.google_agent import GoogleAgent
-            return GoogleAgent(agent_id=agent_id, model=model or settings.google_model, api_key=key)
-
-    log.info("Provider %s for %s missing key -- using stub", provider, agent_id)
+    log.info("OpenRouter key missing for %s -- using stub", agent_id)
     return StubAgent(agent_id=agent_id, model="stub")
 
 
 def build_agents(roster: list[dict] | None = None) -> dict[str, BaseAgent]:
     """Build all agent clients.
 
-    If *roster* is provided (from dynamic configuration), each entry may include
-    an ``api_key`` field used instead of the global settings key.
+    Each roster entry may include an ``api_key`` (the session's OpenRouter key).
     """
     specs = roster or AGENT_ROSTER
     result: dict[str, BaseAgent] = {}

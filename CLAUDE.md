@@ -9,7 +9,7 @@ Next.js (React)  <-- WS/REST -->  FastAPI (Oracle)  --> Postgres
                                     turn loop + parallel decide()
                                     20 action handlers
                                     trust, goods, tax, deferred actions
-                                  --> LLM providers (Anthropic, OpenAI, Google, Grok, Ollama, Stub)
+                                  --> OpenRouter (one OpenAI-compatible gateway to every model)
 ```
 
 The Oracle is authoritative. Frontend is a pure viewer. No game logic in the frontend.
@@ -43,11 +43,9 @@ backend/
       engine.py           # run_turn (parallel decide, sequential apply), progressive tax, deferred settlement, extortion enforcement, inheritance
     agents/
       base.py             # BaseAgent, AgentDecision (major + free action), system prompt, info-asymmetric world brief
-      stub.py             # StubAgent with DEFAULT_BIAS for all 20 actions
-      anthropic_agent.py  # Extracts 1-2 tool calls
-      openai_agent.py     # Extracts 1-2 tool calls (OpenAI, Grok, Ollama)
-      google_agent.py     # Extracts 1-2 tool calls, schema sanitizer for anyOf/null
-      factory.py          # build_agents(roster) with per-agent API keys
+      stub.py             # StubAgent with DEFAULT_BIAS for all 20 actions (internal: tests/CLI only)
+      openai_agent.py     # OpenAI-compatible client; every real model runs through OpenRouter via base_url
+      factory.py          # build_agents(roster): provider="stub" -> StubAgent, else OpenRouter; per-session key
 
 frontend/
   app/page.tsx            # Main layout: header, world map, public/private logs, sidebar

@@ -24,22 +24,15 @@ class Settings(BaseSettings):
     max_turns: int = 500
     apex_wealth_fraction: float = 0.90
 
-    stub_mode: bool = True
-
     error_threshold: int = 3
 
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
-    google_api_key: str = ""
-    grok_api_key: str = ""
-
-    anthropic_model: str = "claude-opus-4-7"
-    openai_model: str = "gpt-5"
-    google_model: str = "gemini-3.1-pro-preview"
-    grok_model: str = "grok-4.3"
-
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "gemma4"
+    # Every model is reached through OpenRouter (one OpenAI-compatible gateway).
+    # Users bring their own OpenRouter key per session and pick any model id
+    # (e.g. "anthropic/claude-opus-4.7", "openai/gpt-5", "x-ai/grok-4").
+    # The settings key below is only an operator/CLI fallback.
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "anthropic/claude-opus-4.7"
 
     encryption_key: str = ""
     min_agents: int = 3
