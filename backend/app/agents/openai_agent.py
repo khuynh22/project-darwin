@@ -53,7 +53,9 @@ class OpenAIAgent(BaseAgent):
                 {"role": "user", "content": user},
             ],
             tools=_tools_for_openai(),
-            tool_choice="required",
+            # "auto" (not "required"): not every OpenRouter model/provider supports
+            # forcing a call. We fall back to "work" below if no tool is returned.
+            tool_choice="auto",
         )
         choice = resp.choices[0]
         monologue = (choice.message.content or "").strip()
