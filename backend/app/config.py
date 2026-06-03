@@ -26,6 +26,10 @@ class Settings(BaseSettings):
 
     error_threshold: int = 3
 
+    # Per-agent decision timeout (seconds). Reasoning / "pro" models often need
+    # more than the default; raise this if those models time out.
+    agent_timeout_seconds: int = 120
+
     # All models go through OpenRouter (OpenAI-compatible). Per-session BYOK key;
     # the setting below is only an operator/CLI fallback.
     openrouter_api_key: str = ""

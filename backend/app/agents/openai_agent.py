@@ -41,7 +41,14 @@ class OpenAIAgent(BaseAgent):
         super().__init__(agent_id, model)
         from openai import AsyncOpenAI
 
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120.0, max_retries=0)
+        from app.config import get_settings
+
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=float(get_settings().agent_timeout_seconds),
+            max_retries=0,
+        )
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent)

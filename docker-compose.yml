@@ -42,6 +42,8 @@ services:
       # Required in production so per-session BYOK keys survive a restart.
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ERROR_THRESHOLD: ${ERROR_THRESHOLD:-3}
+      # Raise for slow reasoning/"pro" models that exceed the default.
+      AGENT_TIMEOUT_SECONDS: ${AGENT_TIMEOUT_SECONDS:-120}
     volumes:
       - darwin_logs:/app/thought_logs
     ports:
