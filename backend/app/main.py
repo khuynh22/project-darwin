@@ -27,8 +27,7 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
-    # Sessions are loaded lazily on first access (see app.runtime), so startup
-    # only needs to ensure the schema exists.
+    # Sessions load lazily (app.runtime); startup just ensures the schema exists.
     await init_db()
     yield
 
@@ -47,8 +46,7 @@ _VALID_VISIBILITY = {"public", "fuzzy", "hidden"}
 
 # --- Provider metadata (global) ------------------------------------------------
 
-# Every model is reached through OpenRouter — a single OpenAI-compatible gateway.
-# The UI offers only this; users pick any model id (e.g. "openai/gpt-5").
+# Only OpenRouter is offered; users pick any model id (e.g. "openai/gpt-5").
 PROVIDER_DEFAULTS = [
     {"name": "openrouter", "default_model": "anthropic/claude-opus-4.7", "requires_key": True},
 ]
@@ -200,11 +198,8 @@ async def create_session() -> dict:
 
 @app.post("/sessions/{session_id}/configure")
 async def configure_simulation(session_id: str, body: dict):
-    """Set up a roster for a session. Resets only THIS session's data.
-
-    Upserts the session row, so a shared/bookmarked ``/session/{id}`` link works
-    even if the row was never created via ``POST /sessions``.
-    """
+    """Set up a roster (resets only this session). Upserts the session row so a
+    bookmarked ``/session/{id}`` link works without a prior ``POST /sessions``."""
     settings = get_settings()
 
     agents_list = body.get("agents", [])

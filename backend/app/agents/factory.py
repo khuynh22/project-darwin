@@ -1,14 +1,7 @@
-"""Build the runtime agent clients for a roster.
-
-Every real agent is reached through **OpenRouter** — a single OpenAI-compatible
-gateway to models from every provider. Users bring their own OpenRouter key per
-session and pick any model id (e.g. "anthropic/claude-opus-4.7", "openai/gpt-5").
-
-The ``stub`` provider is internal only (tests / CLI dry-runs); it is never
-offered in the UI. If a real agent has no key available the factory falls back
-to a stub so the turn loop never crashes — but `configure` validates keys up
-front, so that path effectively only happens for keyless CLI runs.
-"""
+"""Build agent clients. Real agents run through OpenRouter (one OpenAI-compatible
+gateway); ``provider="stub"`` is internal-only (tests/CLI). A missing key falls
+back to stub so the turn loop never crashes; ``configure`` rejects keyless real
+agents up front."""
 from __future__ import annotations
 
 import logging
@@ -21,10 +14,7 @@ log = logging.getLogger(__name__)
 
 
 def _build_one(spec: dict, api_key: str | None = None) -> BaseAgent:
-    """Build a single agent client from a roster spec.
-
-    *api_key* (when present) is the session's OpenRouter key.
-    """
+    """*api_key* (when present) is the session's OpenRouter key."""
     settings = get_settings()
     provider = spec.get("provider", "openrouter")
     agent_id = spec["agent_id"]
@@ -50,10 +40,7 @@ def _build_one(spec: dict, api_key: str | None = None) -> BaseAgent:
 
 
 def build_agents(roster: list[dict] | None = None) -> dict[str, BaseAgent]:
-    """Build all agent clients.
-
-    Each roster entry may include an ``api_key`` (the session's OpenRouter key).
-    """
+    """Each roster entry may carry an ``api_key`` (the session's OpenRouter key)."""
     specs = roster or AGENT_ROSTER
     result: dict[str, BaseAgent] = {}
     for spec in specs:

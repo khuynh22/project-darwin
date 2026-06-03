@@ -26,10 +26,8 @@ class Settings(BaseSettings):
 
     error_threshold: int = 3
 
-    # Every model is reached through OpenRouter (one OpenAI-compatible gateway).
-    # Users bring their own OpenRouter key per session and pick any model id
-    # (e.g. "anthropic/claude-opus-4.7", "openai/gpt-5", "x-ai/grok-4").
-    # The settings key below is only an operator/CLI fallback.
+    # All models go through OpenRouter (OpenAI-compatible). Per-session BYOK key;
+    # the setting below is only an operator/CLI fallback.
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "anthropic/claude-opus-4.7"

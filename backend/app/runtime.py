@@ -1,14 +1,6 @@
-"""In-memory per-session runtime state for the single-process deployment.
-
-Replaces the old module-level globals (``_turn_lock``, ``_active_roster``,
-``_balance_visibility``). The DB (``SimSession`` + ``agents`` + ``api_keys``)
-remains the source of truth; this registry caches the per-session asyncio lock
-and the decrypted roster (which must never be persisted) and reconstructs them
-lazily on first access after a restart.
-
-Single-process only: in-memory locks do not coordinate across multiple backend
-instances (see the design's "Known limitation").
-"""
+"""In-memory per-session runtime state (single-process). Caches the per-session
+lock + decrypted roster; the DB is the source of truth and sessions reload
+lazily after a restart. Locks don't coordinate across multiple instances."""
 
 from __future__ import annotations
 
@@ -36,17 +28,13 @@ class SessionRegistry:
         self._load_lock = asyncio.Lock()
 
     def put(self, runtime: SessionRuntime) -> None:
-        """Register (or replace) a session's runtime — used right after configure."""
         self._sessions[runtime.session_id] = runtime
 
     def forget(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
 
     async def get_or_load(self, session_id: str) -> SessionRuntime | None:
-        """Return the live runtime, reconstructing it from the DB on first hit.
-
-        Returns ``None`` if no such session exists in the DB.
-        """
+        """Live runtime, rebuilt from the DB on first hit. ``None`` if unknown."""
         rt = self._sessions.get(session_id)
         if rt is not None:
             return rt

@@ -1,9 +1,5 @@
-"""SimSession — one isolated simulation tenant.
-
-Each session owns its own agents, ledger, thoughts, events and deferred actions
-(all scoped by ``session_id``). The session row is the source of truth for the
-turn counter and balance-visibility mode (these were module globals before
-multi-tenancy)."""
+"""SimSession — one isolated simulation tenant. Source of truth for the turn
+counter and balance-visibility mode; everything else is scoped by ``session_id``."""
 
 from __future__ import annotations
 

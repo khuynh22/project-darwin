@@ -50,9 +50,7 @@ docker compose up --build  # postgres + oracle + arena
 # open http://localhost:3000
 ```
 
-Click **New simulation** to get your own shareable session at `/session/{id}` (anonymous — the link is your save). The ConfigPanel opens automatically: set up 3-10 agents (name, model id, color), paste your **OpenRouter** key once, and click Start. Every model — Claude, GPT, Gemini, Grok, Llama, … — is reached through one OpenRouter key, so you just pick any model id (e.g. `anthropic/claude-opus-4.7`, `openai/gpt-5`, `x-ai/grok-4`). Mix models freely to compare trajectories.
-
-No keys handy? Run the headless CLI (below), which uses offline stub agents.
+Click **New simulation** for your own shareable session at `/session/{id}` (anonymous — the link is your save). In the config panel, paste your **OpenRouter** key and give each of 3–10 critters a model id (`anthropic/claude-opus-4.7`, `openai/gpt-5`, `x-ai/grok-4`, …). One key reaches every model; mix them to compare trajectories. No key? Use the headless CLI (below) with offline stub agents.
 
 ## Architecture
 
@@ -160,10 +158,9 @@ curl -X POST "localhost:8000/sessions/$SID/run?turns=200"
 curl "localhost:8000/sessions/$SID/export/thoughts" > run.jsonl
 ```
 
-For keyless, offline runs use the headless CLI (below): it uses `provider="stub"`
-agents — a weighted-bias action picker with unseeded RNG, so runs are LLM-free
-but **not bit-reproducible**. Stub is a testing baseline only and isn't offered
-in the web UI.
+Keyless offline runs use the headless CLI with `provider="stub"` agents
+(weighted-bias picker, unseeded RNG — LLM-free, **not bit-reproducible**). Stub
+is a testing baseline, not offered in the web UI.
 
 For headless batches without a server: `python -m scripts.run_simulation --turns 200 --reset --roster cli_roster.json`. The CLI's `--roster` file format is a bare JSON list of agent specs (no `{"agents": ...}` envelope).
 

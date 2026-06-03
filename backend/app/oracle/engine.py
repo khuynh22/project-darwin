@@ -1,11 +1,6 @@
-"""The Oracle — turn loop, survival tax, bankruptcy, apex check.
-
-Exposes a single coroutine `run_turn` that orchestrates one tick of one
-session's world, plus `start_simulation` for the CLI runner. Every DB query is
-scoped to a ``session_id`` so independent sessions never see each other's data.
-The engine is provider-agnostic — it talks to agents through
-`app.agents.base.BaseAgent`.
-"""
+"""The Oracle — turn loop, survival tax, bankruptcy, apex check. ``run_turn``
+runs one tick of one session's world; every query is scoped by ``session_id``.
+``start_simulation`` is the CLI runner."""
 
 from __future__ import annotations
 

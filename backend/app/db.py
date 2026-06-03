@@ -43,10 +43,8 @@ async def init_db() -> None:
     # --- Backfill missing columns on pre-existing tables ---------------------
     _MIGRATIONS: list[tuple[str, str, str, str]] = [
         # (table, column, pg_type, default)
-        # NOTE: the multi-tenant `session_id` columns below are backfilled onto
-        # pre-existing tables, but the Agent primary key change to
-        # (session_id, agent_id) cannot be ALTERed in place -- a one-time DB
-        # reset is required when upgrading to multi-tenancy.
+        # NOTE: session_id columns are backfilled, but the Agent composite-PK
+        # change can't be ALTERed in place -- upgrading needs a one-time DB reset.
         ("agents", "session_id", "VARCHAR(32)", "'cli'"),
         ("agents", "model", "VARCHAR(64)", "''"),
         ("transactions", "session_id", "VARCHAR(32)", "'cli'"),

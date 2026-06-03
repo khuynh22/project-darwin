@@ -1,10 +1,5 @@
-"""Action handlers — pure functions over the agent table + ledger.
-
-Every handler is scoped to a single ``session_id``: agent lookups, the
-transaction ledger, world events and deferred actions all carry it. Reads
-funnel through ``_get_agent`` and writes through ``_record`` so scoping lives in
-one place per concern (see the multi-tenant design's "scoping enforcement").
-"""
+"""Action handlers over the agent table + ledger. All scoped by ``session_id``:
+reads funnel through ``_get_agent``, writes through ``_record``."""
 
 from __future__ import annotations
 
@@ -37,7 +32,7 @@ class ActionResult:
 async def _get_agent(
     session: AsyncSession, session_id: str, agent_id: str
 ) -> Agent | None:
-    """The single read path for all handlers — always session-scoped."""
+    """Single read path for all handlers — always session-scoped."""
     return (
         await session.execute(
             select(Agent).where(
