@@ -157,28 +157,6 @@ export default function Town({ snapshot, running = false }: TownProps) {
         className="relative mx-auto"
         style={{ width: STAGE_W, height: STAGE_H }}
       >
-        {/* Decorative dashed paths from plaza to each venue */}
-        <svg
-          width={STAGE_W}
-          height={STAGE_H}
-          className="absolute inset-0 pointer-events-none"
-          aria-hidden
-        >
-          {VENUES.map((v) => (
-            <line
-              key={v.id}
-              x1={STAGE_W / 2}
-              y1={STAGE_H / 2}
-              x2={v.x}
-              y2={v.y + 30}
-              stroke="rgba(184,124,72,0.16)"
-              strokeWidth={12}
-              strokeLinecap="round"
-              strokeDasharray="2 12"
-            />
-          ))}
-        </svg>
-
         {/* Venue houses */}
         {VENUES.map((v) => (
           <VenueHouse key={v.id} venue={v} />
@@ -241,12 +219,16 @@ function VenueHouse({ venue }: { venue: (typeof VENUES)[number] }) {
       className="absolute text-center group"
       style={{ left: venue.x, top: venue.y, width: 116, transform: 'translate(-50%, -50%)' }}
     >
-      <div className="relative mx-auto" style={{ width: 96, height: 80 }}>
+      {/* Lift the house AND its emoji sign together on hover */}
+      <div
+        className="relative mx-auto transition-transform duration-200 ease-out group-hover:-translate-y-[3px]"
+        style={{ width: 96, height: 80 }}
+      >
         <svg
           viewBox="0 0 96 80"
           width={96}
           height={80}
-          className="absolute inset-0 overflow-visible transition-transform duration-200 ease-out group-hover:-translate-y-[3px]"
+          className="absolute inset-0 overflow-visible"
           aria-hidden
         >
           <ellipse cx="48" cy="76" rx="30" ry="5" fill="rgba(74,58,46,0.10)" />

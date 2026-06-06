@@ -22,7 +22,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Project Darwin — A Tiny Town of LLM Critters',
+  title: 'Project Darwin',
   description: 'Multi-agent LLM social-economy simulation, viewed as a cozy tiny town.',
 };
 
