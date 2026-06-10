@@ -15,6 +15,7 @@ from app.db import SessionLocal, init_db
 from app.models.agent import Agent
 from app.models.api_key import ApiKeyStore, store_session_key
 from app.models.deferred import DeferredAction
+from app.models.judgment import DeceptionJudgment
 from app.models.ledger import ThoughtLog, Transaction, TurnSnapshot, WorldEvent
 from app.models.session import SimSession
 from app.oracle.engine import run_turn, seed_roster
@@ -78,7 +79,10 @@ def _new_session_id() -> str:
 
 async def _purge_session(session, session_id: str) -> None:
     """Delete every row belonging to a session (scoped — never touches others)."""
-    for model in (Transaction, ThoughtLog, TurnSnapshot, WorldEvent, DeferredAction, Agent):
+    for model in (
+        Transaction, ThoughtLog, TurnSnapshot, WorldEvent,
+        DeferredAction, DeceptionJudgment, Agent,
+    ):
         await session.execute(
             sa_delete(model).where(model.session_id == session_id)
         )
