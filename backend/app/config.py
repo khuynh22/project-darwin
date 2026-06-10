@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "anthropic/claude-opus-4.7"
 
+    # LLM judge (Phase 2): which OpenRouter model labels the triple for
+    # intent-grounded deception. Config, never hardcoded at call sites.
+    judge_model: str = "anthropic/claude-opus-4.7"
+
     encryption_key: str = ""
     min_agents: int = 3
     max_agents: int = 10

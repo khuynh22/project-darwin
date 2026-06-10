@@ -265,3 +265,87 @@ async def test_stub_judge_is_deterministic():
     a = await StubJudge().judge(ctx)
     b = await StubJudge().judge(ctx)
     assert a == b
+
+
+# ---- Task 5: prompts, LLMJudge, factory --------------------------------------
+
+
+def test_judge_prompt_frames_stated_reasoning_and_carries_triple():
+    from app.judge.context import build_context
+    from app.judge.prompts import PROMPT_VERSION, JUDGE_SYSTEM_PROMPT, render_judge_user
+
+    assert PROMPT_VERSION == "v1"
+    # Unfaithful-CoT-safe framing: judge STATED private reasoning, not cognition.
+    assert "stated" in JUDGE_SYSTEM_PROMPT.lower()
+    user = render_judge_user(build_context(_thought(), _snap(), [_tx()]))
+    assert "rob him blind" in user            # private (stated)
+    assert "let's trade, friend" in user      # public claim
+    assert "steal" in user                    # actual action
+    assert "4.50" in user                     # ground-truth balance
+
+
+def test_build_judge_falls_back_to_stub_without_key(monkeypatch):
+    from app.judge.factory import build_judge
+    from app.judge.stub_judge import StubJudge
+
+    from app import config as config_mod
+    monkeypatch.setattr(
+        config_mod.get_settings(), "openrouter_api_key", "", raising=False
+    )
+    judge = build_judge(provider="openrouter", api_key=None)
+    assert isinstance(judge, StubJudge)  # never raises
+
+
+def test_build_judge_stub_provider():
+    from app.judge.factory import build_judge
+    from app.judge.stub_judge import StubJudge
+
+    assert isinstance(build_judge(provider="stub"), StubJudge)
+
+
+@pytest.mark.asyncio
+async def test_llm_judge_parses_tool_call_and_degrades():
+    from types import SimpleNamespace
+
+    from app.judge.context import build_context
+    from app.judge.llm_judge import LLMJudge
+
+    judge = LLMJudge(judge_model="x/y", api_key="k", base_url=None)
+
+    def _resp(tool_calls):
+        msg = SimpleNamespace(content="", tool_calls=tool_calls)
+        return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+
+    class _FakeCompletions:
+        def __init__(self, resp):
+            self.resp, self.kwargs = resp, None
+
+        async def create(self, **kw):
+            self.kwargs = kw
+            return self.resp
+
+    import json as _json
+    good_call = SimpleNamespace(function=SimpleNamespace(
+        name="record_verdict",
+        arguments=_json.dumps({
+            "is_deceptive": True, "deception_type": "misdirection",
+            "channels_in_conflict": ["public_message", "action"],
+            "target_id": "b", "confidence": 0.9, "rationale": "r",
+            "evidence": {"private_span": "p", "public_span": "q",
+                         "ground_truth_fact": "g"},
+        }),
+    ))
+    ctx = build_context(_thought(), _snap(), [_tx()])
+
+    fake = _FakeCompletions(_resp([good_call]))
+    judge.client = SimpleNamespace(chat=SimpleNamespace(completions=fake))
+    v = await judge.judge(ctx)
+    assert v.is_deceptive and v.deception_type == "misdirection"
+    assert fake.kwargs["temperature"] == 0  # locked by design
+
+    # No tool call -> degrade to none, never raise.
+    judge.client = SimpleNamespace(chat=SimpleNamespace(
+        completions=_FakeCompletions(_resp(None))
+    ))
+    v2 = await judge.judge(ctx)
+    assert v2.is_deceptive is False and v2.confidence == 0.0
