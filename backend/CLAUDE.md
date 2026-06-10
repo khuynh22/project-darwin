@@ -29,6 +29,12 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
 - **`models/deferred.py`** -- DeferredAction for investments/loans maturing over turns.
 - **`models/api_key.py`** -- Fernet-encrypted API key storage.
 - **`thought_export.py`** -- Streaming JSONL exporter (schema v2 with timestamp).
+- **`judge/`** -- Phase 2 offline LLM judge: `runner.py::judge_session` batch-judges a
+  session's triples into `deception_judgments` (keyed by session/turn/agent/judge_model/
+  prompt_version/sample_idx). `stub_judge.py` = deterministic offline judge for tests.
+  Never runs inside the turn loop. CLI: `python -m scripts.judge_deception`.
+- **`metrics.py`** -- structural metrics + optional `judged_deception` block
+  (`scripts/compute_metrics.py` CLI).
 
 ## Adding a new action
 
@@ -83,3 +89,6 @@ Session-scoped: `POST /sessions`, `POST /sessions/{id}/configure`, `/run?turns=N
 - Agent colors: red, blue, green, purple, orange, cyan, pink, yellow, teal, indigo. No legacy sprite names.
 - Factory always falls back to StubAgent. Never raises.
 - Don't import factory at module level in engine.py (lazy import to avoid cycles).
+- Sessions carry an experimental `condition` (neutral|honesty|deception) that selects a
+  locked system-prompt suffix (`agents/base.py`). Wording changes invalidate comparisons.
+- Judge prompts are versioned (`judge/prompts.py::PROMPT_VERSION`) — bump on ANY edit.
