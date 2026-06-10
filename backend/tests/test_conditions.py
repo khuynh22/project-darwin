@@ -161,3 +161,50 @@ async def test_openai_agent_renders_condition_into_system_prompt():
     await agent_client.decide(state, _agent_row())
     system_msg = fake.kwargs["messages"][0]["content"]
     assert "Integrity rule" in system_msg
+
+
+# ---- HTTP round-trip: configure→state condition ----------------------------
+
+
+_STUB_AGENTS = [
+    {"agent_id": c, "display_name": c, "provider": "stub", "sprite": c}
+    for c in ("red", "blue", "green")
+]
+
+
+def test_http_configure_condition_deception_round_trip():
+    """POST configure with condition=deception → GET state returns condition=deception."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        s = client.post("/sessions").json()["session_id"]
+
+        r = client.post(
+            f"/sessions/{s}/configure",
+            json={"agents": _STUB_AGENTS, "condition": "deception"},
+        )
+        body = r.json()
+        assert "error" not in body, body
+
+        state = client.get(f"/sessions/{s}/state").json()
+        assert state["condition"] == "deception", state
+
+
+def test_http_configure_bogus_condition_returns_error():
+    """POST configure with condition=bogus → response contains error mentioning condition."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        s = client.post("/sessions").json()["session_id"]
+
+        r = client.post(
+            f"/sessions/{s}/configure",
+            json={"agents": _STUB_AGENTS, "condition": "bogus"},
+        )
+        body = r.json()
+        assert "error" in body, body
+        assert "condition" in body["error"].lower(), body

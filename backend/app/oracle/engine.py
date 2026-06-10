@@ -914,6 +914,7 @@ async def start_simulation(
     max_turns: int | None = None,
     on_turn=None,
     seed: int = 0,
+    condition: str = "neutral",
 ) -> None:
     """Initialise the DB + roster + agent clients, then run the turn loop (CLI)."""
     from app.agents.factory import build_agents  # local import avoids cycle
@@ -930,7 +931,8 @@ async def start_simulation(
     for turn in range(1, target_turns + 1):
         async with SessionLocal() as session:
             result = await run_turn(
-                session, session_id=session_id, turn=turn, agents=agents, seed=seed
+                session, session_id=session_id, turn=turn, agents=agents, seed=seed,
+                condition=condition,
             )
         if on_turn:
             await on_turn(result)
