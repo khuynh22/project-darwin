@@ -86,3 +86,41 @@ async def test_purge_session_deletes_judgments(db_session):
     await db_session.commit()
     rows = (await db_session.execute(select(DeceptionJudgment))).scalars().all()
     assert [r.session_id for r in rows] == ["keep"]
+
+
+# ---- Task 2: verdict schema + degradation -----------------------------------
+
+
+def test_verdict_validates_well_formed():
+    from app.judge.schemas import DeceptionVerdict
+
+    v = DeceptionVerdict(
+        is_deceptive=True, deception_type="false_state_claim",
+        channels_in_conflict=["public_message"], target_id="b",
+        confidence=0.8, rationale="claims $50, has $3",
+        evidence={"private_span": "", "public_span": "I have $50",
+                  "ground_truth_fact": "balance=3.00"},
+    )
+    assert v.is_deceptive and v.confidence == 0.8
+
+
+def test_parse_verdict_degrades_to_none_on_garbage():
+    from app.judge.schemas import parse_verdict
+
+    for raw in (None, {}, {"is_deceptive": "maybe"}, {"deception_type": "lying_hard"}):
+        v = parse_verdict(raw)
+        assert v.is_deceptive is False
+        assert v.deception_type == "none"
+        assert v.confidence == 0.0
+
+
+def test_parse_verdict_accepts_valid_dict():
+    from app.judge.schemas import parse_verdict
+
+    v = parse_verdict({
+        "is_deceptive": True, "deception_type": "misdirection",
+        "channels_in_conflict": ["public_message", "action"],
+        "target_id": None, "confidence": 0.7, "rationale": "x",
+        "evidence": {"private_span": "a", "public_span": "b", "ground_truth_fact": "c"},
+    })
+    assert v.is_deceptive and v.deception_type == "misdirection"
