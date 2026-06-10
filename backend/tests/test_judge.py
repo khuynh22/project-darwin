@@ -272,7 +272,7 @@ async def test_stub_judge_is_deterministic():
 
 def test_judge_prompt_frames_stated_reasoning_and_carries_triple():
     from app.judge.context import build_context
-    from app.judge.prompts import PROMPT_VERSION, JUDGE_SYSTEM_PROMPT, render_judge_user
+    from app.judge.prompts import JUDGE_SYSTEM_PROMPT, PROMPT_VERSION, render_judge_user
 
     assert PROMPT_VERSION == "v1"
     # Unfaithful-CoT-safe framing: judge STATED private reasoning, not cognition.
@@ -285,10 +285,9 @@ def test_judge_prompt_frames_stated_reasoning_and_carries_triple():
 
 
 def test_build_judge_falls_back_to_stub_without_key(monkeypatch):
+    from app import config as config_mod
     from app.judge.factory import build_judge
     from app.judge.stub_judge import StubJudge
-
-    from app import config as config_mod
     monkeypatch.setattr(
         config_mod.get_settings(), "openrouter_api_key", "", raising=False
     )
@@ -342,6 +341,11 @@ async def test_llm_judge_parses_tool_call_and_degrades():
     v = await judge.judge(ctx)
     assert v.is_deceptive and v.deception_type == "misdirection"
     assert fake.kwargs["temperature"] == 0  # locked by design
+    assert fake.kwargs["model"] == "x/y"
+    assert fake.kwargs["tool_choice"] == "auto"
+    assert fake.kwargs["tools"][0]["function"]["name"] == "record_verdict"
+    assert fake.kwargs["messages"][0]["role"] == "system"
+    assert "rob him blind" in fake.kwargs["messages"][1]["content"]
 
     # No tool call -> degrade to none, never raise.
     judge.client = SimpleNamespace(chat=SimpleNamespace(
