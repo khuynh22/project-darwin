@@ -25,6 +25,8 @@ class SimSession(Base):
     balance_visibility: Mapped[str] = mapped_column(
         String(16), nullable=False, default="fuzzy"
     )
+    # RNG seed for this session's environment stochasticity (reproducibility).
+    seed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # "configuring" until a roster is set, then "ready".
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="configuring"

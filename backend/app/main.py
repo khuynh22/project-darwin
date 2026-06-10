@@ -15,7 +15,7 @@ from app.db import SessionLocal, init_db
 from app.models.agent import Agent
 from app.models.api_key import ApiKeyStore, store_session_key
 from app.models.deferred import DeferredAction
-from app.models.ledger import ThoughtLog, Transaction, WorldEvent
+from app.models.ledger import ThoughtLog, Transaction, TurnSnapshot, WorldEvent
 from app.models.session import SimSession
 from app.oracle.engine import run_turn, seed_roster
 from app.runtime import SessionRuntime, registry
@@ -78,7 +78,7 @@ def _new_session_id() -> str:
 
 async def _purge_session(session, session_id: str) -> None:
     """Delete every row belonging to a session (scoped — never touches others)."""
-    for model in (Transaction, ThoughtLog, WorldEvent, DeferredAction, Agent):
+    for model in (Transaction, ThoughtLog, TurnSnapshot, WorldEvent, DeferredAction, Agent):
         await session.execute(
             sa_delete(model).where(model.session_id == session_id)
         )
@@ -133,6 +133,7 @@ async def _state(session_id: str) -> dict:
         "session_id": session_id,
         "turn": sim.current_turn if sim else 0,
         "balance_visibility": sim.balance_visibility if sim else BALANCE_VISIBILITY_DEFAULT,
+        "seed": sim.seed if sim else 0,
         "agents": [
             {
                 "agent_id": a.agent_id,
@@ -214,6 +215,12 @@ async def configure_simulation(session_id: str, body: dict):
             "error": f"balance_visibility must be one of {sorted(_VALID_VISIBILITY)}, got {visibility!r}"
         }
 
+    # Reproducibility: caller may pin a seed; otherwise generate + record one so
+    # every run is replayable (re-run with the same seed + roster + models).
+    seed = body.get("seed")
+    if not isinstance(seed, int):
+        seed = secrets.randbelow(2**31)
+
     # Per-session BYOK: { provider: raw_key }
     keys: dict[str, str] = {
         p: k for p, k in (body.get("keys") or {}).items() if k
@@ -267,13 +274,14 @@ async def configure_simulation(session_id: str, body: dict):
         await session.commit()
 
     async with SessionLocal() as session:
-        await seed_roster(session, session_id, roster=roster)
+        await seed_roster(session, session_id, roster=roster, seed=seed)
         sim = await session.get(SimSession, session_id)
         if sim is None:  # upsert: link was navigated to before /sessions created a row
             sim = SimSession(session_id=session_id)
             session.add(sim)
         sim.current_turn = 0
         sim.balance_visibility = visibility
+        sim.seed = seed
         sim.status = "ready"
         await session.commit()
 
@@ -388,6 +396,7 @@ async def _drive_turns(session_id: str, count: int):
                     turn=turn,
                     agents=agents,
                     balance_visibility=runtime.balance_visibility,
+                    seed=sim.seed,
                 )
             snapshot = await _state(session_id)
             if result.paused:

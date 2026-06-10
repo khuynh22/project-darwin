@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, Float, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -51,6 +51,27 @@ class ThoughtLog(Base):
     action: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     arguments: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     outcome: Mapped[str] = mapped_column(String(2048), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class TurnSnapshot(Base):
+    """Per-turn snapshot of each agent's state. Enables longitudinal metrics
+    (wealth/trust trajectories, Gini-over-time) that the delta ledger cannot
+    reconstruct -- marriage/divorce pool/split balances with a ``delta=0`` row."""
+
+    __tablename__ = "turn_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True, default="cli"
+    )
+    turn: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    agent_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    balance: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    trust_score: Mapped[float] = mapped_column(Float, nullable=False, default=50.0)
+    alive: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

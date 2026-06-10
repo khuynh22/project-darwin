@@ -70,7 +70,7 @@ async def _record(
 
 
 async def do_work(
-    session: AsyncSession, *, session_id: str, turn: int, actor_id: str
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, rng: random.Random
 ) -> ActionResult:
     actor = await _get_agent(session, session_id, actor_id)
     if actor is None or not actor.alive:
@@ -80,7 +80,7 @@ async def do_work(
     specialty = getattr(actor, "specialty", "ore") or "ore"
 
     # Base cash reward
-    reward = round(random.uniform(0.05, 0.20), 2)
+    reward = round(rng.uniform(0.05, 0.20), 2)
     # Marriage work bonus: +10%
     if actor.spouse_id:
         reward = round(reward * 1.10, 2)
@@ -89,9 +89,9 @@ async def do_work(
     produced: dict[str, int] = {}
     for good in ("ore", "food", "tech"):
         if good == specialty:
-            qty = random.randint(2, 3)
+            qty = rng.randint(2, 3)
         else:
-            qty = random.randint(0, 1)
+            qty = rng.randint(0, 1)
         if qty > 0:
             inv[good] = inv.get(good, 0) + qty
             produced[good] = qty
@@ -119,6 +119,7 @@ async def do_trade(
     session_id: str,
     turn: int,
     actor_id: str,
+    rng: random.Random,
     target: str,
     amount: float = 0,
     good: str | None = None,
@@ -138,7 +139,7 @@ async def do_trade(
     # Acceptance probability: trust-weighted
     trust_factor = min(1.0, other.trust_score / 100.0 + 0.3)
     accept_prob = max(0.20, trust_factor - (other.balance / 200.0))
-    if random.random() > accept_prob:
+    if rng.random() > accept_prob:
         return ActionResult(
             False, f"{target} declined", payload={"amount": amount, "good": good}
         )
@@ -207,6 +208,7 @@ async def do_bet(
     session_id: str,
     turn: int,
     actor_id: str,
+    rng: random.Random,
     amount: float,
     bet_type: str,
 ) -> ActionResult:
@@ -222,7 +224,7 @@ async def do_bet(
         "lottery": (0.05, 18.0),
     }
     win_p, payout_mult = odds.get(bet_type, odds["coin_flip"])
-    won = random.random() < win_p
+    won = rng.random() < win_p
     delta = round(amount * payout_mult, 2) if won else -round(amount, 2)
     actor.balance = round(actor.balance + delta, 2)
     await _record(
@@ -461,7 +463,7 @@ async def do_invest(
 
 
 async def do_steal(
-    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, target: str
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, target: str, rng: random.Random
 ) -> ActionResult:
     actor = await _get_agent(session, session_id, actor_id)
     other = await _get_agent(session, session_id, target)
@@ -475,12 +477,12 @@ async def do_steal(
         success_rate = min(1.0, success_rate + 0.20)
         actor.rest_bonus = False
 
-    success = random.random() < success_rate
+    success = rng.random() < success_rate
     actor.steal_count += 1
 
     if success:
         # Steal up to 30% of target balance (down from 50%)
-        stolen = round(other.balance * 0.3 * random.uniform(0.3, 1.0), 2)
+        stolen = round(other.balance * 0.3 * rng.uniform(0.3, 1.0), 2)
         stolen = max(stolen, 0.01)
         other.balance = round(other.balance - stolen, 2)
         actor.balance = round(actor.balance + stolen, 2)
@@ -721,6 +723,7 @@ async def do_slander(
     session_id: str,
     turn: int,
     actor_id: str,
+    rng: random.Random,
     target: str,
     rumor: str,
 ) -> ActionResult:
@@ -732,7 +735,7 @@ async def do_slander(
     if actor.balance < cost:
         return ActionResult(False, "need $0.20 to slander")
     actor.balance = round(actor.balance - cost, 2)
-    drop = round(random.uniform(5, 10), 1)
+    drop = round(rng.uniform(5, 10), 1)
     other.trust_score = max(0, other.trust_score - drop)
     session.add(
         WorldEvent(

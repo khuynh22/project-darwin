@@ -56,8 +56,7 @@ async def session() -> AsyncSession:
 
 @pytest.mark.asyncio
 async def test_work_increases_balance(session):
-    random.seed(1)
-    res = await do_work(session, session_id=SID, turn=1, actor_id="a")
+    res = await do_work(session, session_id=SID, turn=1, actor_id="a", rng=random.Random(1))
     assert res.success
     assert res.delta >= 0.05  # base + ore bonus
     a = await session.get(Agent, (SID, "a"))
@@ -105,7 +104,7 @@ async def test_marriage_requires_mutual_consent(session):
 @pytest.mark.asyncio
 async def test_bet_respects_funds(session):
     res = await do_bet(
-        session, session_id=SID, turn=1, actor_id="a", amount=999.0, bet_type="coin_flip"
+        session, session_id=SID, turn=1, actor_id="a", amount=999.0, bet_type="coin_flip", rng=random.Random(0)
     )
     assert not res.success
 
@@ -114,5 +113,5 @@ async def test_bet_respects_funds(session):
 async def test_trade_rejected_when_insufficient(session):
     a = await session.get(Agent, (SID, "a"))
     a.balance = 0.05
-    res = await do_trade(session, session_id=SID, turn=1, actor_id="a", target="b", amount=1.0)
+    res = await do_trade(session, session_id=SID, turn=1, actor_id="a", target="b", amount=1.0, rng=random.Random(0))
     assert not res.success

@@ -47,6 +47,7 @@ async def _export_thoughts(out_path: Path) -> int:
                             "turn": t.turn,
                             "agent_id": t.agent_id,
                             "monologue": t.monologue,
+                            "public_message": t.public_message or "",
                             "action": t.action,
                             "arguments": t.arguments,
                             "outcome": t.outcome,
@@ -91,6 +92,10 @@ async def main() -> None:
     parser.add_argument("--out", type=Path, default=Path("thought_logs/latest.jsonl"))
     parser.add_argument("--reset", action="store_true", help="Reset DB before running.")
     parser.add_argument(
+        "--seed", type=int, default=0,
+        help="RNG seed for reproducible environment + stub stochasticity.",
+    )
+    parser.add_argument(
         "--roster", type=Path, default=None,
         help="JSON file with agent roster. Each entry: {agent_id, display_name, provider, personality, sprite}.",
     )
@@ -119,14 +124,14 @@ async def main() -> None:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.drop_all)
                 await conn.run_sync(Base.metadata.create_all)
-        await seed_roster(session, CLI_SESSION_ID, roster=roster)
+        await seed_roster(session, CLI_SESSION_ID, roster=roster, seed=args.seed)
 
     agents = build_agents(roster=roster)
 
     for turn in range(1, args.turns + 1):
         async with SessionLocal() as session:
             result = await run_turn(
-                session, session_id=CLI_SESSION_ID, turn=turn, agents=agents
+                session, session_id=CLI_SESSION_ID, turn=turn, agents=agents, seed=args.seed
             )
         if result.eliminated:
             print(f"  T{turn}: eliminated -> {result.eliminated}")

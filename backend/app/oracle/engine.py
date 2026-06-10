@@ -5,6 +5,7 @@ runs one tick of one session's world; every query is scoped by ``session_id``.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import random
 from dataclasses import dataclass
@@ -16,11 +17,17 @@ from app.agents.base import AgentDecision, BaseAgent
 from app.config import AGENT_ROSTER, CLI_SESSION_ID, get_settings
 from app.db import SessionLocal, init_db
 from app.models.agent import Agent
-from app.models.ledger import ThoughtLog, Transaction, WorldEvent
+from app.models.ledger import ThoughtLog, Transaction, TurnSnapshot, WorldEvent
 from app.oracle.actions import ACTION_TABLE
 from app.oracle.schemas import ARG_MODELS
 
 log = logging.getLogger(__name__)
+
+# Which action handlers accept an injected ``rng`` (auto-detected, so a new
+# stochastic handler is wired up just by adding an ``rng`` parameter to it).
+_HANDLER_WANTS_RNG: dict[str, bool] = {
+    name: "rng" in inspect.signature(fn).parameters for name, fn in ACTION_TABLE.items()
+}
 
 
 @dataclass
@@ -54,10 +61,15 @@ def _is_permanent_error(exc: Exception) -> bool:
 
 
 async def seed_roster(
-    session: AsyncSession, session_id: str, roster: list[dict] | None = None
+    session: AsyncSession,
+    session_id: str,
+    roster: list[dict] | None = None,
+    *,
+    seed: int = 0,
 ) -> None:
     settings = get_settings()
     specs = roster or AGENT_ROSTER
+    roster_rng = random.Random(f"{seed}:roster")
     existing = (
         await session.execute(
             select(Agent.agent_id).where(Agent.session_id == session_id)
@@ -76,7 +88,7 @@ async def seed_roster(
                 model=spec.get("model", "") or "",
                 personality=spec.get("personality", "Adaptive agent."),
                 sprite=spec.get("sprite", "blue"),
-                specialty=random.choice(["ore", "food", "tech"]),
+                specialty=roster_rng.choice(["ore", "food", "tech"]),
                 balance=settings.starting_capital,
                 alive=True,
                 allies=[],
@@ -100,7 +112,13 @@ async def _get_agent_by_id(
 
 async def _world_state(session: AsyncSession, session_id: str, turn: int) -> dict:
     rows = (
-        (await session.execute(select(Agent).where(Agent.session_id == session_id)))
+        (
+            await session.execute(
+                select(Agent)
+                .where(Agent.session_id == session_id)
+                .order_by(Agent.agent_id)
+            )
+        )
         .scalars()
         .all()
     )
@@ -169,6 +187,7 @@ async def _apply_decision(
     turn: int,
     agent: Agent,
     decision: AgentDecision,
+    rng: random.Random,
 ) -> str:
     handler = ACTION_TABLE.get(decision.action)
     if handler is None:
@@ -184,9 +203,12 @@ async def _apply_decision(
     validated.pop(
         "public_message", None
     )  # public_message stored separately on ThoughtLog
-    result = await handler(
-        session, session_id=session_id, turn=turn, actor_id=agent.agent_id, **validated
+    kwargs = dict(
+        session_id=session_id, turn=turn, actor_id=agent.agent_id, **validated
     )
+    if _HANDLER_WANTS_RNG.get(decision.action):
+        kwargs["rng"] = rng
+    result = await handler(session, **kwargs)
     return result.note + (" [ok]" if result.success else " [rejected]")
 
 
@@ -252,9 +274,9 @@ async def _apply_survival_tax(
     rows = (
         (
             await session.execute(
-                select(Agent).where(
-                    Agent.session_id == session_id, Agent.alive.is_(True)
-                )
+                select(Agent)
+                .where(Agent.session_id == session_id, Agent.alive.is_(True))
+                .order_by(Agent.agent_id)
             )
         )
         .scalars()
@@ -394,9 +416,9 @@ async def _check_bankruptcies(
     rows = (
         (
             await session.execute(
-                select(Agent).where(
-                    Agent.session_id == session_id, Agent.alive.is_(True)
-                )
+                select(Agent)
+                .where(Agent.session_id == session_id, Agent.alive.is_(True))
+                .order_by(Agent.agent_id)
             )
         )
         .scalars()
@@ -424,7 +446,7 @@ def _apex_holder(agents: list[Agent], threshold: float) -> str | None:
 
 
 async def _process_deferred(
-    session: AsyncSession, session_id: str, turn: int
+    session: AsyncSession, session_id: str, turn: int, rng: random.Random
 ) -> None:
     """Settle investments and loans that mature this turn."""
     from app.models.deferred import DeferredAction
@@ -432,11 +454,13 @@ async def _process_deferred(
     rows = (
         (
             await session.execute(
-                select(DeferredAction).where(
+                select(DeferredAction)
+                .where(
                     DeferredAction.session_id == session_id,
                     DeferredAction.maturity_turn == turn,
                     DeferredAction.resolved.is_(False),
                 )
+                .order_by(DeferredAction.id)
             )
         )
         .scalars()
@@ -449,9 +473,9 @@ async def _process_deferred(
             actor = await _get_agent_by_id(session, session_id, d.actor_id)
             if actor is None or not actor.alive:
                 continue
-            success = random.random() < 0.70
+            success = rng.random() < 0.70
             if success:
-                ret = round(d.amount * random.uniform(1.2, 2.0), 2)
+                ret = round(d.amount * rng.uniform(1.2, 2.0), 2)
                 actor.balance = round(actor.balance + ret, 2)
                 session.add(
                     Transaction(
@@ -520,11 +544,13 @@ async def _process_deferred(
     extorted = (
         (
             await session.execute(
-                select(Agent).where(
+                select(Agent)
+                .where(
                     Agent.session_id == session_id,
                     Agent.extortion_pending.isnot(None),
                     Agent.alive.is_(True),
                 )
+                .order_by(Agent.agent_id)
             )
         )
         .scalars()
@@ -607,6 +633,7 @@ async def run_turn(
     turn: int,
     agents: dict[str, BaseAgent],
     balance_visibility: str = "fuzzy",
+    seed: int = 0,
 ) -> TurnResult:
     """Execute one full turn for every alive agent in a session.
 
@@ -616,17 +643,28 @@ async def run_turn(
     ``session_id``.
     """
     settings = get_settings()
+    # Per-turn deterministic RNG: a pure function of (seed, turn), so a run is
+    # reproducible from its seed and independent of how many draws prior turns
+    # made (restart-safe). Consumed in a deterministic apply order below.
+    rng = random.Random(f"{seed}:{turn}")
 
     # Settle maturing investments and loans before agent decisions
-    await _process_deferred(session, session_id, turn)
+    await _process_deferred(session, session_id, turn, rng)
 
     db_agents = (
-        (await session.execute(select(Agent).where(Agent.session_id == session_id)))
+        (
+            await session.execute(
+                select(Agent)
+                .where(Agent.session_id == session_id)
+                .order_by(Agent.agent_id)
+            )
+        )
         .scalars()
         .all()
     )
     state = await _world_state(session, session_id, turn)
     state["_balance_visibility"] = balance_visibility
+    state["_seed"] = seed
 
     # Phase 1: Handle skipped agents, collect active agents for parallel decide
     active: list[Agent] = []
@@ -764,7 +802,12 @@ async def run_turn(
 
         # Apply major action
         outcome = await _apply_decision(
-            session, session_id=session_id, turn=turn, agent=db_agent, decision=decision
+            session,
+            session_id=session_id,
+            turn=turn,
+            agent=db_agent,
+            decision=decision,
+            rng=rng,
         )
         public_msg = (
             decision.arguments.pop("public_message", "")
@@ -788,6 +831,7 @@ async def run_turn(
                     turn=turn,
                     agent=db_agent,
                     decision=free_decision,
+                    rng=rng,
                 )
                 free_outcome = f" | free: {decision.free_action} -> {free_outcome}"
             else:
@@ -812,6 +856,7 @@ async def run_turn(
                 turn=turn,
                 agent_id=db_agent.agent_id,
                 monologue=decision.monologue,
+                public_message=public_msg or "",
                 action=decision.action,
                 arguments=decision.arguments,
                 outcome=outcome,
@@ -825,7 +870,13 @@ async def run_turn(
     eliminated.extend(await _check_bankruptcies(session, session_id, turn))
 
     refreshed = (
-        (await session.execute(select(Agent).where(Agent.session_id == session_id)))
+        (
+            await session.execute(
+                select(Agent)
+                .where(Agent.session_id == session_id)
+                .order_by(Agent.agent_id)
+            )
+        )
         .scalars()
         .all()
     )
@@ -834,6 +885,20 @@ async def run_turn(
         session.add(
             WorldEvent(
                 session_id=session_id, turn=turn, kind="apex", payload={"agent_id": apex}
+            )
+        )
+
+    # Per-turn snapshot of every agent — the source for longitudinal metrics
+    # (wealth/trust trajectories, Gini-over-time). `refreshed` is ordered by id.
+    for a in refreshed:
+        session.add(
+            TurnSnapshot(
+                session_id=session_id,
+                turn=turn,
+                agent_id=a.agent_id,
+                balance=a.balance,
+                trust_score=a.trust_score,
+                alive=a.alive,
             )
         )
 
@@ -846,6 +911,7 @@ async def start_simulation(
     session_id: str = CLI_SESSION_ID,
     max_turns: int | None = None,
     on_turn=None,
+    seed: int = 0,
 ) -> None:
     """Initialise the DB + roster + agent clients, then run the turn loop (CLI)."""
     from app.agents.factory import build_agents  # local import avoids cycle
@@ -855,14 +921,14 @@ async def start_simulation(
 
     await init_db()
     async with SessionLocal() as session:
-        await seed_roster(session, session_id)
+        await seed_roster(session, session_id, seed=seed)
 
     agents = build_agents()
 
     for turn in range(1, target_turns + 1):
         async with SessionLocal() as session:
             result = await run_turn(
-                session, session_id=session_id, turn=turn, agents=agents
+                session, session_id=session_id, turn=turn, agents=agents, seed=seed
             )
         if on_turn:
             await on_turn(result)

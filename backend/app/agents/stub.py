@@ -83,16 +83,21 @@ class StubAgent(BaseAgent):
     provider = "stub"
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
-        decision = self._pick_major(state, agent)
+        # Per-decision deterministic RNG: a pure function of (seed, turn, agent)
+        # so stub runs are reproducible and parallel-safe (no shared global state).
+        rng = random.Random(
+            f"{state.get('_seed', 0)}:{state.get('turn', 0)}:{agent.agent_id}"
+        )
+        decision = self._pick_major(state, agent, rng)
         # 40% chance to also pick a free action
-        if random.random() < 0.4:
+        if rng.random() < 0.4:
             others = [
                 a
                 for a in state["agents"]
                 if a["agent_id"] != agent.agent_id and a["alive"]
             ]
-            target = random.choice(others)["agent_id"] if others else None
-            free = random.choice(["vouch", "bluff", "propose_deal", "slander"])
+            target = rng.choice(others)["agent_id"] if others else None
+            free = rng.choice(["vouch", "bluff", "propose_deal", "slander"])
             if free == "vouch" and target:
                 decision.free_action = "vouch"
                 decision.free_arguments = {"target": target}
@@ -111,12 +116,12 @@ class StubAgent(BaseAgent):
                 }
         return decision
 
-    def _pick_major(self, state: dict, agent: Agent) -> AgentDecision:
+    def _pick_major(self, state: dict, agent: Agent, rng: random.Random) -> AgentDecision:
         bias = DEFAULT_BIAS
         choices: list[str] = []
         for action, weight in bias.items():
             choices.extend([action] * max(0, weight))
-        action = random.choice(choices) if choices else "work"
+        action = rng.choice(choices) if choices else "work"
 
         # Affordability check
         min_cost = _COSTLY_ACTIONS.get(action, 0)
@@ -134,11 +139,11 @@ class StubAgent(BaseAgent):
                 "work", {}, monologue=f"({agent.display_name}) Steady work."
             )
 
-        target = random.choice(others)["agent_id"] if others else ""
+        target = rng.choice(others)["agent_id"] if others else ""
 
         if action == "trade":
             amount = round(min(0.30, agent.balance / 4), 2) or 0.05
-            good = random.choice(["ore", "food", "tech", None])
+            good = rng.choice(["ore", "food", "tech", None])
             return AgentDecision(
                 "trade",
                 {"target": target, "amount": amount, "good": good},
@@ -151,7 +156,7 @@ class StubAgent(BaseAgent):
                 "bet",
                 {
                     "amount": amount,
-                    "bet_type": random.choice(["coin_flip", "pixel_horse", "lottery"]),
+                    "bet_type": rng.choice(["coin_flip", "pixel_horse", "lottery"]),
                 },
                 monologue=f"({agent.display_name}) Taking a gamble.",
             )
@@ -160,7 +165,7 @@ class StubAgent(BaseAgent):
             proposals = ["alliance", "truce", "marriage", "rivalry"]
             if agent.spouse_id:
                 proposals = ["alliance", "truce", "rivalry", "divorce"]
-            proposal = random.choice(proposals)
+            proposal = rng.choice(proposals)
             t = agent.spouse_id if proposal == "divorce" else target
             return AgentDecision(
                 "socialize",

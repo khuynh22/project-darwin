@@ -33,15 +33,17 @@ class ThoughtExporter:
         turn: int,
         agent_id: str,
         monologue: str,
+        public_message: str = "",
         action: str,
         arguments: dict,
         outcome: str,
     ) -> None:
         row = {
-            "schema_version": 2,
+            "schema_version": 3,
             "turn": turn,
             "agent_id": agent_id,
             "monologue": monologue,
+            "public_message": public_message,
             "action": action,
             "arguments": arguments,
             "outcome": outcome,

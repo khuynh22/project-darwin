@@ -3,6 +3,8 @@ read or write each other's rows."""
 
 from __future__ import annotations
 
+import random
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
@@ -62,7 +64,7 @@ async def test_get_agent_is_session_scoped(session):
 
 @pytest.mark.asyncio
 async def test_work_in_one_session_does_not_touch_the_other(session):
-    res = await do_work(session, session_id=SID_A, turn=1, actor_id="red")
+    res = await do_work(session, session_id=SID_A, turn=1, actor_id="red", rng=random.Random(0))
     assert res.success
 
     a_red = await session.get(Agent, (SID_A, "red"))
