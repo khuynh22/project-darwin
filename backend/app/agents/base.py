@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import abc
+import logging
 from dataclasses import dataclass, field
 
 from app.models.agent import Agent
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -95,6 +98,8 @@ def render_system_prompt(agent: Agent, condition: str = "neutral") -> str:
         display_name=agent.display_name,
         personality=agent.personality,
     )
+    if condition not in _CONDITION_SUFFIXES:
+        log.warning("Unknown condition %r -- using neutral prompt", condition)
     return base + _CONDITION_SUFFIXES.get(condition, "")
 
 
