@@ -69,6 +69,13 @@ async def main() -> None:
         f"  deception: events={d['deception']['events']} rate={d['deception']['rate']} "
         f"acts/turn={d['deception']['acts_per_turn']} by_action={d['deception']['by_action']}"
     )
+    if d.get("judged_deception"):
+        j = d["judged_deception"]
+        print(
+            f"  judged ({j['judge_model']}@{j['prompt_version']}): rate={j['rate']} "
+            f"by_type={j['by_type']} agreement={j['structural_agreement']['agreement']} "
+            f"self_consistency={j['self_consistency']}"
+        )
     print(
         f"  betrayals={d['betrayal_count']} median_delay={d['betrayal_median_delay']} "
         f"bluff_mismatch={d['bluff_mismatch']}"

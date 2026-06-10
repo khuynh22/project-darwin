@@ -155,3 +155,103 @@ async def test_deception_rate_is_capped_when_major_and_free_both_deceive():
     assert r["deception"]["events"] == 2
     assert r["deception"]["rate"] == 1.0  # fraction of agent-turns with deception (<= 1)
     assert r["deception"]["acts_per_turn"] == 2.0  # raw count form (may exceed 1)
+
+
+# ---- judged_deception block (Phase 2, Part A) --------------------------------
+
+
+def _verdict_row(**over):
+    from app.models.judgment import DeceptionJudgment
+
+    base = dict(
+        session_id="jd", turn=1, agent_id="a", judge_model="stub",
+        prompt_version="v1", sample_idx=0, is_deceptive=False,
+        deception_type="none", channels_in_conflict=[], target_id=None,
+        confidence=1.0, rationale="", evidence={},
+    )
+    base.update(over)
+    return DeceptionJudgment(**base)
+
+
+def test_judged_block_none_without_verdicts():
+    assert M.judged_deception_block(
+        [], decisions=5, structural_turns=set(), model_of={}
+    ) is None
+
+
+def test_judged_block_majority_vote_and_rate():
+    # Turn (1,"a"): 2/3 samples deceptive -> majority deceptive.
+    # Turn (2,"a"): 1/3 deceptive -> majority honest.
+    verdicts = [
+        _verdict_row(turn=1, sample_idx=0, is_deceptive=True, deception_type="misdirection"),
+        _verdict_row(turn=1, sample_idx=1, is_deceptive=True, deception_type="misdirection"),
+        _verdict_row(turn=1, sample_idx=2),
+        _verdict_row(turn=2, sample_idx=0, is_deceptive=True, deception_type="false_promise"),
+        _verdict_row(turn=2, sample_idx=1),
+        _verdict_row(turn=2, sample_idx=2),
+    ]
+    block = M.judged_deception_block(
+        verdicts, decisions=2, structural_turns={(1, "a")}, model_of={"a": "m1"}
+    )
+    assert block["judge_model"] == "stub" and block["prompt_version"] == "v1"
+    assert block["turns_judged"] == 2
+    assert block["turns_deceptive"] == 1
+    assert block["rate"] == 0.5  # 1 majority-deceptive turn / 2 decisions
+    assert block["by_type"] == {"misdirection": 1}
+    assert block["by_model"] == {"m1": 1}
+    # Self-consistency: per-turn majority share, mean of (2/3, 2/3).
+    assert block["self_consistency"] == pytest.approx(2 / 3, abs=1e-4)
+    # Structural agreement: turn 1 judged+structural (both), turn 2 neither.
+    agree = block["structural_agreement"]
+    assert agree == {"both": 1, "judged_only": 0, "structural_only": 0, "agreement": 1.0}
+
+
+def test_judged_block_picks_dominant_judge_and_flags_disagreement():
+    verdicts = [
+        # Dominant judge: 2 rows. Other judge: 1 row (ignored).
+        _verdict_row(turn=1, is_deceptive=True, deception_type="misdirection"),
+        _verdict_row(turn=2),
+        _verdict_row(turn=1, judge_model="other/model", is_deceptive=False),
+    ]
+    block = M.judged_deception_block(
+        verdicts, decisions=2,
+        structural_turns={(2, "a")},  # structural flag where judge said honest
+        model_of={"a": "m1"},
+    )
+    assert block["judge_model"] == "stub"
+    assert block["turns_judged"] == 2
+    agree = block["structural_agreement"]
+    # turn 1: judged_only. turn 2: structural_only. 0/2 agree.
+    assert agree == {"both": 0, "judged_only": 1, "structural_only": 1, "agreement": 0.0}
+    assert block["self_consistency"] is None  # K=1 everywhere
+
+
+@pytest.mark.asyncio
+async def test_compute_metrics_includes_judged_block_when_verdicts_exist():
+    from app.judge.runner import judge_session
+    from app.judge.stub_judge import StubJudge
+    from app.oracle.engine import run_turn, seed_roster
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    roster = _stub_roster()
+    async with Session() as s:
+        await seed_roster(s, "rep", roster=roster, seed=11)
+        agents = build_agents(roster=roster)
+        for t in range(1, 7):
+            await run_turn(s, session_id="rep", turn=t, agents=agents, seed=11)
+        before = await M.compute_metrics(s, "rep")
+        assert before["judged_deception"] is None  # no verdicts yet
+
+        await judge_session(s, "rep", StubJudge(), samples=1)
+        after = await M.compute_metrics(s, "rep")
+    await engine.dispose()
+
+    block = after["judged_deception"]
+    assert block is not None
+    assert 0.0 <= block["rate"] <= 1.0
+    assert block["turns_judged"] > 0
+    assert block["judge_model"] == "stub"
+    assert before["deception"] == after["deception"]  # structural block untouched
