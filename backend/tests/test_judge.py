@@ -144,3 +144,57 @@ def test_parse_verdict_degraded_rationale_names_first_error():
     v = parse_verdict({"is_deceptive": True, "confidence": 5})
     assert v.is_deceptive is False
     assert "confidence" in v.rationale
+
+
+# ---- Task 3: judge context ---------------------------------------------------
+
+
+def _thought(**over):
+    from app.models.ledger import ThoughtLog
+
+    base = dict(session_id="j", turn=3, agent_id="a", monologue="rob him blind",
+                public_message="let's trade, friend", action="steal",
+                arguments={"target": "b"}, outcome="stole $1.20")
+    base.update(over)
+    return ThoughtLog(**base)
+
+
+def _snap(**over):
+    from app.models.ledger import TurnSnapshot
+
+    base = dict(session_id="j", turn=3, agent_id="a", balance=4.5,
+                trust_score=38.0, alive=True)
+    base.update(over)
+    return TurnSnapshot(**base)
+
+
+def _tx(**over):
+    from app.models.ledger import Transaction
+
+    base = dict(session_id="j", turn=3, actor_id="a", target_id="b",
+                action="steal", delta=1.2, payload={}, note="steal ok")
+    base.update(over)
+    return Transaction(**base)
+
+
+def test_build_context_assembles_triple_and_ground_truth():
+    from app.judge.context import build_context
+
+    ctx = build_context(_thought(), _snap(), [_tx()])
+    assert ctx.turn == 3 and ctx.agent_id == "a"
+    assert ctx.monologue == "rob him blind"
+    assert ctx.public_message == "let's trade, friend"
+    assert ctx.action == "steal"
+    assert ctx.balance == 4.5 and ctx.trust_score == 38.0
+    assert ctx.target_id == "b"  # primary directed target from the ledger
+    assert ctx.transactions == [
+        {"action": "steal", "target_id": "b", "delta": 1.2, "note": "steal ok"}
+    ]
+
+
+def test_build_context_tolerates_missing_snapshot_and_txns():
+    from app.judge.context import build_context
+
+    ctx = build_context(_thought(), None, [])
+    assert ctx.balance is None and ctx.trust_score is None
+    assert ctx.target_id is None and ctx.transactions == []
