@@ -353,3 +353,79 @@ async def test_llm_judge_parses_tool_call_and_degrades():
     ))
     v2 = await judge.judge(ctx)
     assert v2.is_deceptive is False and v2.confidence == 0.0
+
+
+# ---- Task 6: batch runner over a real seeded run -----------------------------
+
+
+def _stub_roster() -> list[dict]:
+    return [
+        {"agent_id": f"a{i}", "display_name": f"A{i}", "provider": "stub",
+         "personality": "x", "sprite": "blue", "model": "stub/v1"}
+        for i in range(3)
+    ]
+
+
+async def _seeded_run(Session, turns: int = 6, seed: int = 31) -> None:
+    from app.agents.factory import build_agents
+    from app.oracle.engine import run_turn, seed_roster
+
+    roster = _stub_roster()
+    async with Session() as s:
+        await seed_roster(s, "jrun", roster=roster, seed=seed)
+        agents = build_agents(roster=roster)
+        for t in range(1, turns + 1):
+            await run_turn(s, session_id="jrun", turn=t, agents=agents, seed=seed)
+
+
+@pytest.mark.asyncio
+async def test_judge_session_writes_one_row_per_agent_turn_per_sample():
+    from app.judge.runner import judge_session
+    from app.judge.stub_judge import StubJudge
+    from app.models.ledger import ThoughtLog
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    await _seeded_run(Session)
+
+    async with Session() as s:
+        n = await judge_session(s, "jrun", StubJudge(), samples=2)
+        decisions = len((await s.execute(
+            select(ThoughtLog).where(
+                ThoughtLog.session_id == "jrun", ThoughtLog.action != "skip"
+            )
+        )).scalars().all())
+        rows = (await s.execute(
+            select(DeceptionJudgment).where(DeceptionJudgment.session_id == "jrun")
+        )).scalars().all()
+    await engine.dispose()
+
+    assert n == decisions * 2
+    assert len(rows) == decisions * 2
+    assert {r.sample_idx for r in rows} == {0, 1}
+    assert all(r.judge_model == "stub" and r.prompt_version == "v1" for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_judge_session_rerun_is_idempotent():
+    from app.judge.runner import judge_session
+    from app.judge.stub_judge import StubJudge
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    await _seeded_run(Session)
+
+    async with Session() as s:
+        first = await judge_session(s, "jrun", StubJudge(), samples=1)
+        second = await judge_session(s, "jrun", StubJudge(), samples=1)
+        rows = (await s.execute(
+            select(DeceptionJudgment).where(DeceptionJudgment.session_id == "jrun")
+        )).scalars().all()
+    await engine.dispose()
+
+    assert first == second  # same work both times…
+    assert len(rows) == first  # …but no duplicate rows
