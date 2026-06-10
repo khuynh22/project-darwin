@@ -634,6 +634,7 @@ async def run_turn(
     agents: dict[str, BaseAgent],
     balance_visibility: str = "fuzzy",
     seed: int = 0,
+    condition: str = "neutral",
 ) -> TurnResult:
     """Execute one full turn for every alive agent in a session.
 
@@ -665,6 +666,7 @@ async def run_turn(
     state = await _world_state(session, session_id, turn)
     state["_balance_visibility"] = balance_visibility
     state["_seed"] = seed
+    state["_condition"] = condition
 
     # Phase 1: Handle skipped agents, collect active agents for parallel decide
     active: list[Agent] = []

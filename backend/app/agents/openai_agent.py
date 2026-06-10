@@ -51,7 +51,7 @@ class OpenAIAgent(BaseAgent):
         )
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
-        system = render_system_prompt(agent)
+        system = render_system_prompt(agent, condition=state.get("_condition", "neutral"))
         user = render_world_brief(state, agent.agent_id)
         resp = await self.client.chat.completions.create(
             model=self.model,

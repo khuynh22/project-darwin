@@ -7,8 +7,11 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db import Base
+from app.models import agent as _agent  # noqa: F401  (register tables)
+from app.models import api_key as _api_key  # noqa: F401  (register tables)
 from app.models import deferred as _deferred  # noqa: F401  (register tables)
 from app.models import ledger as _ledger  # noqa: F401  (register tables)
+from app.models import session as _session  # noqa: F401  (register tables)
 from app.models.session import SimSession
 
 
@@ -97,3 +100,64 @@ def test_unknown_condition_falls_back_to_neutral():
     assert render_system_prompt(_agent_row(), condition="bogus") == render_system_prompt(
         _agent_row(), condition="neutral"
     )
+
+
+# ---- wiring: engine state + agent client --------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_turn_threads_condition_into_agent_state(db_session):
+    from app.agents.base import AgentDecision, BaseAgent
+    from app.oracle.engine import run_turn, seed_roster
+
+    class _CaptureAgent(BaseAgent):
+        def __init__(self, agent_id):
+            super().__init__(agent_id, "cap")
+            self.seen = None
+
+        async def decide(self, state, agent):
+            self.seen = state
+            return AgentDecision("work", {})
+
+    roster = [
+        {"agent_id": f"a{i}", "display_name": f"A{i}", "provider": "stub",
+         "personality": "x", "sprite": "blue"}
+        for i in range(3)
+    ]
+    await seed_roster(db_session, "cw", roster=roster, seed=1)
+    agents = {f"a{i}": _CaptureAgent(f"a{i}") for i in range(3)}
+    await run_turn(
+        db_session, session_id="cw", turn=1, agents=agents, seed=1,
+        condition="honesty",
+    )
+    assert agents["a0"].seen["_condition"] == "honesty"
+
+
+@pytest.mark.asyncio
+async def test_openai_agent_renders_condition_into_system_prompt():
+    from types import SimpleNamespace
+
+    from app.agents.openai_agent import OpenAIAgent
+
+    agent_client = OpenAIAgent(agent_id="red", model="x/y", api_key="k")
+
+    class _FakeCompletions:
+        def __init__(self):
+            self.kwargs = None
+
+        async def create(self, **kw):
+            self.kwargs = kw
+            msg = SimpleNamespace(content="thinking", tool_calls=None)
+            return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+
+    fake = _FakeCompletions()
+    agent_client.client = SimpleNamespace(chat=SimpleNamespace(completions=fake))
+
+    state = {
+        "turn": 1, "_condition": "honesty",
+        "agents": [{"agent_id": "red", "display_name": "RED", "balance": 10.0,
+                    "alive": True, "allies": [], "enemies": []}],
+    }
+    await agent_client.decide(state, _agent_row())
+    system_msg = fake.kwargs["messages"][0]["content"]
+    assert "Integrity rule" in system_msg

@@ -96,6 +96,10 @@ async def main() -> None:
         help="RNG seed for reproducible environment + stub stochasticity.",
     )
     parser.add_argument(
+        "--condition", default="neutral", choices=["neutral", "honesty", "deception"],
+        help="Experimental control condition (prompt variant).",
+    )
+    parser.add_argument(
         "--roster", type=Path, default=None,
         help="JSON file with agent roster. Each entry: {agent_id, display_name, provider, personality, sprite}.",
     )
@@ -131,7 +135,8 @@ async def main() -> None:
     for turn in range(1, args.turns + 1):
         async with SessionLocal() as session:
             result = await run_turn(
-                session, session_id=CLI_SESSION_ID, turn=turn, agents=agents, seed=args.seed
+                session, session_id=CLI_SESSION_ID, turn=turn, agents=agents, seed=args.seed,
+                condition=args.condition,
             )
         if result.eliminated:
             print(f"  T{turn}: eliminated -> {result.eliminated}")

@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import desc, select
 
+from app.agents.base import CONDITIONS
 from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.models.agent import Agent
@@ -138,6 +139,7 @@ async def _state(session_id: str) -> dict:
         "turn": sim.current_turn if sim else 0,
         "balance_visibility": sim.balance_visibility if sim else BALANCE_VISIBILITY_DEFAULT,
         "seed": sim.seed if sim else 0,
+        "condition": sim.condition if sim else "neutral",
         "agents": [
             {
                 "agent_id": a.agent_id,
@@ -219,6 +221,12 @@ async def configure_simulation(session_id: str, body: dict):
             "error": f"balance_visibility must be one of {sorted(_VALID_VISIBILITY)}, got {visibility!r}"
         }
 
+    condition = body.get("condition", "neutral")
+    if condition not in CONDITIONS:
+        return {
+            "error": f"condition must be one of {sorted(CONDITIONS)}, got {condition!r}"
+        }
+
     # Reproducibility: caller may pin a seed; otherwise generate + record one so
     # every run is replayable (re-run with the same seed + roster + models).
     seed = body.get("seed")
@@ -286,6 +294,7 @@ async def configure_simulation(session_id: str, body: dict):
         sim.current_turn = 0
         sim.balance_visibility = visibility
         sim.seed = seed
+        sim.condition = condition
         sim.status = "ready"
         await session.commit()
 
@@ -401,6 +410,7 @@ async def _drive_turns(session_id: str, count: int):
                     agents=agents,
                     balance_visibility=runtime.balance_visibility,
                     seed=sim.seed,
+                    condition=sim.condition,
                 )
             snapshot = await _state(session_id)
             if result.paused:
