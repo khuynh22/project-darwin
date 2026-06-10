@@ -28,7 +28,9 @@ async def judge_session(
 ) -> int:
     """Judge every decision agent-turn in *session_id* with *judge*, drawing
     *samples* verdicts each. Returns the number of verdict rows written.
-    Re-running with the same (judge_model, prompt_version) overwrites in place."""
+    Re-running with the same (judge_model, prompt_version) overwrites in place.
+    If any judge call raises, the whole batch aborts uncommitted (judges are
+    expected never to raise; the shipped judges degrade to a none-verdict instead)."""
     thoughts = (
         (
             await session.execute(
