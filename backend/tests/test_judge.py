@@ -124,3 +124,23 @@ def test_parse_verdict_accepts_valid_dict():
         "evidence": {"private_span": "a", "public_span": "b", "ground_truth_fact": "c"},
     })
     assert v.is_deceptive and v.deception_type == "misdirection"
+
+
+def test_verdict_truncates_overlong_fields_instead_of_rejecting():
+    from app.judge.schemas import parse_verdict
+
+    v = parse_verdict({
+        "is_deceptive": True, "deception_type": "misdirection",
+        "confidence": 0.9, "rationale": "r" * 5000, "target_id": "t" * 100,
+    })
+    assert v.is_deceptive is True  # NOT degraded
+    assert len(v.rationale) == 2048
+    assert len(v.target_id) == 64
+
+
+def test_parse_verdict_degraded_rationale_names_first_error():
+    from app.judge.schemas import parse_verdict
+
+    v = parse_verdict({"is_deceptive": True, "confidence": 5})
+    assert v.is_deceptive is False
+    assert "confidence" in v.rationale

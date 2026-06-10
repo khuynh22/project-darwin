@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 DeceptionType = Literal[
     "none", "false_state_claim", "false_promise",
@@ -32,6 +32,19 @@ class DeceptionVerdict(BaseModel):
     rationale: str = ""
     evidence: VerdictEvidence = Field(default_factory=VerdictEvidence)
 
+    # Truncate (never reject) values bound for length-limited ORM columns
+    # (DeceptionJudgment.rationale String(2048), .target_id String(64)) so a
+    # verbose judge can't kill the write or get degraded to a none-verdict.
+    @field_validator("rationale", mode="after")
+    @classmethod
+    def _cap_rationale(cls, v: str) -> str:
+        return v[:2048]
+
+    @field_validator("target_id", mode="after")
+    @classmethod
+    def _cap_target_id(cls, v: str | None) -> str | None:
+        return v if v is None else v[:64]
+
 
 def none_verdict(rationale: str = "") -> DeceptionVerdict:
     return DeceptionVerdict(is_deceptive=False, deception_type="none",
@@ -44,4 +57,8 @@ def parse_verdict(raw: dict | None) -> DeceptionVerdict:
     try:
         return DeceptionVerdict.model_validate(raw)
     except ValidationError as exc:
-        return none_verdict(f"invalid judge output: {exc.error_count()} errors")
+        first = exc.errors()[0]
+        return none_verdict(
+            f"invalid judge output: {exc.error_count()} errors "
+            f"(first: {first['loc']} {first['type']})"
+        )
