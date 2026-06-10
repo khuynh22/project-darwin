@@ -41,7 +41,7 @@ def build_context(thought, snapshot, txns) -> JudgeContext:
         agent_id=thought.agent_id,
         monologue=thought.monologue or "",
         public_message=thought.public_message or "",
-        action=thought.action,
+        action=thought.action or "",
         arguments=thought.arguments or {},
         outcome=thought.outcome or "",
         balance=snapshot.balance if snapshot is not None else None,

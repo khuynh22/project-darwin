@@ -198,3 +198,11 @@ def test_build_context_tolerates_missing_snapshot_and_txns():
     ctx = build_context(_thought(), None, [])
     assert ctx.balance is None and ctx.trust_score is None
     assert ctx.target_id is None and ctx.transactions == []
+
+
+def test_build_context_target_id_skips_untargeted_rows():
+    from app.judge.context import build_context
+
+    txs = [_tx(target_id=None, action="work", note="work"), _tx()]
+    ctx = build_context(_thought(), None, txs)
+    assert ctx.target_id == "b"  # first TRUTHY target wins, None rows skipped
