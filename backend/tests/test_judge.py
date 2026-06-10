@@ -206,3 +206,62 @@ def test_build_context_target_id_skips_untargeted_rows():
     txs = [_tx(target_id=None, action="work", note="work"), _tx()]
     ctx = build_context(_thought(), None, txs)
     assert ctx.target_id == "b"  # first TRUTHY target wins, None rows skipped
+
+
+# ---- Task 4: StubJudge rules -------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_stub_judge_flags_false_balance_claim():
+    from app.judge.context import build_context
+    from app.judge.stub_judge import StubJudge
+
+    th = _thought(action="work", arguments={}, public_message="I'm rich, I have $50!")
+    ctx = build_context(th, _snap(balance=3.0), [])
+    v = await StubJudge().judge(ctx)
+    assert v.is_deceptive and v.deception_type == "false_state_claim"
+    assert v.channels_in_conflict == ["public_message"]
+
+
+@pytest.mark.asyncio
+async def test_stub_judge_flags_misdirection():
+    from app.judge.context import build_context
+    from app.judge.stub_judge import StubJudge
+
+    # Says "trade" publicly, actually steals.
+    ctx = build_context(_thought(), _snap(), [_tx()])
+    v = await StubJudge().judge(ctx)
+    assert v.is_deceptive and v.deception_type == "misdirection"
+    assert v.channels_in_conflict == ["public_message", "action"]
+    assert v.target_id == "b"
+
+
+@pytest.mark.asyncio
+async def test_stub_judge_honest_turn_is_none():
+    from app.judge.context import build_context
+    from app.judge.stub_judge import StubJudge
+
+    th = _thought(monologue="just working", public_message="off to work I go",
+                  action="work", arguments={})
+    v = await StubJudge().judge(build_context(th, _snap(), []))
+    assert v.is_deceptive is False and v.deception_type == "none"
+
+
+@pytest.mark.asyncio
+async def test_stub_judge_empty_public_message_is_none():
+    from app.judge.context import build_context
+    from app.judge.stub_judge import StubJudge
+
+    v = await StubJudge().judge(build_context(_thought(public_message=""), _snap(), []))
+    assert v.is_deceptive is False
+
+
+@pytest.mark.asyncio
+async def test_stub_judge_is_deterministic():
+    from app.judge.context import build_context
+    from app.judge.stub_judge import StubJudge
+
+    ctx = build_context(_thought(), _snap(), [_tx()])
+    a = await StubJudge().judge(ctx)
+    b = await StubJudge().judge(ctx)
+    assert a == b
