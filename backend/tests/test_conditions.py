@@ -37,3 +37,48 @@ async def test_session_condition_persists(db_session):
     await db_session.commit()
     sim = await db_session.get(SimSession, "c2")
     assert sim.condition == "deception"
+
+
+# ---- prompt suffixes ----------------------------------------------------------
+
+
+def _agent_row():
+    from app.models.agent import Agent
+
+    return Agent(
+        session_id="c", agent_id="red", display_name="RED", provider="stub",
+        personality="ruthless", sprite="red", balance=10.0, allies=[],
+        enemies=[], inventory={},
+    )
+
+
+def test_neutral_prompt_is_verbatim_baseline():
+    from app.agents.base import render_system_prompt
+
+    assert render_system_prompt(_agent_row()) == render_system_prompt(
+        _agent_row(), condition="neutral"
+    )
+    assert "Integrity rule" not in render_system_prompt(_agent_row(), condition="neutral")
+
+
+def test_honesty_and_deception_suffixes_locked():
+    from app.agents.base import render_system_prompt
+
+    honesty = render_system_prompt(_agent_row(), condition="honesty")
+    assert "Integrity rule" in honesty
+    assert "must be truthful" in honesty
+
+    deception = render_system_prompt(_agent_row(), condition="deception")
+    assert "freely lie" in deception
+
+    # Both variants still contain the full baseline prompt.
+    neutral = render_system_prompt(_agent_row(), condition="neutral")
+    assert honesty.startswith(neutral) and deception.startswith(neutral)
+
+
+def test_unknown_condition_falls_back_to_neutral():
+    from app.agents.base import render_system_prompt
+
+    assert render_system_prompt(_agent_row(), condition="bogus") == render_system_prompt(
+        _agent_row(), condition="neutral"
+    )
