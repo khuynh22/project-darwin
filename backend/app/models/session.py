@@ -27,6 +27,10 @@ class SimSession(Base):
     )
     # RNG seed for this session's environment stochasticity (reproducibility).
     seed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Experimental control condition (Phase 2): neutral | honesty | deception.
+    # Selects the system-prompt suffix in agents/base.py — the across-condition
+    # difference in judged deception is the propensity signal.
+    condition: Mapped[str] = mapped_column(String(16), nullable=False, default="neutral")
     # "configuring" until a roster is set, then "ready".
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="configuring"
