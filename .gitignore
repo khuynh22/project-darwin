@@ -40,3 +40,8 @@ logs/
 *.sqlite
 *.sqlite-journal
 thought_logs/
+
+# ...but DO track research artifacts (calibration/contrast verdict DBs are the
+# source of truth for per-verdict data and are expensive to regenerate). Run
+# logs (*.log) stay ignored above.
+!research/**/*.sqlite
