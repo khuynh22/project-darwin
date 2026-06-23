@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     # more than the default; raise this if those models time out.
     agent_timeout_seconds: int = 120
 
+    # Cap on completion tokens per model call (agents + judge). Left unset,
+    # OpenRouter reserves the model's full max (often 65536) as credit up front,
+    # which 402s low-balance keys and massively over-reserves cost. Agents and the
+    # judge each emit one short tool call, so a few thousand tokens is ample
+    # headroom even for reasoning models.
+    max_output_tokens: int = 8192
+
     # All models go through OpenRouter (OpenAI-compatible). Per-session BYOK key;
     # the setting below is only an operator/CLI fallback.
     openrouter_api_key: str = ""

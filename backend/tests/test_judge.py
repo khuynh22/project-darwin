@@ -274,7 +274,7 @@ def test_judge_prompt_frames_stated_reasoning_and_carries_triple():
     from app.judge.context import build_context
     from app.judge.prompts import JUDGE_SYSTEM_PROMPT, PROMPT_VERSION, render_judge_user
 
-    assert PROMPT_VERSION == "v1"
+    assert PROMPT_VERSION == "v2"
     # Unfaithful-CoT-safe framing: judge STATED private reasoning, not cognition.
     assert "stated" in JUDGE_SYSTEM_PROMPT.lower()
     user = render_judge_user(build_context(_thought(), _snap(), [_tx()]))
@@ -406,6 +406,69 @@ async def test_judge_session_writes_one_row_per_agent_turn_per_sample():
     assert len(rows) == decisions * 2
     assert {r.sample_idx for r in rows} == {0, 1}
     assert all(r.judge_model == "stub" and r.prompt_version == "v1" for r in rows)
+
+
+# ---- Bug fixes (2026-06-22): verdict normalization ---------------------------
+
+
+def test_normalize_verdict_nulls_self_target():
+    from app.judge.schemas import DeceptionVerdict, normalize_verdict
+
+    v = DeceptionVerdict(is_deceptive=True, deception_type="misdirection",
+                         channels_in_conflict=["action"], target_id="a",
+                         confidence=0.9)
+    assert normalize_verdict(v, actor_id="a").target_id is None   # self-target dropped
+    assert normalize_verdict(v, actor_id="z").target_id == "a"    # other target kept
+
+
+def test_normalize_verdict_floors_channels_when_deceptive():
+    from app.judge.schemas import DeceptionVerdict, normalize_verdict
+
+    bare = DeceptionVerdict(is_deceptive=True, deception_type="strategic_omission",
+                            channels_in_conflict=[], target_id=None, confidence=0.8)
+    assert normalize_verdict(bare, actor_id="a").channels_in_conflict == ["public_message"]
+    keep = DeceptionVerdict(is_deceptive=True, deception_type="misdirection",
+                            channels_in_conflict=["action"], confidence=0.8)
+    assert normalize_verdict(keep, actor_id="a").channels_in_conflict == ["action"]
+    honest = DeceptionVerdict(is_deceptive=False, confidence=0.0)
+    assert normalize_verdict(honest, actor_id="a").channels_in_conflict == []
+
+
+@pytest.mark.asyncio
+async def test_judge_session_normalizes_self_target_and_empty_channels():
+    """The runner applies normalize_verdict: a judge emitting a self-target,
+    channel-less deceptive verdict still yields clean persisted rows."""
+    from app.judge.base import BaseJudge
+    from app.judge.runner import judge_session
+    from app.judge.schemas import DeceptionVerdict
+
+    class _SelfTargetJudge(BaseJudge):
+        provider = "stub"
+
+        def __init__(self):
+            super().__init__(judge_model="selftgt", prompt_version="v1")
+
+        async def judge(self, ctx):
+            return DeceptionVerdict(
+                is_deceptive=True, deception_type="misdirection",
+                channels_in_conflict=[], target_id=ctx.agent_id, confidence=1.0,
+            )
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    await _seeded_run(Session)
+    async with Session() as s:
+        await judge_session(s, "jrun", _SelfTargetJudge(), samples=1)
+        rows = (await s.execute(select(DeceptionJudgment).where(
+            DeceptionJudgment.session_id == "jrun",
+            DeceptionJudgment.is_deceptive.is_(True),
+        ))).scalars().all()
+    await engine.dispose()
+    assert rows
+    assert all(r.target_id is None for r in rows)                          # self-target nulled
+    assert all(r.channels_in_conflict == ["public_message"] for r in rows)  # channels floored
 
 
 @pytest.mark.asyncio

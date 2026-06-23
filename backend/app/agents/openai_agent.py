@@ -43,12 +43,14 @@ class OpenAIAgent(BaseAgent):
 
         from app.config import get_settings
 
+        settings = get_settings()
         self.client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=float(get_settings().agent_timeout_seconds),
+            timeout=float(settings.agent_timeout_seconds),
             max_retries=0,
         )
+        self.max_tokens = settings.max_output_tokens
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent, condition=state.get("_condition", "neutral"))
@@ -63,6 +65,7 @@ class OpenAIAgent(BaseAgent):
             # "auto" (not "required"): not every OpenRouter model/provider supports
             # forcing a call. We fall back to "work" below if no tool is returned.
             tool_choice="auto",
+            max_tokens=self.max_tokens,
         )
         choice = resp.choices[0]
         monologue = (choice.message.content or "").strip()

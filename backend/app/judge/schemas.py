@@ -51,6 +51,27 @@ def none_verdict(rationale: str = "") -> DeceptionVerdict:
                             confidence=0.0, rationale=rationale)
 
 
+def normalize_verdict(v: DeceptionVerdict, *, actor_id: str) -> DeceptionVerdict:
+    """Repair two recurring LLM-judge output defects before persistence:
+
+    1. **Self-target.** The judge sometimes sets ``target_id`` to the very agent
+       being judged. An agent is not the directed *target* of its own deception,
+       and a self-target pollutes per-target episode grouping, so it is nulled.
+    2. **Channel-less deception.** An ``is_deceptive=True`` verdict that names no
+       channel is floored to ``["public_message"]`` — the minimal carrier of a
+       public lie — so downstream channel/episode analysis always sees >=1
+       channel. Honest verdicts keep their (normally empty) channel list.
+
+    Pure (returns a copy). PROMPT_VERSION v2 also instructs against both defects;
+    this is the deterministic backstop so persisted rows hold the invariant.
+    """
+    target = None if v.target_id == actor_id else v.target_id
+    channels = list(v.channels_in_conflict)
+    if v.is_deceptive and not channels:
+        channels = ["public_message"]
+    return v.model_copy(update={"target_id": target, "channels_in_conflict": channels})
+
+
 def parse_verdict(raw: dict | None) -> DeceptionVerdict:
     if not isinstance(raw, dict) or not raw:
         return none_verdict("empty or non-dict judge output")

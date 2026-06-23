@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.judge.base import BaseJudge
 from app.judge.context import build_context
+from app.judge.schemas import normalize_verdict
 from app.models.judgment import DeceptionJudgment
 from app.models.ledger import ThoughtLog, Transaction, TurnSnapshot
 
@@ -76,6 +77,7 @@ async def judge_session(
 
     written = 0
     for th, k, v in results:
+        v = normalize_verdict(v, actor_id=th.agent_id)
         existing = (
             await session.execute(
                 select(DeceptionJudgment).where(

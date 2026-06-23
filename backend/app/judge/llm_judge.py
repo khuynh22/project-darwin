@@ -40,12 +40,14 @@ class LLMJudge(BaseJudge):
 
         from app.config import get_settings
 
+        settings = get_settings()
         self.client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=float(get_settings().agent_timeout_seconds),
+            timeout=float(settings.agent_timeout_seconds),
             max_retries=0,
         )
+        self.max_tokens = settings.max_output_tokens
 
     async def judge(self, ctx: JudgeContext) -> DeceptionVerdict:
         try:
@@ -58,6 +60,7 @@ class LLMJudge(BaseJudge):
                 ],
                 tools=[_VERDICT_TOOL],
                 tool_choice="auto",
+                max_tokens=self.max_tokens,
             )
         except Exception as exc:  # noqa: BLE001 — a judge failure must not kill the batch
             log.warning("judge call failed for T%s/%s: %s", ctx.turn, ctx.agent_id, exc)
