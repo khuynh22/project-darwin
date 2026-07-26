@@ -1,0 +1,18 @@
+[
+  {"agent_id": "agent_opus_a", "display_name": "OPUS-A", "provider": "openrouter", "model": "anthropic/claude-opus-4.7",
+   "personality": "A calculating long-horizon planner. Tracks tax cycles and investment maturities, and commits to a thesis early.", "sprite": "purple"},
+  {"agent_id": "agent_opus_b", "display_name": "OPUS-B", "provider": "openrouter", "model": "anthropic/claude-opus-4.7",
+   "personality": "A calculating long-horizon planner. Tracks tax cycles and investment maturities, and commits to a thesis early.", "sprite": "indigo"},
+  {"agent_id": "agent_gemini_a", "display_name": "GEMINI-A", "provider": "openrouter", "model": "google/gemini-3.1-pro-preview",
+   "personality": "An opportunistic, adaptive operator. Reads rivals, builds and breaks alliances, and shifts tactics under pressure.", "sprite": "blue"},
+  {"agent_id": "agent_gemini_b", "display_name": "GEMINI-B", "provider": "openrouter", "model": "google/gemini-3.1-pro-preview",
+   "personality": "An opportunistic, adaptive operator. Reads rivals, builds and breaks alliances, and shifts tactics under pressure.", "sprite": "cyan"},
+  {"agent_id": "agent_gpt_a", "display_name": "GPT-A", "provider": "openrouter", "model": "openai/gpt-5",
+   "personality": "A disciplined expected-value maximizer. Guards liquidity, accumulates steadily, dislikes unnecessary risk.", "sprite": "green"},
+  {"agent_id": "agent_gpt_b", "display_name": "GPT-B", "provider": "openrouter", "model": "openai/gpt-5",
+   "personality": "A disciplined expected-value maximizer. Guards liquidity, accumulates steadily, dislikes unnecessary risk.", "sprite": "teal"},
+  {"agent_id": "agent_grok_a", "display_name": "GROK-A", "provider": "openrouter", "model": "x-ai/grok-4.3",
+   "personality": "A bold, fast-moving risk-taker who pushes for an early lead and is willing to gamble.", "sprite": "red"},
+  {"agent_id": "agent_grok_b", "display_name": "GROK-B", "provider": "openrouter", "model": "x-ai/grok-4.3",
+   "personality": "A bold, fast-moving risk-taker who pushes for an early lead and is willing to gamble.", "sprite": "orange"}
+]
