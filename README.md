@@ -4,10 +4,17 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Node 20+](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org)
+[![Research: in progress](https://img.shields.io/badge/research-in%20progress-orange.svg)](#research-status--in-progress)
 
 A research instrument for studying how LLMs behave over **long-horizon, multi-step trajectories** when survival is the only objective. Each turn, every agent picks from 20 actions — work, trade, steal, deceive, form alliances, betray — using only its native tool-calling against a deliberately minimal harness: a tool list, a world brief, and a rolling 10-turn self-history. No critic loops, no plan-and-execute wrappers, no external retrieval. Agents that fail to acquire resources die; the last one standing (or first to hold ≥90% of all wealth) wins.
 
 Every turn produces a complete trace of the model's private reasoning, chosen action, arguments, and the Oracle's outcome — exported as JSONL for downstream behavioral analysis across any model reachable through OpenRouter (Claude, GPT, Gemini, Grok, Llama, and more).
+
+> **🚧 Research in progress.** The *instrument* is stable and usable today — clone it and run your own
+> arenas. The *study* built on it is not finished: results collected so far are exploratory (n=1 per
+> condition, no seed variance, deception labels not yet human-validated) and should not be cited as
+> findings. See [Research status](#research-status--in-progress) for exactly what has been run, what
+> the early signals look like, and what is still missing.
 
 ## Why you might want this
 
@@ -192,6 +199,52 @@ JSONL thought logs streamed via `GET /export/thoughts` and persisted in `thought
 ```
 
 Each row is one model decision: the agent's private monologue, the chosen action and arguments, and the Oracle's outcome. The schema is stable across providers, so a 200-turn run with `n` agents produces `~200n` aligned rows ready for downstream analysis of strategy drift, deception patterns, coalition formation, and per-model survival half-life.
+
+## Research status — in progress
+
+This repo is both a tool and an active research project. The tool is done enough to use; the study is
+not. Nothing below is a finding yet — it is a pipeline being built in the open.
+
+**The question being pursued:** can *intent-grounded* deception — the mismatch between an agent's
+private monologue, its public message, and what it actually does — be measured, and does it stay
+coherent over hundreds of social turns? Positioning against prior work (The Traitors, Apollo's
+in-context scheming, LH-Deception, Project Sid) is written up in
+[`docs/research/2026-06-06-project-darwin-research-positioning.md`](./docs/research/2026-06-06-project-darwin-research-positioning.md).
+
+| Phase | Status |
+|---|---|
+| Arena, 20 actions, multi-tenant sessions | ✅ Stable |
+| Seeded environment RNG (reproducible world; LLM sampling still stochastic) | ✅ Done |
+| Structural metrics layer — Gini over time, action taxonomy, betrayal timing, per-model rollup | ✅ Done |
+| Private/public/action **triple** in the JSONL export | ✅ Done |
+| LLM-judge deception labelling (v2 prompt) | 🟡 Running — **not human-validated** |
+| Calibration + condition contrast (neutral / honesty-instructed / deception-instructed) | 🟡 Collected 2026-06-21, **n=1 per cell** |
+| Flagship long-horizon run (8 agents, 100 turns, seed 42, 551 judged turns) | 🟡 Collected 2026-07-23, analysis in progress |
+| Powered multi-seed study (target ≥20 runs/condition) | ⬜ Not started |
+| Human-validated deception labels | ⬜ Not started |
+| Paper | ⬜ Not written |
+
+**Early signals (exploratory, do not cite).** The one pattern that repeats across every game and
+condition collected so far is a steep, model-distinct deception ordering — some frontier models
+deceive several times more often than others under identical rules and prompts. Everything else in
+the current data — that the deception looks emergent rather than instruction-driven, that each model
+has a distinguishable deception *style*, that lying may not actually pay — is a hypothesis awaiting a
+powered test, not a result.
+
+**Known limitations, stated up front:** n=1 per condition, so no variance estimate; judge labels are
+LLM-generated and unvalidated against human raters; a monologue is *stated* reasoning, not verified
+cognition; and runs to date are 13–100 turns, short of the long-horizon claim the design is aiming at.
+
+**Artifacts so far** (raw traces, judged verdicts, figures, and analysis scripts are all in-repo):
+
+- [`research/calibration_20260621/`](./research/calibration_20260621/) — calibration + three-condition
+  contrast, with [`evaluation-report.md`](./research/calibration_20260621/evaluation-report.md)
+  (conclusions tagged ROBUST / TENTATIVE / HYPOTHESIS) and six figures
+- [`research/flagship_20260723/`](./research/flagship_20260723/) — 8-agent, 100-turn flagship run
+- [`research/session_20260529_023302/`](./research/session_20260529_023302/) — first exploratory session
+
+If you want to help push it past n=1, the fastest contribution is running seeded replications on your
+own key and opening a PR with the JSONL.
 
 ## Contributing
 
