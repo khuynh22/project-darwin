@@ -20,6 +20,15 @@ Word/PDF are generated outputs, never edited by hand (edits there get overwritte
 2. Draft in the relevant `sections/*.md`. Mark gaps with `TODO(data)` / `TODO(cite)`.
 3. Never hand-edit generated `.docx` / `.pdf`.
 
+**Use the `research-paper-writing` skill** (installed at
+`.claude/skills/research-paper-writing/`) for every section draft or revision. It enforces
+one-message-per-paragraph, reverse outlining, and a claim-evidence map — load only the one
+`references/<section>.md` for the section you're editing. Its claim-evidence output feeds
+straight into `CLAIMS.md`.
+
+**Execution plan:** `docs/research/2026-07-26-next-steps-plan.md` — what data is still needed
+before §5 Results can be written, in phase order.
+
 ## Build to Word
 
 Requires pandoc (`winget install --id JohnMacFarlane.Pandoc`):
