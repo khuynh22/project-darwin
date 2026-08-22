@@ -36,25 +36,48 @@ from app.measure.coherence import (  # noqa: E402
     gap_sensitivity,
     permutation_null,
 )
+from app.trace.io import read_trace  # noqa: E402
 
 HERE = Path(__file__).parent
 EXCLUDE_AGENTS = {"kimi"}
 
 
-def _is_fallback(mono: str | None) -> bool:
-    m = mono or ""
-    return ("no tool" in m) or ("falling back" in m)
+TRACE = HERE / "trace_335t.v4.jsonl"
 
 
-def load() -> tuple[list[dict], list[dict]]:
-    thoughts = [json.loads(x) for x in open(HERE / "thoughts_335t.jsonl", encoding="utf-8") if x.strip()]
+def load() -> tuple[dict, list[dict], list[dict]]:
+    """Read the v4 trace plus the judge verdicts.
+
+    The trace carries every agent, Kimi included: it is excluded as a *deceiver*
+    (tool-call artifact) but was a real agent in the world and a legitimate
+    target, so ``alive_at`` must still see it. Turns are flattened to plain
+    dicts because every downstream function here is pure over dicts.
+    """
+    manifest, records = read_trace(TRACE)
+    thoughts = [
+        {
+            "turn": r.turn,
+            "agent_id": r.agent_id,
+            "monologue": r.monologue,
+            "public_message": r.public_message,
+            "action": r.action,
+            "arguments": r.arguments,
+            "outcome": r.outcome,
+            "tool_call_ok": r.instrument.tool_call_ok,
+        }
+        for r in records
+    ]
     vpath = HERE / "verdicts_335t.jsonl"
     verdicts = [json.loads(x) for x in open(vpath, encoding="utf-8") if x.strip()] if vpath.exists() else []
-    return thoughts, verdicts
+    return manifest.lifespans(), thoughts, verdicts
 
 
 def lifespans(thoughts: list[dict]) -> dict[str, int]:
-    """Turns alive per agent = last turn it acted (agents act every turn while alive)."""
+    """Turns alive per agent = last turn it acted (agents act every turn while alive).
+
+    Kept for the callers that only hold *thoughts*; ``load`` returns the same
+    mapping straight from the trace manifest.
+    """
     out: dict[str, int] = {}
     for r in thoughts:
         a = r["agent_id"]
@@ -81,7 +104,7 @@ def leaderboard(thoughts: list[dict], verdicts: list[dict]) -> dict:
         r for r in thoughts
         if r["agent_id"] not in EXCLUDE_AGENTS
         and r.get("action") != "skip"
-        and not _is_fallback(r.get("monologue"))
+        and r["tool_call_ok"]
     ]
     judged_n = Counter(r["agent_id"] for r in judgeable)
     have = {(v["turn"], v["agent_id"]) for v in verdicts}
@@ -210,8 +233,7 @@ def main() -> None:
     ap.add_argument("--out", default=str(HERE / "metrics_335t.json"))
     args = ap.parse_args()
 
-    thoughts, verdicts = load()
-    life = lifespans(thoughts)
+    life, thoughts, verdicts = load()
     lb = leaderboard(thoughts, verdicts)
 
     report = {

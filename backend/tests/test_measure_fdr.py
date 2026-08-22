@@ -54,3 +54,21 @@ def test_non_test_entries_are_ignored():
     null["per_model"]["a"]["n_deceptive"] = 12
     out = bh_correct(null)
     assert out["n_tests"] == 1
+
+
+def test_measure_imports_without_a_db_driver(monkeypatch):
+    """The pure metrics must not drag in app.db -- that is the portability claim."""
+    import subprocess
+    import sys
+
+    code = (
+        "import sys;"
+        "sys.modules['asyncpg'] = None;"
+        "from app.measure import bh_correct, coherence_metrics, permutation_null;"
+        "assert 'app.db' not in sys.modules, sorted(m for m in sys.modules if m.startswith('app.'));"
+        "print('ok')"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                         cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]))
+    assert out.returncode == 0, out.stderr
+    assert "ok" in out.stdout
