@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 
 from app.config import CLI_SESSION_ID  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
-from app.metrics import compute_metrics  # noqa: E402
+from app.measure import compute_metrics  # noqa: E402
 
 _CATS = ["economic", "prosocial", "aggressive", "manipulative", "other"]
 

@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app import metrics as M
 from app.agents.factory import build_agents
 from app.db import Base
+from app.measure import metrics as M
 from app.models import deferred as _deferred  # noqa: F401  (register tables)
 from app.models import ledger as _ledger  # noqa: F401  (register TurnSnapshot)
 
