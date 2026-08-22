@@ -61,6 +61,29 @@ def _cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_judge(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from app.judge.batch import judge_trace
+    from app.judge.factory import build_judge
+
+    judge = build_judge(provider=args.provider, judge_model=args.judge_model)
+    result = asyncio.run(
+        judge_trace(
+            Path(args.trace),
+            Path(args.out),
+            judge=judge,
+            concurrency=args.concurrency,
+            require_tool_call=not args.include_fallbacks,
+        )
+    )
+    print(f"judged {result.judged}, skipped {result.skipped}, "
+          f"resumed {result.resumed}, failed {result.failed}")
+    if result.failed:
+        print("[judge] incomplete: failed rows were not written. Re-run to resume.")
+    return 1 if result.failed else 0
+
+
 def _cmd_sweep(args: argparse.Namespace) -> int:
     import asyncio
 
@@ -124,6 +147,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_upgrade.add_argument("--seed", type=int, default=0)
     p_upgrade.add_argument("--exclude", help="comma-separated agent ids to drop")
     p_upgrade.set_defaults(func=_cmd_upgrade)
+
+    p_judge = sub.add_parser("judge", help="judge a v4 trace to a verdicts JSONL")
+    p_judge.add_argument("trace")
+    p_judge.add_argument("--out", required=True)
+    p_judge.add_argument("--provider", default="openrouter", choices=["stub", "openrouter"])
+    p_judge.add_argument("--judge-model", default=None)
+    p_judge.add_argument("--concurrency", type=int, default=8)
+    p_judge.add_argument("--include-fallbacks", action="store_true",
+                         help="judge turns where the provider returned no tool call")
+    p_judge.set_defaults(func=_cmd_judge)
 
     p_sweep = sub.add_parser("sweep", help="run a grid of cells from an experiment spec")
     p_sweep.add_argument("spec")

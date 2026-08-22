@@ -1,7 +1,8 @@
 """Verdict contract for all judges (LLM or stub).
 
-``parse_verdict`` degrades invalid/missing output to a ``none`` verdict with
-``confidence=0`` instead of raising — a judge failure must never kill a batch.
+``parse_verdict`` degrades invalid/missing output to a *failed* verdict instead
+of raising — a judge failure must never kill a batch. A failed verdict is not a
+label: see :func:`failed_verdict` for why it must never be persisted.
 """
 
 from __future__ import annotations
@@ -35,6 +36,11 @@ class DeceptionVerdict(BaseModel):
     # "graded lowest" or a mean over the column silently counts honesty as a
     # crude lie. Legacy rows judged before v3 also carry None.
     sophistication: int | None = Field(default=None, ge=1, le=5)
+    # True only when the judge could not produce a verdict (API error, garbage
+    # output). NOT persisted and NOT a label: a failed verdict and an honest one
+    # are both "not deceptive" with no confidence, and writing the first as the
+    # second silently invents negative labels. Callers must drop these rows.
+    failed: bool = Field(default=False, exclude=True)
 
     # Truncate (never reject) values bound for length-limited ORM columns
     # (DeceptionJudgment.rationale String(2048), .target_id String(64)) so a
@@ -53,6 +59,18 @@ class DeceptionVerdict(BaseModel):
 def none_verdict(rationale: str = "") -> DeceptionVerdict:
     return DeceptionVerdict(is_deceptive=False, deception_type="none",
                             confidence=0.0, rationale=rationale)
+
+
+def failed_verdict(rationale: str = "") -> DeceptionVerdict:
+    """A verdict the judge could not produce. Never persist one.
+
+    Distinct from :func:`none_verdict`, which is a real "no deception here"
+    finding. Both are ``is_deceptive=False``, so without this flag an API error
+    is written to disk as a negative label and resume then skips the row
+    forever.
+    """
+    return DeceptionVerdict(is_deceptive=False, deception_type="none",
+                            confidence=0.0, rationale=rationale, failed=True)
 
 
 def normalize_verdict(v: DeceptionVerdict, *, actor_id: str) -> DeceptionVerdict:
@@ -95,12 +113,12 @@ def normalize_verdict(v: DeceptionVerdict, *, actor_id: str) -> DeceptionVerdict
 
 def parse_verdict(raw: dict | None) -> DeceptionVerdict:
     if not isinstance(raw, dict) or not raw:
-        return none_verdict("empty or non-dict judge output")
+        return failed_verdict("empty or non-dict judge output")
     try:
         return DeceptionVerdict.model_validate(raw)
     except ValidationError as exc:
         first = exc.errors()[0]
-        return none_verdict(
+        return failed_verdict(
             f"invalid judge output: {exc.error_count()} errors "
             f"(first: {first['loc']} {first['type']})"
         )

@@ -53,3 +53,16 @@ def test_second_sweep_resumes(tmp_path, capsys):
     capsys.readouterr()
     assert main(["sweep", str(spec), "--out", str(out)]) == 0
     assert "2 skipped" in capsys.readouterr().out
+
+
+def test_judge_command_runs_on_a_swept_trace(tmp_path, capsys):
+    out = tmp_path / "runs"
+    spec = _spec_file(tmp_path, _roster_file(tmp_path), out)
+    assert main(["sweep", str(spec), "--out", str(out)]) == 0
+
+    trace = sorted(out.glob("*.jsonl"))[0]
+    verdicts = tmp_path / "v.jsonl"
+    assert main(["judge", str(trace), "--out", str(verdicts), "--provider", "stub"]) == 0
+    printed = capsys.readouterr().out
+    assert "judged" in printed
+    assert verdicts.exists()

@@ -90,6 +90,11 @@ async def judge_session(
                 )
             )
         ).scalar_one_or_none()
+        if v.failed:
+            # Writing this would record an API error as a real "not deceptive"
+            # label, and the idempotency check would then skip the row forever.
+            # Leaving it unwritten keeps an incomplete run visibly incomplete.
+            continue
         row = existing or DeceptionJudgment(
             session_id=session_id, turn=th.turn, agent_id=th.agent_id,
             judge_model=judge.judge_model, prompt_version=judge.prompt_version,

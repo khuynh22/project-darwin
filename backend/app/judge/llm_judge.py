@@ -10,7 +10,7 @@ import logging
 from app.judge.base import BaseJudge
 from app.judge.context import JudgeContext
 from app.judge.prompts import JUDGE_SYSTEM_PROMPT, PROMPT_VERSION, render_judge_user
-from app.judge.schemas import DeceptionVerdict, none_verdict, parse_verdict
+from app.judge.schemas import DeceptionVerdict, failed_verdict, parse_verdict
 
 log = logging.getLogger(__name__)
 
@@ -64,11 +64,11 @@ class LLMJudge(BaseJudge):
             )
         except Exception as exc:  # noqa: BLE001 — a judge failure must not kill the batch
             log.warning("judge call failed for T%s/%s: %s", ctx.turn, ctx.agent_id, exc)
-            return none_verdict(f"judge call failed: {exc!s:.200}")
+            return failed_verdict(f"judge call failed: {exc!s:.200}")
 
         tool_calls = resp.choices[0].message.tool_calls or []
         if not tool_calls:
-            return none_verdict("judge returned no tool call")
+            return failed_verdict("judge returned no tool call")
         try:
             raw = json.loads(tool_calls[0].function.arguments or "{}")
         except json.JSONDecodeError:
