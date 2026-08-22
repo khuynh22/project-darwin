@@ -901,6 +901,8 @@ async def run_turn(
                 balance=a.balance,
                 trust_score=a.trust_score,
                 alive=a.alive,
+                inventory=dict(a.inventory or {}),
+                spouse_id=a.spouse_id,
             )
         )
 

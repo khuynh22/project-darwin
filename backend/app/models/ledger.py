@@ -72,6 +72,8 @@ class TurnSnapshot(Base):
     balance: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     trust_score: Mapped[float] = mapped_column(Float, nullable=False, default=50.0)
     alive: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    inventory: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    spouse_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
