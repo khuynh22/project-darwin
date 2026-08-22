@@ -61,6 +61,52 @@ def _cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_sweep(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from app.sweep.runner import run_sweep
+    from app.sweep.spec import load_spec
+
+    spec = load_spec(Path(args.spec))
+    out_dir = Path(args.out) if args.out else Path(spec.out)
+    cells = spec.cells()
+
+    if args.dry_run:
+        for cell in cells:
+            print(f"{cell.natural_id}  -> session_id={cell.session_id}  "
+                  f"trace={cell.trace_name}.jsonl")
+        print(f"{len(cells)} cells, concurrency={spec.concurrency}, turns={spec.turns}")
+        return 0
+
+    if spec.budget.max_usd is not None:
+        print("[sweep] warning: budget.max_usd is recorded but not enforced; "
+              "only budget.max_calls stops a run")
+
+    roster = json.loads(Path(spec.roster).read_text(encoding="utf-8"))
+
+    async def _go() -> int:
+        from app.db import SessionLocal, init_db
+
+        await init_db()
+        report = await run_sweep(
+            spec,
+            session_factory=SessionLocal,
+            roster=roster,
+            out_dir=out_dir,
+            resume=not args.no_resume,
+        )
+        print(f"[sweep] {spec.experiment}: {len(report.completed)} completed, "
+              f"{len(report.skipped)} skipped, {len(report.failed)} failed "
+              f"(concurrency={report.effective_concurrency})")
+        for failure in report.failed:
+            print(f"  FAILED {failure.cell.natural_id}: {failure.error}")
+        if report.stopped_for_budget:
+            print("[sweep] stopped early: budget reached")
+        return 1 if report.failed else 0
+
+    return asyncio.run(_go())
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="darwin", description="Darwin measurement harness")
     sub = parser.add_subparsers(dest="command")
@@ -78,6 +124,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_upgrade.add_argument("--seed", type=int, default=0)
     p_upgrade.add_argument("--exclude", help="comma-separated agent ids to drop")
     p_upgrade.set_defaults(func=_cmd_upgrade)
+
+    p_sweep = sub.add_parser("sweep", help="run a grid of cells from an experiment spec")
+    p_sweep.add_argument("spec")
+    p_sweep.add_argument("--out", help="override the spec's out directory")
+    p_sweep.add_argument("--no-resume", action="store_true",
+                         help="re-run cells even if a completed manifest exists")
+    p_sweep.add_argument("--dry-run", action="store_true",
+                         help="list the cells and derived session ids, run nothing")
+    p_sweep.set_defaults(func=_cmd_sweep)
 
     p_replay = sub.add_parser("replay", help="print a trace turn by turn")
     p_replay.add_argument("path")
