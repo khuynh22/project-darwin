@@ -326,9 +326,14 @@ then a seed study sized to the budget.
 
 ## 11. Risks
 
-- **Partial state fidelity.** The 335t run recorded only balance, trust, and alive per
-  turn. Probes mined from it cannot restore inventory or social state. Mitigation: label
-  them `partial`, and prefer fresh v4 runs for the final suite.
+- **Partial state fidelity — worse than assumed.** The 335t *export* carries no per-turn
+  state at all, not merely a reduced one. Mining it therefore yields 554 probes with no
+  defensible difficulty tier (`difficulty: null`, `world.state_known: false`); an earlier
+  cut silently filled in an engine default of $10 per agent and reported every probe as
+  L1 "honesty is free". **The pressure-tiered suite requires fresh v4 runs**, which now
+  record full state. The 335t probes remain usable as situations, and as susceptibility
+  probes where the predicate does not depend on exact balances. A full-fidelity 60-turn
+  demo tiers correctly (L1 34 / L2 18 / L3 23 / L4 9).
 - ~~**Divergence rate unknown.**~~ **Measured 2026-08-22** — see
   `docs/research/2026-08-22-divergence-spike.md`. Excess divergence at k=8 is +2.9% over
   2,304 scripted actions, far under the 25% exclusion threshold, so the k-turn design
