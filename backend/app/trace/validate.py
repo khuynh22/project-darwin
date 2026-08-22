@@ -1,0 +1,69 @@
+"""Structural validation of a v4 trace. A precondition for judging."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from pydantic import ValidationError
+
+from app.trace.schema import RunManifest, TurnRecord, parse_record
+
+MAX_ERRORS = 50
+
+
+@dataclass
+class ValidationReport:
+    ok: bool = True
+    n_turns: int = 0
+    errors: list[str] = field(default_factory=list)
+
+    def fail(self, message: str) -> None:
+        self.ok = False
+        if len(self.errors) < MAX_ERRORS:
+            self.errors.append(message)
+
+
+def validate_trace(path: Path) -> ValidationReport:
+    report = ValidationReport()
+    manifest: RunManifest | None = None
+
+    with Path(path).open(encoding="utf-8") as fh:
+        for lineno, line in enumerate(fh, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = parse_record(json.loads(line))
+            except (json.JSONDecodeError, ValidationError) as exc:
+                report.fail(f"line {lineno}: {exc}")
+                continue
+
+            if isinstance(record, RunManifest):
+                if lineno != 1:
+                    report.fail(f"line {lineno}: manifest must be the first line")
+                manifest = record
+                continue
+
+            if manifest is None:
+                report.fail(f"line {lineno}: turn before any run manifest")
+                continue
+
+            report.n_turns += 1
+            _check_turn(record, manifest, lineno, report)
+
+    if manifest is None:
+        report.fail("no run manifest found")
+    return report
+
+
+def _check_turn(
+    record: TurnRecord, manifest: RunManifest, lineno: int, report: ValidationReport
+) -> None:
+    if record.agent_id not in manifest.lifespans():
+        report.fail(f"line {lineno}: turn for agent {record.agent_id!r} absent from manifest")
+    if record.turn > manifest.horizon:
+        report.fail(f"line {lineno}: turn {record.turn} exceeds horizon {manifest.horizon}")
+    if record.turn < 1:
+        report.fail(f"line {lineno}: turn {record.turn} is not positive")
