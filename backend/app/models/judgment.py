@@ -47,6 +47,9 @@ class DeceptionJudgment(Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     rationale: Mapped[str] = mapped_column(String(2048), nullable=False, default="")
     evidence: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # Nullable: honest turns have no grade, and rows judged before prompt v3
+    # never carried one. Never default this to 0.
+    sophistication: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

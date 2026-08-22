@@ -67,6 +67,9 @@ async def init_db() -> None:
         ("thoughts", "public_message", "VARCHAR(1024)", "''"),
         ("sessions", "seed", "INTEGER", "0"),
         ("sessions", "condition", "VARCHAR(16)", "'neutral'"),
+        ("turn_snapshots", "inventory", "JSON", "'{}'"),
+        ("turn_snapshots", "spouse_id", "VARCHAR(64)", "NULL"),
+        ("deception_judgments", "sophistication", "INTEGER", "NULL"),
     ]
 
     async with engine.begin() as conn:

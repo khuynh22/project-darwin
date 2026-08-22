@@ -102,6 +102,7 @@ async def judge_session(
         row.confidence = v.confidence
         row.rationale = v.rationale
         row.evidence = v.evidence.model_dump()
+        row.sophistication = v.sophistication
         if existing is None:
             session.add(row)
         written += 1
