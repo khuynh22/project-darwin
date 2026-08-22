@@ -329,9 +329,12 @@ then a seed study sized to the budget.
 - **Partial state fidelity.** The 335t run recorded only balance, trust, and alive per
   turn. Probes mined from it cannot restore inventory or social state. Mitigation: label
   them `partial`, and prefer fresh v4 runs for the final suite.
-- **Divergence rate unknown.** If frozen-opponent replay diverges on most probes at k=8,
-  the k-turn design degrades toward k=1. Measure the divergence rate early, on a handful
-  of probes, before building the full suite.
+- ~~**Divergence rate unknown.**~~ **Measured 2026-08-22** — see
+  `docs/research/2026-08-22-divergence-spike.md`. Excess divergence at k=8 is +2.9% over
+  2,304 scripted actions, far under the 25% exclusion threshold, so the k-turn design
+  holds and k=8 stays the default. Divergence grows monotonically with k (+6.5% at k=12,
+  +9.5% at k=24). Caveat: measured on stub agents in early-game states, so treat it as a
+  floor and re-measure on the first real-model batch and on late-game probes.
 - **Sophistication rubric is a new judge output** and needs its own reliability check.
   Without one it is an unvalidated scale, and the paper cannot lean on it.
 - **Scope.** Arena plus probes across two families and two axes plus site plus CLI plus
