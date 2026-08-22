@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-22-darwin-benchmark-harness-design.md` §5
 
+**Status:** COMPLETE (2026-08-22). All five tasks landed; 163 backend tests pass, ruff clean. See `## Execution notes`.
+
 **Depends on:** `docs/superpowers/plans/2026-08-22-harness-foundation.md` (complete) — specifically `app.trace.io.TraceWriter`, `app.trace.adapters.darwin_db.export_session`, and `app.trace.validate.validate_trace`.
 
 ## Global Constraints
@@ -33,7 +35,7 @@
 **Interfaces:**
 - Produces: `ExperimentSpec`, `Cell`, `SeedRange`, `Budget`, `load_spec(path: Path) -> ExperimentSpec`, and `ExperimentSpec.cells() -> list[Cell]`. `Cell` carries `condition: str`, `seed: int`, `session_id: str`, `natural_id: str`, `trace_name: str`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # backend/tests/test_sweep_spec.py
@@ -112,12 +114,12 @@ def test_load_spec_reads_json(tmp_path):
     assert spec.turns == 20
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && python -m pytest tests/test_sweep_spec.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.sweep'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```python
 # backend/app/sweep/__init__.py
@@ -235,12 +237,12 @@ def load_spec(path: Path) -> ExperimentSpec:
     return ExperimentSpec.model_validate(json.loads(Path(path).read_text(encoding="utf-8")))
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && python -m pytest tests/test_sweep_spec.py -v`
 Expected: PASS (8 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/sweep backend/tests/test_sweep_spec.py
@@ -261,7 +263,7 @@ git commit -m "feat(sweep): experiment spec and cell derivation"
 
 **Why a separate module:** the cell is the unit a test can drive without any orchestration, and the unit the sweep retries. Mixing it into the orchestrator makes both untestable.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # backend/tests/test_sweep_cell.py
@@ -352,12 +354,12 @@ async def test_same_seed_reproduces_the_same_trace(tmp_path):
     assert _sig(a.trace_path) == _sig(b.trace_path)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && python -m pytest tests/test_sweep_cell.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.sweep.cell'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```python
 # backend/app/sweep/cell.py
@@ -455,12 +457,12 @@ async def run_cell(
     )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && python -m pytest tests/test_sweep_cell.py -v`
 Expected: PASS (4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/sweep/cell.py backend/tests/test_sweep_cell.py
@@ -481,7 +483,7 @@ git commit -m "feat(sweep): run one cell to a validated trace"
 
 **Resume contract:** a cell is complete when `<out>/<trace_name>.manifest.json` exists with `"ok": true`. A partial cell re-runs from scratch — the arena has no mid-run checkpoint, and resuming mid-run would splice two RNG streams.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # backend/tests/test_sweep_runner.py
@@ -591,12 +593,12 @@ async def test_manifest_records_both_identities(tmp_path):
     assert data["ok"] is True
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && python -m pytest tests/test_sweep_runner.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.sweep.runner'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```python
 # backend/app/sweep/runner.py
@@ -703,12 +705,12 @@ async def run_sweep(
     return report
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && python -m pytest tests/test_sweep_runner.py -v`
 Expected: PASS (5 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/sweep/runner.py backend/tests/test_sweep_runner.py
@@ -727,7 +729,7 @@ git commit -m "feat(sweep): orchestration with resume and budget guard"
 - Consumes: `app.sweep.{spec,runner}`.
 - Produces: `darwin sweep <spec.json> [--out DIR] [--no-resume] [--dry-run]`, returning 0 when every cell completed or was skipped, 1 when any failed.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # backend/tests/test_cli_sweep.py
@@ -778,12 +780,12 @@ def test_sweep_runs_and_validates(tmp_path, capsys):
         assert main(["validate", str(trace)]) == 0
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && python -m pytest tests/test_cli_sweep.py -v`
 Expected: FAIL — argparse exits 2 for the unknown `sweep` command.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Add to `backend/app/cli/main.py`:
 
@@ -842,14 +844,14 @@ Register it in `build_parser`:
     p_sweep.set_defaults(func=_cmd_sweep)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && python -m pytest tests/test_cli_sweep.py tests/test_cli.py -v`
 Expected: PASS
 
 Note: the sweep test writes to the conftest SQLite database rather than an in-memory one, because the CLI owns its own `SessionLocal`. That is intentional — it exercises the real path a user takes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/cli/main.py backend/tests/test_cli_sweep.py
@@ -871,7 +873,7 @@ git commit -m "feat(cli): darwin sweep with dry-run and resume"
 
 **Why this replaces two drivers:** `research/leaderboard_335t_20260726/judge_export.py` has the right properties — idempotent resume, retry with backoff, and it never persists a failed verdict, because a degraded `none @ confidence=0` is indistinguishable from a real negative label and would make resume skip the row forever. Those properties belong in the library, not in a run directory. The Kimi exclusion is gone: `require_tool_call` reads `instrument.tool_call_ok` from the trace.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # backend/tests/test_judge_batch.py
@@ -974,12 +976,12 @@ async def test_a_failed_verdict_is_never_written(tmp_path):
     assert not out.exists() or out.read_text(encoding="utf-8").strip() == ""
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && python -m pytest tests/test_judge_batch.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'app.judge.batch'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```python
 # backend/app/judge/batch.py
@@ -1137,12 +1139,12 @@ def _cmd_judge(args: argparse.Namespace) -> int:
     p_judge.set_defaults(func=_cmd_judge)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && python -m pytest tests/ -v`
 Expected: PASS across the suite.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/judge/batch.py backend/app/cli/main.py backend/tests/test_judge_batch.py
@@ -1156,3 +1158,16 @@ git commit -m "feat(judge): one resumable batch driver over v4 traces"
 - **Probe suite** (spec §7) — its own plan. Should open with a divergence-rate spike before the full suite is built.
 - **Site** (spec §8) — replay gallery over v4 traces, then the leaderboard.
 - **Cost accounting in dollars.** `budget.max_calls` is enforced; `max_usd` needs per-model token pricing and is deliberately left unenforced rather than estimated wrongly. The field parses and is recorded; the CLI warns when it is set.
+
+
+## Execution notes
+
+Two things the plan did not anticipate, both real defects rather than plan slips.
+
+1. **SQLite cannot run cells concurrently.** Two cells committing at once raise `cannot commit transaction - SQL statements in progress` and one cell's data is lost. SQLite is the default for offline CLI runs, so `run_sweep` now clamps concurrency to 1 when the bind's dialect is sqlite, records `effective_concurrency` on the report, and logs why. Postgres runs at the requested concurrency. `test_sqlite_is_forced_serial` pins it.
+
+2. **`none_verdict()` could not distinguish "no deception" from "the judge failed".** Both are `is_deceptive=False, confidence=0.0`. The planned batch driver keyed on `confidence > 0`, which works for `LLMJudge` by accident and is wrong for `StubJudge`, whose honest verdicts are indistinguishable from an outage. Added `failed_verdict()` and a non-persisted `failed` flag; `parse_verdict` and `LLMJudge` use it for their degraded paths.
+
+   This turned out to be the more serious find: `app/judge/runner.py` was persisting failed verdicts into `deception_judgments` as genuine negative labels, and its idempotency check then skipped those rows on every later pass. Any judged session that hit an API blip carries silently invented "not deceptive" rows. The DB path now drops them.
+
+   **Follow-up worth doing:** the existing `deception_judgments` rows for session `99l5EEPjp5k` (487 rows) predate this fix and may contain such rows. They are identifiable by `confidence = 0.0` — worth checking before that data is used in the paper.
