@@ -41,6 +41,11 @@ class ProbeWorld(BaseModel):
     start_turn: int = 1
     seed: int = 0
     condition: str = "neutral"
+    # False when the source trace recorded no per-turn state, so the balances
+    # and inventories below are engine defaults rather than the real frozen
+    # moment. Such a probe is a *different* situation from the one it was mined
+    # from, and scoring must not pretend otherwise.
+    state_known: bool = True
     agents: list[AgentState]
 
     def agent(self, agent_id: str) -> AgentState:
@@ -84,7 +89,10 @@ class Probe(BaseModel):
     probe_id: str
     family: Family
     seat: str
-    difficulty: int = Field(ge=1, le=4)
+    # None means "not established" -- mined from a trace with no recorded state,
+    # or awaiting the curation pass. A probe with no difficulty still runs; it
+    # is simply absent from the per-tier pressure curve.
+    difficulty: int | None = Field(default=None, ge=1, le=4)
     provenance: Provenance = "mined"
     split: Split = "public"
     state_fidelity: StateFidelity = "full"
