@@ -70,15 +70,20 @@ figure code) are environment-agnostic and currently stranded in
 `research/leaderboard_335t_20260726/`. `permutation_null` and the `Episode` machinery are
 already library code in `backend/app/coherence.py` and move with the file.
 
-## 4. Trace schema v3
+## 4. Trace schema v4
 
-One file per run. Line 1 is a run manifest; the remainder are agent-turns. v3 is a
-superset of the existing `schema_version: 2` export, so prior exports upgrade by
-prepending a manifest — no re-judging.
+One file per run. Line 1 is a run manifest; the remainder are agent-turns. v4 is a
+superset of the existing exports, so prior files upgrade by prepending a manifest — no
+re-judging.
+
+**Version numbering.** Two legacy versions are already in the wild: `2` (the 335t export)
+and `3` (what `app/thought_export.py` writes today — v2 plus a timestamp, no manifest).
+The new schema is therefore **v4**, so that a file carrying a manifest is unambiguous.
+`thought_export.py` is migrated to emit v4.
 
 ```jsonc
 // line 1
-{"kind":"run","schema_version":3,"run_id":"leaderboard_335t_20260726",
+{"kind":"run","schema_version":4,"run_id":"leaderboard_335t_20260726",
  "env":{"name":"darwin","version":"<git sha>","seed":1234,"actions":20},
  "condition":"neutral","horizon":335,
  "agents":[{"agent_id":"opus","model":"anthropic/claude-opus-4.7","provider":"openrouter",
@@ -140,7 +145,14 @@ Mechanics:
 - `session_id = f"{experiment}:{condition}:{seed}"`. Multi-tenancy already scopes every
   row by `session_id` with a composite PK, so N runs coexist in one database with no
   schema work and no clobbering.
-- Bounded concurrency across cells; each cell writes one v3 trace plus a cell manifest.
+- **`session_id` is `varchar(32)`.** The natural id overflows for any experiment name
+  past roughly fifteen characters, and it would fail at insert time partway into a sweep
+  rather than at spec-parse time. The sweep derives
+  `f"{experiment[:12]}:{condition[:3]}:{seed}"` and falls back to
+  `f"x{sha1(natural_id)[:12]}:{seed}"` when even that exceeds the limit, always asserting
+  `len(session_id) <= 32` before the first run starts. The cell manifest records both the
+  natural id and the derived one so results stay traceable.
+- Bounded concurrency across cells; each cell writes one v4 trace plus a cell manifest.
 - Resume by skipping cells whose manifest reports completion. Partial cells re-run.
 - Budget guard aborts cleanly at the cap and reports which cells completed. An
   interrupted sweep is resumable, never corrupt.
@@ -156,7 +168,7 @@ strictly better — idempotent resume, retry with backoff, and it never persists
 verdict, because a degraded `none @ confidence=0` would be indistinguishable from a real
 negative label *and* would make resume skip the row forever.
 
-The JSONL driver becomes the single implementation. The DB path exports to v3 first.
+The JSONL driver becomes the single implementation. The DB path exports to v4 first.
 `judge_export.py` becomes `app/trace/adapters/darwin_ui.py`.
 
 The verdict schema gains one field, `sophistication` (see §7). Existing verdicts carry it
@@ -265,7 +277,7 @@ A public benchmark on GitHub is training data within a year.
 ```
 darwin run       one arena run
 darwin sweep     batch over an experiment spec
-darwin judge     any conforming v3 trace
+darwin judge     any conforming v4 trace
 darwin analyze   metrics + coherence + null + FDR
 darwin figures   paper figures from a results file
 darwin validate  schema check
@@ -273,7 +285,7 @@ darwin probe run / mine / score
 darwin replay    render a trace to the terminal
 ```
 
-**Site** — the existing Next.js app gains a replay gallery over released v3 traces
+**Site** — the existing Next.js app gains a replay gallery over released v4 traces
 (turn-by-turn, with the triple and the judge verdict visible) and a benchmark leaderboard
 page. The live BYOK path stays as it is. The gallery is what a reviewer or an engineer
 lands on.
@@ -286,7 +298,7 @@ lands on.
   exist.
 - **Seed determinism extended to sweep level** — same spec, same seed, byte-identical
   trace modulo timestamps.
-- **Schema round-trip** against a golden v3 fixture.
+- **Schema round-trip** against a golden v4 fixture.
 - **Divergence policy tests** — a scripted action made illegal by the tested model's
   behaviour degrades and counts, and an over-threshold probe is excluded rather than
   scored.
@@ -298,7 +310,7 @@ lands on.
 
 ## 10. Build order
 
-1. Trace v3: schema, writer, validator, `turn_snapshots` extension, backfill of the 335t
+1. Trace v4: schema, writer, validator, `turn_snapshots` extension, backfill of the 335t
    run at partial fidelity.
 2. Judge consolidation onto the resumable JSONL driver; `instrument` replaces the
    hardcoded exclusions; `sophistication` added to the verdict schema.
@@ -316,7 +328,7 @@ then a seed study sized to the budget.
 
 - **Partial state fidelity.** The 335t run recorded only balance, trust, and alive per
   turn. Probes mined from it cannot restore inventory or social state. Mitigation: label
-  them `partial`, and prefer fresh v3 runs for the final suite.
+  them `partial`, and prefer fresh v4 runs for the final suite.
 - **Divergence rate unknown.** If frozen-opponent replay diverges on most probes at k=8,
   the k-turn design degrades toward k=1. Measure the divergence rate early, on a handful
   of probes, before building the full suite.
