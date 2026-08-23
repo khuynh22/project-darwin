@@ -3,8 +3,10 @@ from __future__ import annotations
 import logging
 import secrets
 from contextlib import asynccontextmanager
+from dataclasses import asdict
+from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import delete as sa_delete
@@ -68,6 +70,82 @@ async def health() -> dict:
 @app.get("/providers")
 async def providers() -> dict:
     return {"providers": PROVIDER_DEFAULTS, "colors": COLOR_OPTIONS}
+
+
+# --- Releases (read-only gallery) ----------------------------------------------
+#
+# These endpoints never touch the sessions tables. A gallery request must not be
+# able to mutate simulation state.
+
+
+def _releases_root() -> Path:
+    configured = Path(get_settings().releases_dir)
+    if configured.is_absolute():
+        return configured
+    return Path(__file__).resolve().parents[2] / configured
+
+
+@app.get("/releases")
+async def releases_index() -> dict:
+    from app.releases import list_releases
+
+    return {"releases": [asdict(r) for r in list_releases(_releases_root())]}
+
+
+@app.get("/releases/{run_id}")
+async def release_detail(run_id: str) -> dict:
+    from app.releases import load_release
+
+    release = load_release(_releases_root(), run_id)
+    if release is None:
+        raise HTTPException(status_code=404, detail=f"no release {run_id!r}")
+    return {
+        **asdict(release.summary),
+        "agents": [a.model_dump(mode="json") for a in release.manifest.agents],
+    }
+
+
+@app.get("/releases/{run_id}/turns")
+async def release_turns(run_id: str, offset: int = 0, limit: int = 50) -> dict:
+    from app.releases import MAX_PAGE, load_release, read_turns
+
+    if load_release(_releases_root(), run_id) is None:
+        raise HTTPException(status_code=404, detail=f"no release {run_id!r}")
+    turns, total = read_turns(_releases_root(), run_id, offset=offset, limit=limit)
+    return {
+        "turns": [t.model_dump(mode="json") for t in turns],
+        "total": total,
+        "offset": max(0, offset),
+        "limit": max(1, min(limit, MAX_PAGE)),
+    }
+
+
+@app.get("/releases/{run_id}/verdicts")
+async def release_verdicts(
+    run_id: str, turn: int | None = None, agent: str | None = None
+) -> dict:
+    from app.releases import load_release, read_verdicts
+
+    if load_release(_releases_root(), run_id) is None:
+        raise HTTPException(status_code=404, detail=f"no release {run_id!r}")
+    rows = list(read_verdicts(_releases_root(), run_id).values())
+    if turn is not None:
+        rows = [r for r in rows if int(r.get("turn", -1)) == turn]
+    if agent is not None:
+        rows = [r for r in rows if r.get("agent_id") == agent]
+    return {"verdicts": rows}
+
+
+@app.get("/releases/{run_id}/scores")
+async def release_scores(run_id: str) -> dict:
+    from app.releases import load_release, read_scores
+
+    if load_release(_releases_root(), run_id) is None:
+        raise HTTPException(status_code=404, detail=f"no release {run_id!r}")
+    scores = read_scores(_releases_root(), run_id)
+    if not scores:
+        raise HTTPException(status_code=404, detail=f"no scores published for {run_id!r}")
+    return {"scores": scores}
 
 
 # --- Helpers -------------------------------------------------------------------

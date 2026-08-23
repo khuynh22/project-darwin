@@ -26,6 +26,11 @@ class Settings(BaseSettings):
 
     error_threshold: int = 3
 
+    # Directory of published artifacts served read-only by the gallery. Relative
+    # paths resolve against the repo root, not the process cwd, so the value
+    # means the same thing from a container and from a shell.
+    releases_dir: str = "releases"
+
     # Per-agent decision timeout (seconds). Reasoning / "pro" models often need
     # more than the default; raise this if those models time out.
     agent_timeout_seconds: int = 120

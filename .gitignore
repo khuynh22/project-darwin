@@ -45,3 +45,9 @@ thought_logs/
 # source of truth for per-verdict data and are expensive to regenerate). Run
 # logs (*.log) stay ignored above.
 !research/**/*.sqlite
+
+# Published release artifacts are copies of files already under research/;
+# see releases/README.md for how to populate them.
+releases/*/trace.jsonl
+releases/*/verdicts.jsonl
+releases/*/scores.json
