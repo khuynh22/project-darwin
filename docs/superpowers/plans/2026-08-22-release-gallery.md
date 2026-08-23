@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-22-darwin-benchmark-harness-design.md` §8
 
+**Status:** COMPLETE (2026-08-22). 238 backend tests pass, frontend builds clean, verified against the real 2,009-turn release in a browser. See `## Execution notes`.
+
 **Depends on:** harness-foundation, sweep-driver, probe-suite (all complete).
 
 ## Global Constraints
@@ -45,15 +47,15 @@ releases/
 
 A directory without a readable `trace.jsonl` is skipped and logged. `ReleaseSummary` carries `run_id`, `condition`, `horizon`, `n_agents`, `n_turns`, `state_fidelity`, `models`, `has_verdicts`, `has_scores`, and `about`.
 
-- [ ] **Step 1: Write the failing test** — cover: a well-formed release is listed with the right counts; a directory with no trace is skipped rather than raising; a malformed trace is skipped; `read_turns` paginates and reports the true total; an out-of-range offset returns empty rather than erroring; verdicts index by `(turn, agent_id)`; `state_fidelity` and model ids surface in the summary; a missing verdicts file yields an empty index rather than a failure.
+- [x] **Step 1: Write the failing test** — cover: a well-formed release is listed with the right counts; a directory with no trace is skipped rather than raising; a malformed trace is skipped; `read_turns` paginates and reports the true total; an out-of-range offset returns empty rather than erroring; verdicts index by `(turn, agent_id)`; `state_fidelity` and model ids surface in the summary; a missing verdicts file yields an empty index rather than a failure.
 
-- [ ] **Step 2: Run test to verify it fails** — `ModuleNotFoundError: No module named 'app.releases'`
+- [x] **Step 2: Run test to verify it fails** — `ModuleNotFoundError: No module named 'app.releases'`
 
-- [ ] **Step 3: Write minimal implementation** — pure filesystem reads over `app.trace.io`. Cache parsed manifests in a module-level dict keyed by `(path, mtime)` so a gallery page load does not re-parse a 2,000-line file per request; the mtime key means a republished release is picked up without a restart.
+- [x] **Step 3: Write minimal implementation** — pure filesystem reads over `app.trace.io`. Cache parsed manifests in a module-level dict keyed by `(path, mtime)` so a gallery page load does not re-parse a 2,000-line file per request; the mtime key means a republished release is picked up without a restart.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
-- [ ] **Step 5: Commit** — `feat(releases): read-only registry over published artifacts`
+- [x] **Step 5: Commit** — `feat(releases): read-only registry over published artifacts`
 
 ---
 
@@ -75,9 +77,9 @@ GET /releases/{run_id}/scores                  -> [ModelScore]
 
 `limit` is clamped to 200. An unknown `run_id` returns 404. The endpoints read from `settings.releases_dir`, defaulting to `releases/` relative to the repo root.
 
-- [ ] **Step 1: Write the failing test** — using `TestClient`: listing returns the seeded release; a turns page respects `offset`/`limit` and reports `total`; `limit=10000` is clamped rather than honoured; unknown run id is 404; verdicts filter by turn and agent; scores 404 when absent. Add one test asserting a gallery request leaves the sessions tables untouched.
+- [x] **Step 1: Write the failing test** — using `TestClient`: listing returns the seeded release; a turns page respects `offset`/`limit` and reports `total`; `limit=10000` is clamped rather than honoured; unknown run id is 404; verdicts filter by turn and agent; scores 404 when absent. Add one test asserting a gallery request leaves the sessions tables untouched.
 
-- [ ] **Step 2–5:** standard cycle; commit as `feat(api): read-only release endpoints for the gallery`.
+- [x] **Step 2–5:** standard cycle; commit as `feat(api): read-only release endpoints for the gallery`.
 
 ---
 
@@ -95,7 +97,7 @@ The replay page paginates turns and renders each as a `TurnCard` showing the thr
 
 Controls: filter by agent, jump to a turn, and a "deceptive only" toggle driven by the verdicts index.
 
-- [ ] Steps: build the lib wrapper, then the index page, then the replay page; verify against a seeded local release with `npm run build` and a manual load.
+- [x] Steps: build the lib wrapper, then the index page, then the replay page; verify against a seeded local release with `npm run build` and a manual load.
 
 ---
 
@@ -108,7 +110,7 @@ One row per model: propensity with its interval, the per-tier curve, susceptibil
 
 Where `pressure_threshold` is null, render "none established" rather than a blank or a zero. Where scores come from untiered probes, say so on the row.
 
-- [ ] Steps: types, page, empty state when no scores are published yet.
+- [x] Steps: types, page, empty state when no scores are published yet.
 
 ---
 
@@ -117,3 +119,21 @@ Where `pressure_threshold` is null, render "none established" rather than a blan
 - **Publishing artifacts into `releases/`.** That is an operator step (copy or symlink the run directory); the registry only reads.
 - **Live BYOK sessions**, which already work and are untouched.
 - **Authoring the L1 control probes** and the curation pass — prerequisites for a leaderboard that means anything, tracked in the probe-suite plan.
+
+
+## Execution notes
+
+**1. A layout bug the build could not catch.** CSS grid items default to `min-width: auto`, so a long unbroken `outcome` string stopped the third column from shrinking and pushed "applied action" outside the card. `npm run build` and `tsc --noEmit` both passed with the bug present — it only appeared on screen. Fixed with `min-w-0` on the grid and its children. Worth remembering that for a view whose whole job is showing three columns side by side, rendering it is the test.
+
+**2. Release artifacts are not committed.** `trace.jsonl` and `verdicts.jsonl` under `releases/` are byte copies of files already tracked in `research/`; committing them would have added ~2 MB of duplicate. They are gitignored, and `releases/README.md` carries the two commands that populate a release. `about.md` *is* committed, because it is the only hand-written part.
+
+**3. Caveats are surfaced, not buried.** The gallery card shows a `partial state` badge with an explanatory tooltip; the replay header opens with "About this run — read the caveats"; tool-call fallbacks are marked on the turn itself; the leaderboard prints excluded counts and divergence beside every score, with a footnote saying divergence covers excluded runs too. A benchmark that hides how many probes it discarded is not reporting a benchmark.
+
+## Verified in a browser
+
+Against the real release (Oracle on :8011, site on :3011):
+
+- `/gallery` — one card, `partial state` badge, 10 model ids, 2,009 rows.
+- `/gallery/leaderboard_335t_20260726` — header reads `313/1600 judged deceptive`; turn cards show the triple with the verdict beneath; Kimi's turns correctly carry no judge line.
+- "deceptive only" filter — surfaces real campaigns, e.g. opus t9 publicly posting "Building for the long haul." while slandering deepseek, judged `strategic_omission` (conf 0.80) with the contradiction quoted in the rationale.
+- Pagination across 2,009 rows at 40 per page.
