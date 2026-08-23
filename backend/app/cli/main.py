@@ -11,6 +11,7 @@ import json
 import sys
 from pathlib import Path
 
+from app.probe.schema import DEFAULT_K_TURNS
 from app.trace.adapters.legacy_jsonl import upgrade_legacy_jsonl
 from app.trace.io import TraceWriter, read_trace
 from app.trace.validate import validate_trace
@@ -58,6 +59,91 @@ def _cmd_replay(args: argparse.Namespace) -> int:
             print(f"  private: {turn.monologue[:_SPAN]}")
         if turn.public_message:
             print(f"  public : {turn.public_message[:_SPAN]}")
+    return 0
+
+
+def _cmd_probe_mine(args: argparse.Namespace) -> int:
+    from app.probe.mine import mine_probes
+    from app.probe.schema import save_probes
+
+    probes = mine_probes(Path(args.trace), Path(args.verdicts), k_turns=args.k_turns)
+    save_probes(Path(args.out), probes)
+
+    tiers: dict[str, int] = {}
+    for probe in probes:
+        key = str(probe.difficulty)
+        tiers[key] = tiers.get(key, 0) + 1
+    print(f"mined {len(probes)} probes -> {args.out}")
+    print(f"  families: "
+          f"{sum(1 for p in probes if p.family == 'propensity')} propensity, "
+          f"{sum(1 for p in probes if p.family == 'susceptibility')} susceptibility")
+    print(f"  difficulty: {dict(sorted(tiers.items()))}")
+    if any(not p.world.state_known for p in probes):
+        print("  warning: the source trace recorded no per-turn state, so these "
+              "probes carry no difficulty tier and their frozen balances are "
+              "engine defaults, not the real moment")
+    return 0
+
+
+def _cmd_probe_run(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from app.judge.factory import build_judge
+    from app.probe.schema import load_probes
+    from app.probe.suite import run_suite, save_outcomes
+
+    probes = load_probes(Path(args.probes))
+    if args.split != "all":
+        probes = [p for p in probes if p.split == args.split]
+    if not probes:
+        print(f"no probes in split {args.split!r}")
+        return 1
+    print(f"running {len(probes)} probes (split={args.split}) "
+          f"x {args.samples} samples against {args.model}")
+
+    async def _go() -> int:
+        from app.db import SessionLocal, init_db
+
+        await init_db()
+        outcomes = await run_suite(
+            SessionLocal, probes,
+            provider=args.provider, model=args.model,
+            judge=build_judge(provider=args.judge_provider),
+            samples=args.samples,
+        )
+        save_outcomes(Path(args.out), args.model, outcomes)
+        excluded = sum(1 for o in outcomes if o.excluded)
+        print(f"wrote {len(outcomes)} runs -> {args.out} ({excluded} excluded)")
+        return 0
+
+    return asyncio.run(_go())
+
+
+def _cmd_probe_score(args: argparse.Namespace) -> int:
+    from app.probe.score import score_model
+    from app.probe.suite import load_outcomes
+
+    model, outcomes = load_outcomes(Path(args.results))
+    score = score_model(model, outcomes)
+
+    print(f"model: {score.model}")
+    p = score.propensity_overall
+    print(f"  propensity   {p.rate:.1%} [{p.low:.1%}, {p.high:.1%}]  n={p.n}")
+    for tier, rate in score.propensity_by_tier.items():
+        print(f"    L{tier}         {rate.rate:.1%} [{rate.low:.1%}, {rate.high:.1%}]  "
+              f"n={rate.n}")
+    if score.untiered:
+        print(f"    untiered     {score.untiered} runs excluded from the curve")
+    s = score.susceptibility
+    print(f"  susceptibility {s.rate:.1%} [{s.low:.1%}, {s.high:.1%}]  n={s.n}")
+    if score.sophistication_mean is not None:
+        print(f"  sophistication mean {score.sophistication_mean:.2f}  "
+              f"{score.sophistication_hist}")
+    threshold = score.pressure_threshold
+    label = f"L{threshold}" if threshold else "none established"
+    print(f"  pressure threshold: {label}")
+    print(f"  excluded {score.excluded}  |  divergence mean {score.divergence_mean:.1%} "
+          f"max {score.divergence_max:.1%}")
     return 0
 
 
@@ -166,6 +252,34 @@ def build_parser() -> argparse.ArgumentParser:
     p_sweep.add_argument("--dry-run", action="store_true",
                          help="list the cells and derived session ids, run nothing")
     p_sweep.set_defaults(func=_cmd_sweep)
+
+    p_probe = sub.add_parser("probe", help="mine, run, and score benchmark probes")
+    probe_sub = p_probe.add_subparsers(dest="probe_command")
+
+    p_mine = probe_sub.add_parser("mine", help="mine probes from a judged trace")
+    p_mine.add_argument("trace")
+    p_mine.add_argument("--verdicts", required=True)
+    p_mine.add_argument("--out", required=True)
+    p_mine.add_argument("--k-turns", type=int, default=DEFAULT_K_TURNS)
+    p_mine.set_defaults(func=_cmd_probe_mine)
+
+    p_prun = probe_sub.add_parser("run", help="run a probe suite against one model")
+    p_prun.add_argument("probes")
+    p_prun.add_argument("--model", required=True)
+    p_prun.add_argument("--out", required=True)
+    p_prun.add_argument("--provider", default="openrouter", choices=["stub", "openrouter"])
+    p_prun.add_argument("--judge-provider", default="openrouter",
+                        choices=["stub", "openrouter"])
+    p_prun.add_argument("--samples", type=int, default=5)
+    p_prun.add_argument("--split", default="public",
+                        choices=["public", "heldout", "all"],
+                        help="held-out probes are never published; mixing splits "
+                             "silently would make a leaderboard uninterpretable")
+    p_prun.set_defaults(func=_cmd_probe_run)
+
+    p_pscore = probe_sub.add_parser("score", help="reduce probe results to a model score")
+    p_pscore.add_argument("results")
+    p_pscore.set_defaults(func=_cmd_probe_score)
 
     p_replay = sub.add_parser("replay", help="print a trace turn by turn")
     p_replay.add_argument("path")
