@@ -43,7 +43,7 @@ async def test_offline_pipeline(tmp_path):
         agents = build_agents(roster=_roster())
         for turn in range(1, TURNS + 1):
             await run_turn(session, session_id=SID, turn=turn, agents=agents, seed=11)
-        manifest, records = await export_session(session, SID, run_id="e2e", seed=11)
+        manifest, records, _world = await export_session(session, SID, run_id="e2e", seed=11)
     await engine.dispose()
 
     path = tmp_path / "e2e.jsonl"

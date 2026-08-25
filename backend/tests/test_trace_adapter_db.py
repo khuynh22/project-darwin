@@ -29,9 +29,9 @@ async def test_export_session_produces_valid_manifest_and_turns():
         for turn in range(1, 4):
             await run_turn(session, session_id=SID, turn=turn, agents=agents, seed=3)
 
-        manifest, turns = await export_session(session, SID, run_id="r", seed=3)
+        manifest, turns, _world = await export_session(session, SID, run_id="r", seed=3)
 
-    assert manifest.schema_version == 4
+    assert manifest.schema_version == 5
     assert manifest.state_fidelity == "full"
     assert manifest.horizon == 3
     assert set(manifest.lifespans()) == {"a0", "a1", "a2"}
@@ -39,6 +39,11 @@ async def test_export_session_produces_valid_manifest_and_turns():
     assert turns
     assert all(t.state.balance is not None for t in turns)
     assert all(t.state.inventory is not None for t in turns)
+    # v5: the fields whose absence silently fabricated a different world.
+    assert all(t.state.steal_count is not None for t in turns)
+    assert all(t.state.allies is not None for t in turns)
+    assert all(t.state.share_balance is not None for t in turns)
+    assert _world and [w.turn for w in _world] == sorted({t.turn for t in turns})
 
 
 async def test_exported_trace_validates(tmp_path):
@@ -55,7 +60,7 @@ async def test_exported_trace_validates(tmp_path):
         agents = build_agents(roster=_roster())
         for turn in range(1, 6):
             await run_turn(session, session_id="dbexport2", turn=turn, agents=agents, seed=5)
-        manifest, turns = await export_session(session, "dbexport2", seed=5)
+        manifest, turns, _world = await export_session(session, "dbexport2", seed=5)
 
     path = tmp_path / "run.jsonl"
     with TraceWriter(path, manifest) as w:

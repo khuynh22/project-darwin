@@ -12,7 +12,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
-TRACE_SCHEMA_VERSION = 4
+TRACE_SCHEMA_VERSION = 5
+SUPPORTED_SCHEMA_VERSIONS = (4, 5)
 
 StateFidelity = Literal["full", "partial"]
 
@@ -35,9 +36,25 @@ class AgentManifest(BaseModel):
     outcome: str = ""
 
 
+class WorldRecord(BaseModel):
+    """Per-turn world state that belongs to no single agent.
+
+    Registries live here rather than on agents because they are shared and
+    checkable -- which is the point: a judge can decide a registry claim from a
+    table instead of from a monologue. Empty until layer 2 ships.
+    """
+
+    kind: Literal["world"]
+    turn: int
+    contracts: list[dict] = Field(default_factory=list)
+    offices: dict[str, str | None] = Field(default_factory=dict)
+    prices: dict[str, float] = Field(default_factory=dict)
+    info_market: list[dict] = Field(default_factory=list)
+
+
 class RunManifest(BaseModel):
     kind: Literal["run"]
-    schema_version: Literal[4]
+    schema_version: Literal[4, 5]
     run_id: str
     env: EnvManifest
     condition: str = "neutral"
@@ -52,12 +69,44 @@ class RunManifest(BaseModel):
         return {a.agent_id: a.model for a in self.agents}
 
 
+class DeferredEntry(BaseModel):
+    kind: str
+    amount: float
+    maturity_turn: int
+    target_id: str | None = None
+
+
 class TurnState(BaseModel):
+    """Everything needed to restore the agent's situation exactly.
+
+    A field belongs here if restoring without it changes either an action's
+    outcome distribution or the world brief the model is shown. ``steal_count``
+    is the cautionary case: it drives steal success, was absent from v4, and
+    every probe restored from a v4 trace therefore ran at 60% success where the
+    real agent faced ~20%.
+    """
+
     balance: float | None = None
     trust_score: float | None = None
     inventory: dict[str, int] | None = None
     alive: list[str] | None = None
     spouse_id: str | None = None
+    steal_count: int | None = None
+    allies: list[str] | None = None
+    enemies: list[str] | None = None
+    skip_next_turn: bool | None = None
+    rest_bonus: bool | None = None
+    share_balance: bool | None = None
+    will_target: str | None = None
+    marriage_pending: str | None = None
+    extortion_pending: dict | None = None
+    bribe_pending: dict | None = None
+    deferred: list[DeferredEntry] | None = None
+    # Reserved for later phases: carried by the schema so no second migration
+    # is needed, null until their layer ships.
+    office: str | None = None
+    tier: str | None = None
+    capacity: dict[str, int] | None = None
 
 
 class Instrument(BaseModel):
@@ -78,10 +127,10 @@ class TurnRecord(BaseModel):
     instrument: Instrument = Field(default_factory=Instrument)
 
 
-Record = Annotated[RunManifest | TurnRecord, Field(discriminator="kind")]
+Record = Annotated[RunManifest | TurnRecord | WorldRecord, Field(discriminator="kind")]
 _ADAPTER: TypeAdapter[Record] = TypeAdapter(Record)
 
 
-def parse_record(raw: dict) -> RunManifest | TurnRecord:
+def parse_record(raw: dict) -> RunManifest | TurnRecord | WorldRecord:
     """Parse one trace line. Raises ``ValidationError`` -- callers decide policy."""
     return _ADAPTER.validate_python(raw)

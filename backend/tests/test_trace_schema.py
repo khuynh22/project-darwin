@@ -12,7 +12,7 @@ from app.trace.schema import (
 def _manifest_dict() -> dict:
     return {
         "kind": "run",
-        "schema_version": 4,
+        "schema_version": 5,
         "run_id": "demo",
         "env": {"name": "darwin", "version": "abc123", "seed": 7, "actions": 20},
         "condition": "neutral",
@@ -47,8 +47,8 @@ def _turn_dict() -> dict:
     }
 
 
-def test_schema_version_is_four():
-    assert TRACE_SCHEMA_VERSION == 4
+def test_schema_version_is_five():
+    assert TRACE_SCHEMA_VERSION == 5
 
 
 def test_parse_record_discriminates_on_kind():
@@ -61,6 +61,13 @@ def test_turns_alive_is_mandatory():
     del bad["agents"][0]["turns_alive"]
     with pytest.raises(ValidationError):
         parse_record(bad)
+
+
+def test_v4_manifests_still_parse():
+    """v4 files are released artifacts; they must keep loading."""
+    older = _manifest_dict()
+    older["schema_version"] = 4
+    assert parse_record(older).schema_version == 4
 
 
 def test_manifest_rejects_legacy_versions():

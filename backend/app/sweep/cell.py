@@ -67,7 +67,7 @@ async def run_cell(
                 break
 
         async with session_factory() as session:
-            manifest, records = await export_session(
+            manifest, records, world = await export_session(
                 session,
                 cell.session_id,
                 run_id=cell.natural_id,
@@ -79,8 +79,17 @@ async def run_cell(
         return CellResult(cell=cell, ok=False, turns_run=turns_run, error=repr(exc))
 
     with TraceWriter(trace_path, manifest) as writer:
+        by_turn: dict[int, list] = {}
         for record in records:
-            writer.append(record)
+            by_turn.setdefault(record.turn, []).append(record)
+        world_by_turn = {w.turn: w for w in world}
+        # World record first for its turn, so a reader sees the registries that
+        # were in force when the turn's decisions were made.
+        for turn in sorted(by_turn):
+            if turn in world_by_turn:
+                writer.append(world_by_turn[turn])
+            for record in by_turn[turn]:
+                writer.append(record)
 
     return CellResult(
         cell=cell,

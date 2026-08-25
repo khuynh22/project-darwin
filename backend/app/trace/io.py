@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from types import TracebackType
 
-from app.trace.schema import RunManifest, TurnRecord, parse_record
+from app.trace.schema import RunManifest, TurnRecord, WorldRecord, parse_record
 
 
 class TraceWriter:
@@ -27,7 +27,7 @@ class TraceWriter:
         self._fh.write(json.dumps(row, default=str) + "\n")
         self._fh.flush()
 
-    def append(self, record: TurnRecord) -> None:
+    def append(self, record: TurnRecord | WorldRecord) -> None:
         self._write(record.model_dump(mode="json"))
 
     def close(self) -> None:
@@ -55,17 +55,32 @@ def _iter_raw(path: Path) -> Iterator[dict]:
 
 
 def read_trace(path: Path) -> tuple[RunManifest, list[TurnRecord]]:
+    """Manifest plus turns. World records are dropped -- see ``read_world``.
+
+    Keeping the turn stream free of world records means every existing reader
+    keeps working against a v5 file without change.
+    """
     manifest: RunManifest | None = None
     turns: list[TurnRecord] = []
     for raw in _iter_raw(path):
         record = parse_record(raw)
         if isinstance(record, RunManifest):
             manifest = record
-        else:
+        elif isinstance(record, TurnRecord):
             turns.append(record)
     if manifest is None:
         raise ValueError(f"{path}: no run manifest (is this a legacy v2/v3 export?)")
     return manifest, turns
+
+
+def read_world(path: Path) -> dict[int, WorldRecord]:
+    """World records indexed by turn. Empty for a v4 trace."""
+    out: dict[int, WorldRecord] = {}
+    for raw in _iter_raw(path):
+        record = parse_record(raw)
+        if isinstance(record, WorldRecord):
+            out[record.turn] = record
+    return out
 
 
 def iter_turns(path: Path) -> Iterator[TurnRecord]:

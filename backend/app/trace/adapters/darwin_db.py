@@ -10,15 +10,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import Agent
+from app.models.deferred import DeferredAction
 from app.models.ledger import ThoughtLog, TurnSnapshot
 from app.trace.adapters.legacy_jsonl import is_fallback
 from app.trace.schema import (
+    TRACE_SCHEMA_VERSION,
     AgentManifest,
+    DeferredEntry,
     EnvManifest,
     Instrument,
     RunManifest,
     TurnRecord,
     TurnState,
+    WorldRecord,
 )
 
 
@@ -29,7 +33,7 @@ async def export_session(
     run_id: str | None = None,
     condition: str = "neutral",
     seed: int = 0,
-) -> tuple[RunManifest, list[TurnRecord]]:
+) -> tuple[RunManifest, list[TurnRecord], list[WorldRecord]]:
     agents = (
         await session.execute(select(Agent).where(Agent.session_id == session_id))
     ).scalars().all()
@@ -45,8 +49,25 @@ async def export_session(
             select(TurnSnapshot).where(TurnSnapshot.session_id == session_id)
         )
     ).scalars().all()
+    deferred_rows = (
+        await session.execute(
+            select(DeferredAction).where(DeferredAction.session_id == session_id)
+        )
+    ).scalars().all()
 
     by_key = {(s.turn, s.agent_id): s for s in snapshots}
+
+    # An unresolved deferred row is live for every turn between creation and
+    # maturity, so it must be reconstructed per turn rather than read once.
+    def _deferred_at(turn: int, agent_id: str) -> list[DeferredEntry]:
+        return [
+            DeferredEntry(kind=d.kind, amount=d.amount,
+                          maturity_turn=d.maturity_turn, target_id=d.target_id)
+            for d in deferred_rows
+            if d.actor_id == agent_id
+            and d.created_turn <= turn < d.maturity_turn
+            and not d.resolved
+        ]
     alive_at: dict[int, list[str]] = {}
     for snap in snapshots:
         if snap.alive:
@@ -67,7 +88,8 @@ async def export_session(
             action=t.action or "",
             arguments=t.arguments or {},
             outcome=t.outcome or "",
-            state=_state(by_key.get((t.turn, t.agent_id)), alive_at.get(t.turn)),
+            state=_state(by_key.get((t.turn, t.agent_id)), alive_at.get(t.turn),
+                         _deferred_at(t.turn, t.agent_id)),
             instrument=Instrument(tool_call_ok=not is_fallback(t.monologue)),
         )
         for t in thoughts
@@ -75,7 +97,7 @@ async def export_session(
 
     manifest = RunManifest(
         kind="run",
-        schema_version=4,
+        schema_version=TRACE_SCHEMA_VERSION,
         run_id=run_id or session_id,
         env=EnvManifest(name="darwin", seed=seed, actions=20),
         condition=condition,
@@ -95,10 +117,18 @@ async def export_session(
             for a in sorted(agents, key=lambda x: x.agent_id)
         ],
     )
-    return manifest, records
+    world = [
+        WorldRecord(kind="world", turn=turn)
+        for turn in sorted({t.turn for t in thoughts})
+    ]
+    return manifest, records, world
 
 
-def _state(snap: TurnSnapshot | None, alive: list[str] | None) -> TurnState:
+def _state(
+    snap: TurnSnapshot | None,
+    alive: list[str] | None,
+    deferred: list[DeferredEntry] | None = None,
+) -> TurnState:
     if snap is None:
         return TurnState(alive=sorted(alive) if alive else None)
     return TurnState(
@@ -107,4 +137,15 @@ def _state(snap: TurnSnapshot | None, alive: list[str] | None) -> TurnState:
         inventory=dict(snap.inventory or {}),
         alive=sorted(alive) if alive else None,
         spouse_id=snap.spouse_id,
+        steal_count=snap.steal_count,
+        allies=list(snap.allies or []),
+        enemies=list(snap.enemies or []),
+        skip_next_turn=snap.skip_next_turn,
+        rest_bonus=snap.rest_bonus,
+        share_balance=snap.share_balance,
+        will_target=snap.will_target,
+        marriage_pending=snap.marriage_pending,
+        extortion_pending=snap.extortion_pending,
+        bribe_pending=snap.bribe_pending,
+        deferred=deferred or [],
     )

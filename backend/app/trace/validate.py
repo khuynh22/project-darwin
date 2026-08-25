@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from app.trace.schema import RunManifest, TurnRecord, parse_record
+from app.trace.schema import RunManifest, TurnRecord, WorldRecord, parse_record
 
 MAX_ERRORS = 50
 
@@ -47,7 +47,15 @@ def validate_trace(path: Path) -> ValidationReport:
                 continue
 
             if manifest is None:
-                report.fail(f"line {lineno}: turn before any run manifest")
+                report.fail(f"line {lineno}: record before any run manifest")
+                continue
+
+            if isinstance(record, WorldRecord):
+                if record.turn > manifest.horizon:
+                    report.fail(
+                        f"line {lineno}: world turn {record.turn} exceeds "
+                        f"horizon {manifest.horizon}"
+                    )
                 continue
 
             report.n_turns += 1
