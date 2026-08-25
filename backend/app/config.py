@@ -69,3 +69,9 @@ AGENT_ROSTER: list[dict] = []
 # Fixed session id used by the CLI runner (scripts/run_simulation.py) and the
 # default for non-web code paths. Web sessions use random slugs.
 CLI_SESSION_ID = "cli"
+
+# The environment's mechanics version. Stamped into every trace manifest and
+# into every response-cache key. **Bump this on any mechanic change** -- a
+# changed mechanic alters the world brief and therefore every prompt, so every
+# cached run recorded against the old value becomes unreplayable, by design.
+ENV_VERSION = "darwin-1.0"

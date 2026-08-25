@@ -124,6 +124,22 @@ class ResponseCache:
         )
         self._writes += 1
 
+    def recorded_env_version(self) -> str | None:
+        """The env version this cache was recorded against, or None if empty.
+
+        Used to pre-flight a replay: checking one entry up front is far better
+        than discovering the mismatch turn by turn, especially since the engine
+        survives agent errors and would otherwise finish a whole wrong run.
+        """
+        if not self.root.is_dir():
+            return None
+        for path in self.root.rglob("*.json"):
+            try:
+                return json.loads(path.read_text(encoding="utf-8")).get("env_version", "")
+            except (json.JSONDecodeError, OSError):
+                continue
+        return None
+
     def stats(self) -> CacheStats:
         return CacheStats(hits=self._hits, misses=self._misses, writes=self._writes)
 

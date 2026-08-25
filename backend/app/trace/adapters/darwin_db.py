@@ -9,6 +9,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import ENV_VERSION
 from app.models.agent import Agent
 from app.models.deferred import DeferredAction
 from app.models.ledger import ThoughtLog, TurnSnapshot
@@ -99,7 +100,7 @@ async def export_session(
         kind="run",
         schema_version=TRACE_SCHEMA_VERSION,
         run_id=run_id or session_id,
-        env=EnvManifest(name="darwin", seed=seed, actions=20),
+        env=EnvManifest(name="darwin", version=ENV_VERSION, seed=seed, actions=20),
         condition=condition,
         horizon=horizon,
         state_fidelity="full",

@@ -49,6 +49,8 @@ def _cmd_upgrade(args: argparse.Namespace) -> int:
 
 
 def _cmd_replay(args: argparse.Namespace) -> int:
+    if args.from_cache:
+        return _cmd_reexecute(args)
     manifest, turns = read_trace(Path(args.path))
     print(f"{manifest.run_id}  condition={manifest.condition}  horizon={manifest.horizon}")
     for turn in turns:
@@ -216,6 +218,32 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     return asyncio.run(_go())
 
 
+def _cmd_reexecute(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from app.replay.reexecute import reexecute
+
+    async def _go() -> int:
+        from app.db import SessionLocal, init_db
+
+        await init_db()
+        report = await reexecute(
+            Path(args.path), Path(args.from_cache), SessionLocal, mode=args.mode
+        )
+        print(f"{report.run_id}: {report.turns} turns re-executed, "
+              f"{report.cache_hits} cache hits, {report.cache_misses} misses, "
+              f"{len(report.divergences)} divergences")
+        if report.error:
+            print(f"  error: {report.error}")
+        for divergence in report.divergences[:20]:
+            print(f"  {divergence}")
+        if len(report.divergences) > 20:
+            print(f"  ... and {len(report.divergences) - 20} more")
+        return 0 if report.ok else 1
+
+    return asyncio.run(_go())
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="darwin", description="Darwin measurement harness")
     sub = parser.add_subparsers(dest="command")
@@ -284,6 +312,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_replay = sub.add_parser("replay", help="print a trace turn by turn")
     p_replay.add_argument("path")
     p_replay.add_argument("--agent", help="only this agent")
+    p_replay.add_argument("--from-cache", metavar="DIR",
+                          help="re-execute the trace offline using a response cache")
+    p_replay.add_argument("--mode", default="strict", choices=["strict", "permissive"],
+                          help="strict fails loudly on a cache miss (default)")
     p_replay.set_defaults(func=_cmd_replay)
 
     return parser
