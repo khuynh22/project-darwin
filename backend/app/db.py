@@ -69,6 +69,16 @@ async def init_db() -> None:
         ("sessions", "condition", "VARCHAR(16)", "'neutral'"),
         ("turn_snapshots", "inventory", "JSON", "'{}'"),
         ("turn_snapshots", "spouse_id", "VARCHAR(64)", "NULL"),
+        ("turn_snapshots", "steal_count", "INTEGER", "0"),
+        ("turn_snapshots", "allies", "JSON", "'[]'"),
+        ("turn_snapshots", "enemies", "JSON", "'[]'"),
+        ("turn_snapshots", "skip_next_turn", "BOOLEAN", "FALSE"),
+        ("turn_snapshots", "rest_bonus", "BOOLEAN", "FALSE"),
+        ("turn_snapshots", "share_balance", "BOOLEAN", "TRUE"),
+        ("turn_snapshots", "will_target", "VARCHAR(64)", "NULL"),
+        ("turn_snapshots", "marriage_pending", "VARCHAR(64)", "NULL"),
+        ("turn_snapshots", "extortion_pending", "JSON", "NULL"),
+        ("turn_snapshots", "bribe_pending", "JSON", "NULL"),
         ("deception_judgments", "sophistication", "INTEGER", "NULL"),
     ]
 

@@ -903,6 +903,16 @@ async def run_turn(
                 alive=a.alive,
                 inventory=dict(a.inventory or {}),
                 spouse_id=a.spouse_id,
+                steal_count=a.steal_count,
+                allies=list(a.allies or []),
+                enemies=list(a.enemies or []),
+                skip_next_turn=a.skip_next_turn,
+                rest_bonus=a.rest_bonus,
+                share_balance=a.share_balance,
+                will_target=a.will_target,
+                marriage_pending=a.marriage_pending,
+                extortion_pending=a.extortion_pending,
+                bribe_pending=a.bribe_pending,
             )
         )
 

@@ -74,6 +74,20 @@ class TurnSnapshot(Base):
     alive: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     inventory: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     spouse_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Everything below affects either an action's outcome distribution or what
+    # render_world_brief shows the model. Restoring a turn without them
+    # fabricates a different situation: steal_count alone moves steal success
+    # from ~20% back to 60%.
+    steal_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    allies: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    enemies: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    skip_next_turn: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    rest_bonus: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    share_balance: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    will_target: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    marriage_pending: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    extortion_pending: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    bribe_pending: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
