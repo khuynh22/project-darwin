@@ -77,8 +77,22 @@ def _roster(probe: Probe) -> list[dict]:
     ]
 
 
-async def restore_world(session: AsyncSession, session_id: str, probe: Probe) -> None:
-    """Seed the roster, then overwrite each row with the frozen state."""
+async def restore_world(
+    session: AsyncSession,
+    session_id: str,
+    probe: Probe,
+    *,
+    states: dict[str, TurnState] | None = None,
+) -> None:
+    """Seed the roster, then overwrite each row with the frozen state.
+
+    *states* carries the v5 fields the probe world does not model directly --
+    ``steal_count``, ``allies``, and the rest. Passing them is what makes a
+    restored world indistinguishable from the original: without ``steal_count``
+    the engine hands a serial thief 60% steal success where it faced ~20%, and
+    without ``allies`` the model is shown a different world brief entirely.
+    """
+    from app.models.deferred import DeferredAction
     from app.oracle.engine import seed_roster
 
     await seed_roster(session, session_id, roster=_roster(probe), seed=probe.world.seed)
@@ -87,6 +101,7 @@ async def restore_world(session: AsyncSession, session_id: str, probe: Probe) ->
         await session.execute(select(Agent).where(Agent.session_id == session_id))
     ).scalars().all()
     by_id = {r.agent_id: r for r in rows}
+    states = states or {}
 
     for frozen in probe.world.agents:
         row = by_id.get(frozen.agent_id)
@@ -98,6 +113,42 @@ async def restore_world(session: AsyncSession, session_id: str, probe: Probe) ->
         row.inventory = dict(frozen.inventory or {})
         row.alive = frozen.alive
         row.spouse_id = frozen.spouse_id
+
+        state = states.get(frozen.agent_id)
+        if state is None:
+            continue
+        if state.steal_count is not None:
+            row.steal_count = state.steal_count
+        if state.allies is not None:
+            row.allies = list(state.allies)
+        if state.enemies is not None:
+            row.enemies = list(state.enemies)
+        if state.skip_next_turn is not None:
+            row.skip_next_turn = state.skip_next_turn
+        if state.rest_bonus is not None:
+            row.rest_bonus = state.rest_bonus
+        if state.share_balance is not None:
+            row.share_balance = state.share_balance
+        if state.spouse_id is not None:
+            row.spouse_id = state.spouse_id
+        row.will_target = state.will_target
+        row.marriage_pending = state.marriage_pending
+        row.extortion_pending = state.extortion_pending
+        row.bribe_pending = state.bribe_pending
+
+        for entry in state.deferred or []:
+            session.add(
+                DeferredAction(
+                    session_id=session_id,
+                    kind=entry.kind,
+                    actor_id=frozen.agent_id,
+                    target_id=entry.target_id,
+                    amount=entry.amount,
+                    created_turn=probe.world.start_turn,
+                    maturity_turn=entry.maturity_turn,
+                    resolved=False,
+                )
+            )
     await session.commit()
 
 
