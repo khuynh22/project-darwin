@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-24-layered-economy-and-replay-design.md` (Phase 1, §4 and §5)
 
+**Status:** COMPLETE (2026-08-25). All five tasks landed; 274 backend tests pass, ruff clean. Environment tagged `darwin-1.0`. See `## Execution notes`.
+
 ## Global Constraints
 
 - Trace schema becomes **v5**. v4 files still read and are reported `state_fidelity: partial`.
@@ -34,7 +36,7 @@
 
 **Why each:** `steal_count` drives `actions.py:474` steal success. `allies` and `share_balance` drive balance visibility in `render_world_brief`. `skip_next_turn` and `rest_bonus` change the next turn's outcome. The rest are social state the brief or handlers read.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # append to backend/tests/test_turn_snapshot_state.py
@@ -84,12 +86,12 @@ def test_every_new_snapshot_column_has_a_migration_row():
         )
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 `cd backend && python -m pytest tests/test_turn_snapshot_state.py -v`
 Expected: FAIL — missing columns.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `TurnSnapshot` after `spouse_id`, matching `Agent`'s column types:
 
@@ -108,9 +110,9 @@ Add to `TurnSnapshot` after `spouse_id`, matching `Agent`'s column types:
 
 Add the matching `_MIGRATIONS` rows in `app/db.py` (types: `INTEGER`, `JSON`, `BOOLEAN`, `VARCHAR(64)`), then populate all of them at the `TurnSnapshot(...)` write site in `engine.py`.
 
-- [ ] **Step 4: Run to verify it passes** — plus `tests/test_seed_reproducibility.py` to confirm RNG draw order is undisturbed.
+- [x] **Step 4: Run to verify it passes** — plus `tests/test_seed_reproducibility.py` to confirm RNG draw order is undisturbed.
 
-- [ ] **Step 5: Commit** — `feat(engine): capture complete agent state per turn`
+- [x] **Step 5: Commit** — `feat(engine): capture complete agent state per turn`
 
 ---
 
@@ -127,9 +129,9 @@ Add the matching `_MIGRATIONS` rows in `app/db.py` (types: `INTEGER`, `JSON`, `B
 
 **Compatibility rule:** `RunManifest.schema_version` accepts `4` or `5`. A v4 file loads and reports `state_fidelity: partial`; a v5 file with complete state reports `full`. Readers that ignore `world` records still see a valid turn stream.
 
-- [ ] **Step 1: Write the failing test** — pin: version is 5; a v4 manifest still parses; a `world` record round-trips; `read_trace` returns world records separately from turns without disturbing turn order; `validate_trace` rejects a world record whose turn exceeds the horizon; `TurnState` carries `steal_count` and `allies`; `export_session` populates them from `turn_snapshots` and emits one world record per turn.
+- [x] **Step 1: Write the failing test** — pin: version is 5; a v4 manifest still parses; a `world` record round-trips; `read_trace` returns world records separately from turns without disturbing turn order; `validate_trace` rejects a world record whose turn exceeds the horizon; `TurnState` carries `steal_count` and `allies`; `export_session` populates them from `turn_snapshots` and emits one world record per turn.
 
-- [ ] **Step 2–5:** standard cycle. Commit as `feat(trace): schema v5 with complete state and world records`.
+- [x] **Step 2–5:** standard cycle. Commit as `feat(trace): schema v5 with complete state and world records`.
 
 ---
 
@@ -144,7 +146,7 @@ Add the matching `_MIGRATIONS` rows in `app/db.py` (types: `INTEGER`, `JSON`, `B
 
 **Why this is the gate:** matching database columns proves the engine agrees. Matching `render_world_brief` output proves **the model sees the same world**, which is what a probe actually depends on. Only the second one catches an `allies` omission.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # backend/tests/test_restore_fidelity.py
@@ -182,7 +184,7 @@ async def test_a_new_agent_column_fails_until_handled():
     )
 ```
 
-- [ ] **Step 2–5:** standard cycle. Commit as `test(probe): restore fidelity gate over all agent state`.
+- [x] **Step 2–5:** standard cycle. Commit as `test(probe): restore fidelity gate over all agent state`.
 
 ---
 
@@ -201,9 +203,9 @@ async def test_a_new_agent_column_fails_until_handled():
 
 **Key:** `sha256(env_version, model, prompt_version, system_prompt, user_prompt, tool_names, temperature)`. The rendered prompts are included because they encode the world state — that is what makes the key correct rather than a proxy.
 
-- [ ] **Step 1: Write the failing test** — pin: a key is stable across processes (`PYTHONHASHSEED` varied, as `replay._session_id` needed); differing world state yields a different key; `strict` mode raises `CacheMiss` rather than calling the inner agent; `permissive` falls through and records; a recorded decision replays identically; an `env_version` mismatch raises rather than silently serving a stale entry.
+- [x] **Step 1: Write the failing test** — pin: a key is stable across processes (`PYTHONHASHSEED` varied, as `replay._session_id` needed); differing world state yields a different key; `strict` mode raises `CacheMiss` rather than calling the inner agent; `permissive` falls through and records; a recorded decision replays identically; an `env_version` mismatch raises rather than silently serving a stale entry.
 
-- [ ] **Step 2–5:** standard cycle. Commit as `feat(replay): content-addressed response cache and CachedAgent`.
+- [x] **Step 2–5:** standard cycle. Commit as `feat(replay): content-addressed response cache and CachedAgent`.
 
 ---
 
@@ -220,14 +222,40 @@ async def test_a_new_agent_column_fails_until_handled():
 
 **What it proves:** re-running a recorded trace through the *real engine* with cached model outputs reproduces the recorded turns. A divergence is a genuine finding — either the environment changed or the cache is stale — and must be reported per turn, never summarised away.
 
-- [ ] **Step 1: Write the failing test** — pin: a stub run recorded to cache re-executes with zero misses in `strict` mode and zero divergences; deleting one cache entry makes `strict` fail loudly rather than falling back; a mismatched `env_version` refuses to run.
+- [x] **Step 1: Write the failing test** — pin: a stub run recorded to cache re-executes with zero misses in `strict` mode and zero divergences; deleting one cache entry makes `strict` fail loudly rather than falling back; a mismatched `env_version` refuses to run.
 
-- [ ] **Step 2–5:** standard cycle. Commit as `feat(cli): offline re-execution from a response cache`.
+- [x] **Step 2–5:** standard cycle. Commit as `feat(cli): offline re-execution from a response cache`.
 
-- [ ] **Step 6: Tag the environment version.** Set `env.version` from a constant (`app/config.py::ENV_VERSION = "darwin-1.0"`), stamp it into the trace manifest, and document in the spec that any mechanic change bumps it and invalidates every cache.
+- [x] **Step 6: Tag the environment version.** Set `env.version` from a constant (`app/config.py::ENV_VERSION = "darwin-1.0"`), stamp it into the trace manifest, and document in the spec that any mechanic change bumps it and invalidates every cache.
 
 ---
 
 ## What this plan does not cover
 
 Phases 2–6 of the spec: contracts and institutions, production chains, information markets, social strata, and the 3-D view. Each is its own plan. None may start before Task 3's fidelity gate is green, because every later phase adds state that the gate is what protects.
+
+
+## Execution notes
+
+**1. The fidelity gate was verified by breaking it, not by trusting it.** A gate that passes vacuously is worse than none, because it converts an unchecked assumption into a false guarantee. Two regressions were injected and reverted: dropping `allies` from the restore fails both the column check and the world-brief check; dropping `steal_count` fails three tests including its own. The world-brief half is the one doing real work — `_world_state` feeds both fields into what the model is shown, so an incomplete restore changes the *stimulus*, not merely the engine's arithmetic.
+
+**2. The engine swallows agent exceptions, which quietly defeated strict mode.** `engine.py` logs and falls back when `decide()` raises, so one provider outage cannot kill a live turn. Right there, wrong for replay: a `CacheMiss` was absorbed and the run finished as a different experiment wearing the same name — precisely the failure the mode exists to prevent. Misses are now counted independently and any non-zero count fails the report. Note the subtlety this forces: the engine's fallback action can coincide with the recorded one, so *absence of divergence does not prove the cache served the run*. `ok` requires zero misses on its own evidence.
+
+**3. A stale session poisoned the CLI path.** `seed_roster` skips agents that already exist, so leftover rows from an earlier attempt started the re-execution mid-game and every later turn diverged for the wrong reason. `reexecute` now purges the target session first. This only surfaced through the CLI test, because the unit tests each built a fresh in-memory database — worth remembering that the persistent path has failure modes the isolated one cannot show.
+
+**4. Env version is pre-flighted, not discovered.** Checking one cache entry up front beats finding the mismatch turn by turn, especially given (2): the run would otherwise complete against the wrong environment before anyone noticed.
+
+**5. Deviation from the spec, deliberate.** The spec says the cache stores the raw provider response; it stores the `AgentDecision`. Simpler, avoids coupling to the OpenAI response shape, and freezes the decision *as published* — a later parser fix will not retroactively change a cached run, which is the behaviour wanted for reproducing paper numbers.
+
+## Verified
+
+```
+274 backend tests pass, ruff clean
+darwin replay <trace> --from-cache <dir>
+  -> N turns re-executed, N cache hits, 0 misses, 0 divergences
+the released 2009-turn v4 trace still validates after the v5 bump
+```
+
+## What Phase 1 leaves for Phase 2
+
+Nothing blocking. The gate is green, so contracts and institutions can start — and every field that layer adds to agent state will fail `test_a_new_agent_column_fails_until_handled` until it is carried by `TurnState` or exempted with a reason.
