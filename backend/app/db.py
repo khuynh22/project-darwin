@@ -33,7 +33,15 @@ async def init_db() -> None:
 
     from sqlalchemy import inspect, text
 
-    from app.models import agent, api_key, deferred, judgment, ledger, session  # noqa: F401
+    from app.models import (  # noqa: F401
+        agent,
+        api_key,
+        deferred,
+        judgment,
+        ledger,
+        registry,
+        session,
+    )
 
     log = logging.getLogger(__name__)
 
