@@ -7,11 +7,33 @@ paper scaffold at `paper/`. This plan sequences what remains.
 `DIRECTIONAL` → `SUPPORTED`. If a phase doesn't change a claim's status, it isn't on the
 critical path.
 
-## Current blocker (clears everything else)
+## STATUS as of 2026-08-01
 
-**The OpenRouter key's spend cap is at $0 headroom** (account balance is fine, ~$79).
-Nothing that calls a model can run until the cap is raised/removed at
-openrouter.ai/settings/keys. **Fix this first** — Phases 0–4 all depend on it.
+| phase | status | note |
+|---|---|---|
+| 0 — judge the 335-turn run | ✅ **done** | 1600/1601 judged, **$34.41** (est. was $65) |
+| 1 — coherence metric | ✅ **done, frozen** | `app/coherence.py` + null model; result largely **negative** — see `research/leaderboard_335t_20260726/coherence_report.md` |
+| 2 — judge reliability | 🟡 **2 of 3 legs** | self-consistency 91.7%, cross-judge κ=0.50. **Human κ needs you** (see below) |
+| 3 — seed replication | ⛔ **blocked** | needs ~$90; credits exhausted |
+| 4 — condition contrast at scale | ⛔ **blocked** | needs ~$120 |
+| 5 — write | ✅ **draft complete** | all sections reconciled against `CLAIMS.md` |
+| 6 — pre-submission | 🟡 **re-sweep done** | **N1 was partly scooped** — see `docs/research/2026-08-01-prior-art-resweep.md`. CFP + datasheet outstanding |
+
+**Budget spent this session: ~$41.3 of the $44.78 that remained. Account credits are now
+~$3.5 — Phases 3 and 4 need a top-up of roughly $210.**
+
+**Two things need you, not more compute:**
+1. **Human labels** — fill `is_deceptive` in
+   `research/leaderboard_335t_20260726/human_labels_BLANK.jsonl` (120 blind rows, actor and
+   verdict stripped), save as `human_labels.jsonl`, run `reliability.py --stage score`.
+   This is the reliability leg reviewers weight most and it costs $0.
+2. **Decide the venue framing** given that the *environment* is no longer novel (see re-sweep).
+
+## ~~Current blocker~~ (cleared 2026-08-01)
+
+~~The OpenRouter key's spend cap is at $0 headroom.~~ Cap was raised; the real constraint
+turned out to be **account credits**, exactly as the risk table predicted. Guard on
+`/api/v1/credits`, not the key cap.
 
 ---
 
