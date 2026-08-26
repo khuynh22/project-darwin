@@ -22,6 +22,7 @@ FREE_ACTIONS = frozenset(
     {
         "vouch",
         "stand_for_office",
+        "declare",
         "will",
         "rest",
         "strike",
@@ -202,6 +203,22 @@ class StandForOfficeArgs(_BaseArgs):
     )
 
 
+class DeclareArgs(_BaseArgs):
+    claim_type: str = Field(
+        ..., description="office_holder or contract_status"
+    )
+    subject: str = Field(
+        ..., description="office name (bank/auditor/arbiter/collector) or contract id"
+    )
+    asserted_value: str = Field(
+        ...,
+        description=(
+            "what you publicly assert: an agent_id or 'nobody' for an office, "
+            "or open/fulfilled/breached for a contract"
+        ),
+    )
+
+
 class AuditArgs(_BaseArgs):
     target: str = Field(..., description="agent_id whose true balance to inspect")
 
@@ -232,6 +249,15 @@ TOOL_DEFINITIONS: list[dict] = [
             "holds it, so claiming an office you do not hold is checkable."
         ),
         "parameters": StandForOfficeArgs.model_json_schema(),
+    },
+    {
+        "name": "declare",
+        "description": (
+            "Publicly assert a registry fact -- who holds an office, or the status "
+            "of a contract. The registry records what you asserted alongside what "
+            "is actually true."
+        ),
+        "parameters": DeclareArgs.model_json_schema(),
     },
     {
         "name": "audit",
@@ -351,6 +377,7 @@ ARG_MODELS = {
     "sign_contract": SignContractArgs,
     "stand_for_office": StandForOfficeArgs,
     "audit": AuditArgs,
+    "declare": DeclareArgs,
     "fulfil_contract": FulfilContractArgs,
     "trade": TradeArgs,
     "bet": BetArgs,

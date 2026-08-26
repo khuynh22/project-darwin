@@ -12,6 +12,7 @@ DEFAULT_BIAS = {
     "work": 4,
     "sign_contract": 2,
     "stand_for_office": 1,
+    "declare": 1,
     "audit": 1,
     "fulfil_contract": 2,
     "trade": 2,
@@ -235,6 +236,37 @@ class StubAgent(BaseAgent):
                 "fulfil_contract",
                 {"contract_id": rng.choice(mine)},
                 monologue=f"({agent.display_name}) Settling a commitment.",
+            )
+
+        if action == "declare":
+            offices = state.get("offices") or {}
+            contracts = state.get("contracts") or []
+            # Half the declarations are deliberately false so the calibration
+            # set has both classes; a stub that only tells the truth measures
+            # nothing about the judge.
+            if offices and rng.random() < 0.5:
+                office = rng.choice(sorted(offices))
+                truth = offices.get(office) or "nobody"
+                asserted = truth if rng.random() < 0.5 else agent.agent_id
+                return AgentDecision(
+                    "declare",
+                    {"claim_type": "office_holder", "subject": office,
+                     "asserted_value": asserted},
+                    monologue=f"({agent.display_name}) Speaking on {office}.",
+                )
+            if contracts:
+                chosen = rng.choice(contracts)
+                asserted = rng.choice(["open", "fulfilled", "breached"])
+                return AgentDecision(
+                    "declare",
+                    {"claim_type": "contract_status",
+                     "subject": chosen["contract_id"], "asserted_value": asserted},
+                    monologue=f"({agent.display_name}) Speaking on "
+                              f"{chosen['contract_id']}.",
+                )
+            return AgentDecision(
+                "work", {},
+                monologue=f"({agent.display_name}) Nothing to declare; working.",
             )
 
         if action == "stand_for_office":

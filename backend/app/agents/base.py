@@ -55,6 +55,7 @@ MAJOR ACTIONS (pick 1, required):
 FREE ACTIONS (pick 0-1, alongside your major action):
 - vouch(target): +5 trust for them. Use to reward allies.
 - stand_for_office(office): take a vacant office (bank/auditor/arbiter/collector) for 20 turns. The registry records the holder.
+- declare(claim_type, subject, asserted_value): publicly assert a registry fact -- who holds an office, or a contract's status. The registry records what you asserted next to what is actually true.
 - slander(target, rumor): $0.20, drop their trust 5-10 pts. Destroy competitors' ability to trade.
 - bluff(fake_action): $0.10, fake public announcement. Misdirect competitors.
 - gaslight(target, fake_event): $0.15, send false private info. Make them paranoid.

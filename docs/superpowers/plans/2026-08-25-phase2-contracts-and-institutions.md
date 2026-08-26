@@ -111,8 +111,10 @@ The handler resolves the actual value and records **both** on the `WorldEvent` a
 declared auditor held by gemini; actually opus [ok] MISMATCH
 ```
 
-- [ ] **Step 1: Write the failing test** — pin: a true declaration records `match`; a false one records `mismatch` and both values; declaring about an unknown subject is rejected rather than counted as a mismatch; the outcome string carries both values so the judge sees ground truth without a database.
-- [ ] **Steps 2–5:** standard cycle. Commit `feat(oracle): structured declare with recorded ground truth`.
+- [x] **Step 1: Write the failing test** — pin: a true declaration records `match`; a false one records `mismatch` and both values; declaring about an unknown subject is rejected rather than counted as a mismatch; the outcome string carries both values so the judge sees ground truth without a database.
+- [x] **Steps 2–5:** standard cycle. Commit `feat(oracle): structured declare with recorded ground truth`.
+
+**Limitation found by running it.** An 80-turn stub run produced only 4 declares (2 match, 2 mismatch). The calibration set is **opt-in by the agent** — nothing compels a model to declare, so a frontier roster may produce a very small set, and its size is not under our control. Mitigation: authored probes. This is precisely what the spec reserved authored probes for, and it means Task 7 must report the calibration set's size alongside any accuracy figure derived from it. An accuracy computed over four turns is not a reliability result.
 
 ---
 
