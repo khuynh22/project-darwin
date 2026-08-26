@@ -74,4 +74,4 @@ CLI_SESSION_ID = "cli"
 # into every response-cache key. **Bump this on any mechanic change** -- a
 # changed mechanic alters the world brief and therefore every prompt, so every
 # cached run recorded against the old value becomes unreplayable, by design.
-ENV_VERSION = "darwin-1.0"
+ENV_VERSION = "darwin-2.0"

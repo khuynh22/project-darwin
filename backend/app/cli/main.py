@@ -64,6 +64,34 @@ def _cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_calibrate(args: argparse.Namespace) -> int:
+    from app.measure import calibration_set, judge_accuracy
+
+    truth = calibration_set(Path(args.trace))
+    verdicts = [
+        json.loads(line)
+        for line in Path(args.verdicts).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    result = judge_accuracy(verdicts, truth)
+
+    known = sum(1 for t in truth if t.deceptive)
+    print(f"calibration set: {len(truth)} turns "
+          f"({known} known-deceptive, {len(truth) - known} known-honest)")
+    print(f"scored: {result['n']} (turns present in both the set and the verdicts)")
+    if result["n"] == 0:
+        print("nothing to score -- no judged turns overlap the calibration set")
+        return 1
+    print(f"  accuracy  {result['accuracy']:.1%}")
+    print(f"  precision {result['precision']:.1%}  recall {result['recall']:.1%}")
+    print(f"  tp={result['true_positives']} fp={result['false_positives']} "
+          f"tn={result['true_negatives']} fn={result['false_negatives']}")
+    if result["underpowered"]:
+        print(f"  WARNING: n={result['n']} is below {20}; this is an anecdote, "
+              "not a reliability result. Report the sample size with the number.")
+    return 0
+
+
 def _cmd_probe_mine(args: argparse.Namespace) -> int:
     from app.probe.mine import mine_probes
     from app.probe.schema import save_probes
@@ -280,6 +308,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_sweep.add_argument("--dry-run", action="store_true",
                          help="list the cells and derived session ids, run nothing")
     p_sweep.set_defaults(func=_cmd_sweep)
+
+    p_cal = sub.add_parser(
+        "calibrate",
+        help="measure judge accuracy against turns whose truth is known by arithmetic",
+    )
+    p_cal.add_argument("trace")
+    p_cal.add_argument("--verdicts", required=True)
+    p_cal.set_defaults(func=_cmd_calibrate)
 
     p_probe = sub.add_parser("probe", help="mine, run, and score benchmark probes")
     probe_sub = p_probe.add_subparsers(dest="probe_command")

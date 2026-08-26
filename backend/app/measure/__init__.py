@@ -11,6 +11,11 @@ asyncpg/aiosqlite install just to run ``bh_correct`` over a JSONL file.
 
 from typing import Any
 
+from app.measure.calibration import (
+    GroundTruthTurn,
+    calibration_set,
+    judge_accuracy,
+)
 from app.measure.coherence import (
     Episode,
     build_episodes,
@@ -25,6 +30,9 @@ _LAZY = {"classify_major", "compute_metrics", "detect_betrayals", "gini"}
 
 __all__ = [
     "Episode",
+    "GroundTruthTurn",
+    "calibration_set",
+    "judge_accuracy",
     "bh_correct",
     "build_episodes",
     "classify_major",
