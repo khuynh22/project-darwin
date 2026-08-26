@@ -473,6 +473,33 @@ def _apex_holder(agents: list[Agent], threshold: float) -> str | None:
     return None
 
 
+async def settle_offices(session: AsyncSession, session_id: str, turn: int) -> list[str]:
+    """Vacate any office whose term has expired. Returns the vacated offices."""
+    from app.models.registry import Office
+
+    rows = (
+        await session.execute(
+            select(Office).where(
+                Office.session_id == session_id, Office.holder_id.is_not(None)
+            )
+        )
+    ).scalars().all()
+
+    vacated: list[str] = []
+    for row in rows:
+        if turn < row.expires_at():
+            continue
+        session.add(
+            WorldEvent(
+                session_id=session_id, turn=turn, kind="office_vacated",
+                payload={"office": row.office, "was": row.holder_id},
+            )
+        )
+        row.holder_id = None
+        vacated.append(row.office)
+    return vacated
+
+
 async def settle_contracts(
     session: AsyncSession, session_id: str, turn: int
 ) -> list[str]:
@@ -724,6 +751,7 @@ async def run_turn(
     # Settle maturing investments and loans before agent decisions
     await _process_deferred(session, session_id, turn, rng)
     await settle_contracts(session, session_id, turn)
+    await settle_offices(session, session_id, turn)
 
     db_agents = (
         (

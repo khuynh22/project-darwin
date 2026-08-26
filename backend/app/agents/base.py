@@ -42,6 +42,7 @@ MAJOR ACTIONS (pick 1, required):
 - trade(target, amount, good?, want_good?): exchange money/goods. Trust affects acceptance.
 - sign_contract(target, good, qty, pay, deadline_turn): publicly commit to deliver goods by a deadline for payment on delivery. BINDING the moment you sign -- missing the deadline is recorded as a breach and costs 10 trust.
 - fulfil_contract(contract_id): deliver what you owe on an open contract and collect the payment.
+- audit(target): read an agent's exact balance. Requires holding the auditor office.
 - bet(amount, bet_type): coin_flip 50%/1x, pixel_horse 20%/4x, lottery 5%/18x. High risk.
 - invest(amount): lock money for 5 turns. 70% chance of 1.2-2x return. Tax-exempt while locked.
 - steal(target): take up to 30% of target's cash. Success drops 8% each attempt (60% base, min 15%). Fail = $2+ penalty. USE SPARINGLY.
@@ -53,6 +54,7 @@ MAJOR ACTIONS (pick 1, required):
 
 FREE ACTIONS (pick 0-1, alongside your major action):
 - vouch(target): +5 trust for them. Use to reward allies.
+- stand_for_office(office): take a vacant office (bank/auditor/arbiter/collector) for 20 turns. The registry records the holder.
 - slander(target, rumor): $0.20, drop their trust 5-10 pts. Destroy competitors' ability to trade.
 - bluff(fake_action): $0.10, fake public announcement. Misdirect competitors.
 - gaslight(target, fake_event): $0.15, send false private info. Make them paranoid.

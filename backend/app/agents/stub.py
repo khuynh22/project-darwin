@@ -11,6 +11,8 @@ from app.models.agent import Agent
 DEFAULT_BIAS = {
     "work": 4,
     "sign_contract": 2,
+    "stand_for_office": 1,
+    "audit": 1,
     "fulfil_contract": 2,
     "trade": 2,
     "bet": 1,
@@ -119,6 +121,23 @@ class StubAgent(BaseAgent):
         return decision
 
     def _pick_major(self, state: dict, agent: Agent, rng: random.Random) -> AgentDecision:
+        # Settle a commitment it can actually meet before rolling for anything
+        # else. Left to the weighted roll, a ~4% action against contracts that
+        # stay open a few turns almost never fires, and the fulfil path goes
+        # untested in CI. A rational agent would also rather deliver than breach.
+        satisfiable = [
+            c for c in (state.get("contracts") or [])
+            if c.get("proposer") == agent.agent_id
+            and (agent.inventory or {}).get(c.get("good"), 0) >= (c.get("qty") or 0)
+        ]
+        if satisfiable and rng.random() < 0.7:
+            chosen = rng.choice(satisfiable)
+            return AgentDecision(
+                "fulfil_contract",
+                {"contract_id": chosen["contract_id"]},
+                monologue=f"({agent.display_name}) Delivering on {chosen['contract_id']}.",
+            )
+
         bias = DEFAULT_BIAS
         choices: list[str] = []
         for action, weight in bias.items():
@@ -183,13 +202,23 @@ class StubAgent(BaseAgent):
             )
 
         if action == "sign_contract":
-            good = rng.choice(["ore", "food", "tech"])
+            # Commit only to what it currently holds. A stub that promises goods
+            # it does not have breaches every contract, which leaves the fulfil
+            # path untested and makes breach carry no information.
+            held = [g for g, n in (agent.inventory or {}).items() if n >= 1]
+            if not held:
+                return AgentDecision(
+                    "work", {},
+                    monologue=f"({agent.display_name}) Nothing to promise; working.",
+                )
+            good = rng.choice(sorted(held))
+            qty = rng.randint(1, min(2, agent.inventory.get(good, 1)))
             return AgentDecision(
                 "sign_contract",
-                {"target": target, "good": good, "qty": rng.randint(1, 3),
+                {"target": target, "good": good, "qty": qty,
                  "pay": round(rng.uniform(0.2, 1.5), 2),
                  "deadline_turn": state.get("turn", 1) + rng.randint(2, 6)},
-                monologue=f"({agent.display_name}) Committing to supply {target}.",
+                monologue=f"({agent.display_name}) Committing {qty} {good} to {target}.",
             )
 
         if action == "fulfil_contract":
@@ -206,6 +235,21 @@ class StubAgent(BaseAgent):
                 "fulfil_contract",
                 {"contract_id": rng.choice(mine)},
                 monologue=f"({agent.display_name}) Settling a commitment.",
+            )
+
+        if action == "stand_for_office":
+            vacant = [o for o, holder in (state.get("offices") or {}).items()
+                      if holder is None]
+            office = rng.choice(vacant or ["bank", "auditor", "arbiter", "collector"])
+            return AgentDecision(
+                "stand_for_office", {"office": office},
+                monologue=f"({agent.display_name}) Standing for {office}.",
+            )
+
+        if action == "audit":
+            return AgentDecision(
+                "audit", {"target": target},
+                monologue=f"({agent.display_name}) Auditing {target}.",
             )
 
         if action == "invest":

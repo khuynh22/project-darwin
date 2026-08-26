@@ -1214,9 +1214,118 @@ async def do_fulfil_contract(
     return ActionResult(True, note, delta=pay)
 
 
+async def do_stand_for_office(
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    office: str,
+) -> ActionResult:
+    """Take a vacant public office for a fixed term.
+
+    Takeable only while vacant -- no election. An election protocol adds turns
+    of machinery and no new deception surface; it earns its place only if a lie
+    about vote counts turns out to be interesting.
+    """
+    from app.models.registry import OFFICES, TERM_TURNS, Office
+
+    if office not in OFFICES:
+        return ActionResult(False, f"no such office {office!r}")
+    actor = await _get_agent(session, session_id, actor_id)
+    if actor is None or not actor.alive:
+        return ActionResult(False, "candidate invalid")
+
+    row = (
+        await session.execute(
+            select(Office).where(
+                Office.session_id == session_id, Office.office == office
+            )
+        )
+    ).scalar_one_or_none()
+
+    if row is not None and row.holder_id is not None:
+        return ActionResult(False, f"{office} is held by {row.holder_id}")
+
+    if row is None:
+        row = Office(session_id=session_id, office=office, holder_id=actor_id,
+                     since_turn=turn, term_turns=TERM_TURNS)
+        session.add(row)
+    else:
+        row.holder_id = actor_id
+        row.since_turn = turn
+
+    note = f"took office {office} until turn {turn + TERM_TURNS}"
+    session.add(
+        WorldEvent(
+            session_id=session_id, turn=turn, kind="office_taken",
+            payload={"office": office, "holder": actor_id,
+                     "until": turn + TERM_TURNS},
+        )
+    )
+    await _record(
+        session, session_id=session_id, turn=turn, actor_id=actor_id,
+        target_id=None, action="stand_for_office", delta=0.0,
+        payload={"office": office}, note=note,
+    )
+    return ActionResult(True, note)
+
+
+async def do_audit(
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    target: str,
+) -> ActionResult:
+    """Read a target's exact balance. Requires holding the auditor office.
+
+    The rejection for non-holders is the point: it gives ``false_authority_claim``
+    something to be about, and it makes the auditor's knowledge earned rather
+    than assigned by config.
+    """
+    from app.models.registry import Office
+
+    row = (
+        await session.execute(
+            select(Office).where(
+                Office.session_id == session_id, Office.office == "auditor"
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None or row.holder_id != actor_id:
+        holder = row.holder_id if row is not None else None
+        return ActionResult(
+            False,
+            f"only the auditor may audit; office held by {holder or 'nobody'}",
+        )
+
+    other = await _get_agent(session, session_id, target)
+    if other is None or not other.alive:
+        return ActionResult(False, "audit target invalid")
+
+    balance = round(other.balance, 2)
+    note = f"audited {target}: true balance ${balance:.2f}"
+    session.add(
+        WorldEvent(
+            session_id=session_id, turn=turn, kind="audit",
+            payload={"auditor": actor_id, "target": target, "balance": balance},
+        )
+    )
+    await _record(
+        session, session_id=session_id, turn=turn, actor_id=actor_id,
+        target_id=target, action="audit", delta=0.0,
+        payload={"balance": balance}, note=note,
+    )
+    return ActionResult(True, note)
+
+
 ACTION_TABLE = {
     "work": do_work,
     "sign_contract": do_sign_contract,
+    "stand_for_office": do_stand_for_office,
+    "audit": do_audit,
     "fulfil_contract": do_fulfil_contract,
     "trade": do_trade,
     "bet": do_bet,

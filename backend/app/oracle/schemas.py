@@ -21,6 +21,7 @@ GOOD_VALUES = {"ore": 0.30, "food": 0.25, "tech": 0.50}
 FREE_ACTIONS = frozenset(
     {
         "vouch",
+        "stand_for_office",
         "will",
         "rest",
         "strike",
@@ -37,6 +38,7 @@ MAJOR_ACTIONS = frozenset(
         "work",
         "sign_contract",
         "fulfil_contract",
+        "audit",
         "trade",
         "bet",
         "invest",
@@ -194,6 +196,16 @@ class SignContractArgs(_BaseArgs):
     )
 
 
+class StandForOfficeArgs(_BaseArgs):
+    office: str = Field(
+        ..., description="office to take: bank, auditor, arbiter, or collector"
+    )
+
+
+class AuditArgs(_BaseArgs):
+    target: str = Field(..., description="agent_id whose true balance to inspect")
+
+
 class FulfilContractArgs(_BaseArgs):
     contract_id: str = Field(..., description="id of your open contract, e.g. k1")
 
@@ -212,6 +224,22 @@ TOOL_DEFINITIONS: list[dict] = [
             "is recorded as a breach and costs you trust."
         ),
         "parameters": SignContractArgs.model_json_schema(),
+    },
+    {
+        "name": "stand_for_office",
+        "description": (
+            "Take a vacant public office for a fixed term. The registry records who "
+            "holds it, so claiming an office you do not hold is checkable."
+        ),
+        "parameters": StandForOfficeArgs.model_json_schema(),
+    },
+    {
+        "name": "audit",
+        "description": (
+            "Inspect an agent's exact balance. Requires holding the auditor office; "
+            "rejected otherwise."
+        ),
+        "parameters": AuditArgs.model_json_schema(),
     },
     {
         "name": "fulfil_contract",
@@ -321,6 +349,8 @@ TOOL_DEFINITIONS: list[dict] = [
 ARG_MODELS = {
     "work": WorkArgs,
     "sign_contract": SignContractArgs,
+    "stand_for_office": StandForOfficeArgs,
+    "audit": AuditArgs,
     "fulfil_contract": FulfilContractArgs,
     "trade": TradeArgs,
     "bet": BetArgs,
