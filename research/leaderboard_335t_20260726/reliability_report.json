@@ -1,0 +1,143 @@
+{
+  "n_sample": 120,
+  "replicates": {
+    "claude-opus-4.7": 2,
+    "gpt-5.2": 1
+  },
+  "self_consistency": {
+    "judge": "claude-opus-4.7",
+    "K": 3,
+    "n_compared": 120,
+    "unanimous_share": 0.9167
+  },
+  "cross_judge": {
+    "gpt-5.2": {
+      "kappa": 0.35,
+      "observed_agreement": 0.675,
+      "expected_agreement": 0.5,
+      "n": 120,
+      "rater_a_positive_rate": 0.5,
+      "rater_b_positive_rate": 0.2917,
+      "interpretation": "fair"
+    }
+  },
+  "ranking_stability": {
+    "gpt-5.2": {
+      "per_model": {
+        "deepseek": {
+          "n": 15,
+          "rate_primary": 0.5333,
+          "rate_other": 0.4667
+        },
+        "gemini": {
+          "n": 15,
+          "rate_primary": 0.5333,
+          "rate_other": 0.3333
+        },
+        "glm": {
+          "n": 15,
+          "rate_primary": 0.5333,
+          "rate_other": 0.1333
+        },
+        "gpt_5": {
+          "n": 15,
+          "rate_primary": 0.5333,
+          "rate_other": 0.1333
+        },
+        "grok": {
+          "n": 11,
+          "rate_primary": 0.3636,
+          "rate_other": 0.0909
+        },
+        "minimax": {
+          "n": 7,
+          "rate_primary": 0.0,
+          "rate_other": 0.0
+        },
+        "opus": {
+          "n": 14,
+          "rate_primary": 0.5714,
+          "rate_other": 0.2143
+        },
+        "qwen": {
+          "n": 14,
+          "rate_primary": 0.5714,
+          "rate_other": 0.4286
+        },
+        "sonnet": {
+          "n": 14,
+          "rate_primary": 0.5714,
+          "rate_other": 0.6429
+        }
+      },
+      "spearman_rho_vs_primary": 0.7568,
+      "note": "sample is stratified 50/50 on the PRIMARY judge's labels, so these rates are not population rates; only the ordering is meaningful."
+    }
+  },
+  "agreement_by_confidence": {
+    "gpt-5.2": {
+      "high (>=0.9)": {
+        "n": 48,
+        "agreement": 0.9375
+      },
+      "low (<0.75)": {
+        "n": 29,
+        "agreement": 0.5172
+      },
+      "mid (0.75-0.9)": {
+        "n": 43,
+        "agreement": 0.4884
+      }
+    }
+  },
+  "human_vs_judge": {
+    "status": "PENDING \u2014 fill human_labels.jsonl"
+  },
+  "random_sample": {
+    "gpt-5.2": {
+      "kappa": {
+        "kappa": 0.5017,
+        "observed_agreement": 0.875,
+        "expected_agreement": 0.7492,
+        "n": 120,
+        "rater_a_positive_rate": 0.175,
+        "rater_b_positive_rate": 0.1167,
+        "interpretation": "moderate",
+        "note": "prevalence-correct: unstratified random draw, so this IS the population kappa."
+      },
+      "per_model": {
+        "deepseek": {
+          "n": 18,
+          "rate_primary": 0.1111,
+          "rate_other": 0.0556
+        },
+        "gemini": {
+          "n": 21,
+          "rate_primary": 0.2381,
+          "rate_other": 0.1429
+        },
+        "glm": {
+          "n": 10,
+          "rate_primary": 0.1,
+          "rate_other": 0.1
+        },
+        "gpt_5": {
+          "n": 22,
+          "rate_primary": 0.1364,
+          "rate_other": 0.0
+        },
+        "opus": {
+          "n": 21,
+          "rate_primary": 0.3333,
+          "rate_other": 0.1905
+        },
+        "sonnet": {
+          "n": 20,
+          "rate_primary": 0.1,
+          "rate_other": 0.25
+        }
+      },
+      "n": 120
+    }
+  }
+}

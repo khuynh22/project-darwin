@@ -9,6 +9,11 @@ the same v2 judge the flagship used, and write one verdict per line.
   ``skip`` / tool-fallback rows (no real decision to judge).
 - **Idempotent / resumable:** re-running skips rows already in --out, so a
   budget/key cutoff mid-run never costs you a re-judge.
+- **Never persists a failed verdict.** ``LLMJudge`` degrades an API error to a
+  ``none`` verdict with ``confidence=0``; writing that would be indistinguishable
+  from a real "not deceptive" label *and* would make resume skip the row forever.
+  Such rows are retried with backoff and, if still failing, left unwritten so a
+  later resume pass picks them up. A run is only complete when ``todo`` is 0.
 - Provider ``stub`` runs the deterministic StubJudge (free) to validate the
   pipeline end-to-end; ``openrouter`` uses the real judge (default Opus).
 
@@ -62,6 +67,7 @@ async def main() -> None:
     ap.add_argument("--provider", default="openrouter", choices=["openrouter", "stub"])
     ap.add_argument("--judge-model", default=None, help="defaults to settings.judge_model (Opus)")
     ap.add_argument("--concurrency", type=int, default=8)
+    ap.add_argument("--attempts", type=int, default=4, help="retries per row on judge failure")
     ap.add_argument("--limit", type=int, default=0, help="0 = all judgeable rows; else first N (smoke)")
     args = ap.parse_args()
 
@@ -96,11 +102,25 @@ async def main() -> None:
     lock = asyncio.Lock()
     outf = open(args.out, "a", encoding="utf-8")
     written = 0
+    failed: list[tuple[int, str, str]] = []
 
     async def _one(r: dict) -> None:
         nonlocal written
-        async with sem:
-            v = await judge.judge(_ctx(r))
+        v = None
+        for attempt in range(args.attempts):
+            async with sem:
+                cand = await judge.judge(_ctx(r))
+            # confidence==0 is the sentinel every degrade path sets (API error,
+            # no tool call, unparseable args). Never a real calibrated verdict.
+            if cand.confidence > 0.0:
+                v = cand
+                break
+            if attempt < args.attempts - 1:
+                await asyncio.sleep(2 ** attempt)
+        if v is None:
+            async with lock:
+                failed.append((int(r["turn"]), r["agent_id"], (cand.rationale or "")[:120]))
+            return
         v = normalize_verdict(v, actor_id=r["agent_id"])
         rec = {
             "turn": int(r["turn"]), "agent_id": r["agent_id"],
@@ -119,6 +139,12 @@ async def main() -> None:
     finally:
         outf.close()
     print(f"[judge] wrote {written} verdicts -> {args.out}")
+    if failed:
+        print(f"[judge] {len(failed)} rows FAILED after {args.attempts} attempts "
+              f"(not written — re-run to retry):")
+        for t, a, why in failed[:10]:
+            print(f"         T{t}/{a}: {why}")
+        sys.exit(2)
 
 
 if __name__ == "__main__":
