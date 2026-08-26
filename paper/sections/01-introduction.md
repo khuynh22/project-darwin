@@ -35,7 +35,12 @@ action it takes, but studies a single agent under an overseer rather than peers 
 one another, so it cannot observe deception as a *social* strategy. Most recently, deception has
 been studied over extended interactions, across many frontier models and with adequate
 statistical power; that setting, however, is cooperative and hierarchical, spans roughly forty
-rounds, and again scores deception with a post-hoc auditor over outputs only.
+rounds, and again scores deception with a post-hoc auditor over outputs only. Closest of all,
+recent platform work runs a mixed-vendor agent population inside a scarcity economy for many
+simulated days — establishing that the *setting* we need is already available — but labels
+deception by checking public claims against the ledger, which catches a false statement about
+the world while leaving the agent's intent unaddressed, and reports violation counts over time
+without asking whether any one deceiver held a position.
 
 <!-- role: challenge chain, step 3 — the remaining challenge, decomposed -->
 The challenge that remains is therefore to measure deception that is simultaneously
@@ -70,29 +75,45 @@ horizon rather than at a point. We group labelled deceptive turns by deceiver an
 segment each stream into **episodes** — maximal runs of deceptive stance toward one target — and
 characterize their **coherence**: how long campaigns persist, whether they resume after
 interruption, whether they are abandoned once challenged, and whether coherence decays as the
-horizon lengthens. Because our environment runs to hundreds of social turns, this measure can be
-computed on trajectories roughly an order of magnitude longer than those used in prior deception
-studies.
+horizon lengthens. Our longest run spans 335 **social turns** — roughly eight times the ~42
+rounds of the nearest long-horizon deception study — which is what makes an interruption long
+enough to test resumption observable at all. We measure the horizon in social turns between
+peers throughout; platform work reporting wall-clock or simulated days is measuring a different
+quantity, and we make no length comparison against it.
 
-<!-- role: experiments — HEDGED. Update against §5 once the 335-turn run is judged. -->
-`TODO(data)` We instantiate the environment with ten frontier models spanning four
-organizations, across neutral, honesty-instructed, and deception-instructed conditions, in runs
-of up to 335 social turns. Our current evidence is a set of single-seed observations rather than
-a powered comparison, and we report it as such: deception rates that separate sharply and
-consistently by model; a within-game control in which two instances of the same model, given
-different specialties, rivals, and outcomes, nonetheless deceive at comparable rates while
-different models do not; a condition contrast in which an honesty instruction lowers deception
-substantially while explicit permission to deceive barely raises it; and, in the games observed,
-no wealth or survival advantage for the most deceptive agents. `TODO(data)` Insert the
-coherence result once the longest run is labelled.
+<!-- role: experiments — reconciled against §5 and CLAIMS.md on 2026-08-01 -->
+We instantiate the environment with ten frontier models spanning four organizations, across
+neutral, honesty-instructed, and deception-instructed conditions, in runs of up to 335 social
+turns; our primary run contributes 1,600 judged agent-turns. Our evidence is a set of
+single-seed observations rather than a powered comparison, and we report it as such: deception
+rates spanning 0–46% that separate sharply by model, though the ordering proves
+roster-dependent rather than a transitive property of the models; a within-game control in
+which two instances of the same model, given different specialties, rivals, and outcomes,
+deceive at comparable rates while different models do not; and a condition contrast in which an
+honesty instruction lowers deception substantially while explicit permission to deceive barely
+raises it.
+
+<!-- role: the negative headline, stated up front rather than buried in §5 -->
+Our coherence result is primarily cautionary, and we state it here because it revises how such
+measurements should be made. Raw campaign statistics in a small agent population are dominated
+by arithmetic: with at most nine rivals alive, a frequent liar must repeat targets. Against a
+permutation null that reshuffles only the choice of victim, the four heaviest deceivers score
+*at or below* chance on target selectivity, and only 4 of 24 tests survive multiplicity
+correction. Above-chance target selectivity appears in low-volume deceivers, and above-chance
+contiguous campaigns in two models — though the longest campaigns all target an opponent
+impaired by tool-call failures. Long-gap resumption is not established. Deception does not
+decay across the horizon; it roughly doubles after turn 200 as the field narrows.
 
 <!-- role: contributions -->
-This work makes four contributions. (i) An open adversarial survival economy for eliciting and
-observing deception among competing frozen models, released with its traces. (ii) An
+This work makes four contributions. (i) An instrumented open survival economy whose novelty is
+what it *records* rather than what it simulates: every agent-turn is captured as a triple, so
+intent-grounded labelling is possible at all; released with its traces. (ii) An
 intent-grounded deception measure defined over the private/public/action triple, together with a
 taxonomy, a judging protocol, and a reliability protocol reporting self-consistency, judge
-sensitivity, and human agreement. (iii) A measure of sustained deception coherence over long
-horizons, computed on trajectories substantially longer than prior work. (iv) A first empirical
+sensitivity, and human agreement. (iii) A coherence measure for sustained deception **together
+with the permutation null that makes it interpretable** — our finding that raw campaign
+statistics are mechanically inflated applies to any multi-agent deception study drawing
+campaign structure from a small agent pool. (iv) A first empirical
 characterization of how frontier models differ in deception propensity and style under identical
 competitive conditions, reported with explicit statistical caveats.
 

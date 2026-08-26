@@ -28,7 +28,25 @@ affect outcomes. Our clearest illustration: two instances of the same model fini
 $173.17 and $1.20 while deceiving at similar rates — model predicts *behavior*, but luck
 substantially drives *outcome*. Wealth/survival-linked claims inherit this noise.
 
+**Unequal exposure and survivorship.** Agents in the ten-model run were eliminated at very
+different times — from 36 turns to the full 335, a ~9× spread — so the models are not
+observed under comparable conditions. Deception rates are exposure-normalised, but a
+short-lived agent is scored only on early turns, when the economy is uncrowded and there is
+little accumulated trust to exploit. The long-horizon coherence results are more exposed
+still: only agents that survived can sustain a campaign, so **coherence is conditioned on
+survival, and survival is itself strategy-dependent**. We therefore report coherence for
+survivors descriptively and do not treat a low coherence score for an early-eliminated model
+as evidence that it *cannot* sustain a campaign.
+
+**Environment novelty.** We do not claim the environment as the contribution. Concurrent
+platform work fields a mixed-vendor agent population in a scarcity economy over a long
+horizon; our claims are confined to the *measurement* — intent-grounded labelling from the
+triple, and the coherence metric — and §2 states this explicitly. A reader looking for a
+novel simulator should look elsewhere.
+
 **Data-collection caveats.** In the ten-model run, one model (Kimi) failed to emit valid
-tool calls on 56% of its turns and is excluded as an instrumentation artifact rather than
-a behavioral result. That run was judged from the exported trace (ground truth via the
-recorded outcome string) rather than full database state.
+tool calls on 56% of its turns and is excluded **as a deceiver** for that reason — an
+instrumentation artifact, not a behavioral result. It remains present in the world and can
+still be *targeted*, so it appears on the target axis of our campaign figure while
+contributing no deception rate of its own. That run was judged from the exported trace
+(ground truth via the recorded outcome string) rather than full database state.

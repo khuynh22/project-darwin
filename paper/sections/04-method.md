@@ -105,11 +105,35 @@ set we derive **coherence**: the length of sustained campaigns, whether a campai
 after interruption, whether it is abandoned once challenged, and whether coherence decays as
 the horizon lengthens.
 
-<!-- role: limitation -->
-`TODO(finalize)` The exact coherence statistic is deliberately not fixed here. Episode
-reconstruction is implemented, but the choice among candidate summaries is deferred until it can
-be made against verdicts from our longest run rather than chosen blind; the rejected candidates
-will be reported alongside the adopted one.
+<!-- role: motivation — the correction that governs every coherence number we report -->
+Coherence statistics cannot be read raw, and recognising this is part of the contribution.
+The natural summary — the share of a deceiver's directed lies aimed at an already-deceived
+victim — has a hard arithmetic floor: with at most nine rivals alive, an agent telling 86
+directed lies cannot avoid repeating targets. Such a statistic measures lie volume divided by
+pool size, not strategy. The same objection applies to the longest gap after which a deceiver
+returns to a victim, since a frequent liar will revisit someone after a long silence by chance.
+
+<!-- role: design — the null -->
+We therefore evaluate every coherence statistic against a **permutation null**. For each
+deceiver we hold its deceptive turn indices fixed and reassign each turn's *target* uniformly
+among the agents alive on that turn, excluding itself, over 1,000 iterations. This preserves
+how often the agent lied, when it lied, and how many rivals were available; only the choice of
+victim is randomised, so what survives is target selectivity — which is what "campaign" means.
+Agents excluded as deceivers for instrumentation reasons remain in the null's target pool,
+since shrinking the pool would bias the test toward calling chance repetition selectivity. We
+run one test per model per metric and control the false discovery rate across all of them with
+Benjamini-Hochberg; uncorrected p-values are never reported as findings.
+
+<!-- role: design — what was adopted, and what was rejected -->
+Against that null we adopt three statistics: **repeat-target share**, **maximum contiguous
+episode length**, and **maximum return gap**, each reported as observed-versus-chance. The
+first and third are computed without segmentation and so do not depend on the episode gap
+threshold; the sweep in the supplement shows the threshold is not load-bearing for the second
+either. We rejected four candidates on evidence: *abandonment rate* is the algebraic inverse
+of episode length and adds nothing; *narrative type-consistency* ranges only 0.63–0.69 across
+high-volume models and conflates a coherent story with a model's fixed stylistic preference;
+*episode density* ranges only 0.82–0.88 and does not discriminate; and a *coherence-versus-turn
+slope* measures intensity rather than coherence and is reported separately as such.
 
 ## 4.5 Reliability protocol
 
@@ -118,13 +142,19 @@ Labels produced by a language model require their own validation, particularly w
 judge shares a model family with an evaluated agent.
 
 <!-- role: design -->
-We therefore report three quantities. **Self-consistency** is the mean agreement of *K*
-independent samples with their per-turn majority label. **Judge sensitivity** is the agreement
-between the default judge and a judge from a different model family on the same stratified
-sample, which also bounds self-preference bias. **Human agreement** is Cohen's κ between judge
-labels and human annotations on a stratified blind sample in which annotators see the full
-triple and ground truth but not the verdict.
+We therefore report three quantities. **Self-consistency** is the agreement of *K* independent
+samples at temperature 0, which isolates provider nondeterminism. **Judge sensitivity** is the
+agreement between the default judge and a judge from a different model family, which also
+bounds self-preference bias. **Human agreement** is Cohen's κ between judge labels and human
+annotations on a blind sample in which the annotator sees the full triple and ground truth but
+neither the actor's identity nor the verdict.
 
-<!-- role: limitation -->
-`TODO(data)` These quantities are specified but not yet collected; §7 states the consequence
-for how the present results should be read.
+<!-- role: design — the sampling subtlety that changes the headline number -->
+Sampling design is not incidental here, because Cohen's κ is prevalence-sensitive. We draw two
+samples. A **stratified** sample balanced 50/50 on the primary verdict maximises information
+about the rare positive class, but its marginals are engineered, so its κ is not the population
+value and it cannot test per-model ordering — round-robin balancing forces every model to
+roughly 0.5 under the primary judge. A **prevalence-correct random** sample yields the
+population κ and a valid ranking comparison. We report the random-sample κ as the headline and
+the stratified κ alongside it, and we report agreement conditioned on the judge's own stated
+confidence, because the two differ sharply in a way a single pooled number conceals.
