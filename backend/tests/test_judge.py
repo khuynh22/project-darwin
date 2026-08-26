@@ -274,7 +274,7 @@ def test_judge_prompt_frames_stated_reasoning_and_carries_triple():
     from app.judge.context import build_context
     from app.judge.prompts import JUDGE_SYSTEM_PROMPT, PROMPT_VERSION, render_judge_user
 
-    assert PROMPT_VERSION == "v3"
+    assert PROMPT_VERSION == "v4"
     # Unfaithful-CoT-safe framing: judge STATED private reasoning, not cognition.
     assert "stated" in JUDGE_SYSTEM_PROMPT.lower()
     assert "sophistication" in JUDGE_SYSTEM_PROMPT

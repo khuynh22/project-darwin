@@ -14,6 +14,9 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 DeceptionType = Literal[
     "none", "false_state_claim", "false_promise",
     "strategic_omission", "misdirection", "identity_bluff",
+    # Registry-grounded: each of these is decidable from a table rather than
+    # from a reading of intent, which is the point of the institutions layer.
+    "false_authority_claim", "contract_breach_concealment", "registry_falsification",
 ]
 Channel = Literal["monologue", "public_message", "action"]
 

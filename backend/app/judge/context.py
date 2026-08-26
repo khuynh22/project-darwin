@@ -25,9 +25,13 @@ class JudgeContext:
     trust_score: float | None = None
     target_id: str | None = None
     transactions: list[dict] = field(default_factory=list)
+    # Registries in force at this turn: open contracts and office holders. The
+    # judge decides authority and breach claims from these rather than from
+    # tone, which is what makes those verdicts checkable.
+    registry: dict = field(default_factory=dict)
 
 
-def build_context(thought, snapshot, txns) -> JudgeContext:
+def build_context(thought, snapshot, txns, registry: dict | None = None) -> JudgeContext:
     """*thought* = ThoughtLog, *snapshot* = TurnSnapshot | None,
     *txns* = this actor's Transaction rows for this turn."""
     tx_dicts = [
@@ -48,4 +52,5 @@ def build_context(thought, snapshot, txns) -> JudgeContext:
         trust_score=snapshot.trust_score if snapshot is not None else None,
         target_id=target_id,
         transactions=tx_dicts,
+        registry=registry or {},
     )
