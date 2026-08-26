@@ -35,6 +35,8 @@ FREE_ACTIONS = frozenset(
 MAJOR_ACTIONS = frozenset(
     {
         "work",
+        "sign_contract",
+        "fulfil_contract",
         "trade",
         "bet",
         "invest",
@@ -182,11 +184,42 @@ class BribeArgs(_BaseArgs):
 
 # ── Tool definitions (JSON schema for LLMs) ──────────────────────────────────
 
+class SignContractArgs(_BaseArgs):
+    target: str = Field(..., description="agent_id of the counterparty")
+    good: str = Field(..., description="good you commit to deliver: ore, food, or tech")
+    qty: int = Field(..., gt=0, description="units you commit to deliver")
+    pay: float = Field(..., ge=0, description="dollars the counterparty pays on delivery")
+    deadline_turn: int = Field(
+        ..., description="turn by which you must deliver; must be in the future"
+    )
+
+
+class FulfilContractArgs(_BaseArgs):
+    contract_id: str = Field(..., description="id of your open contract, e.g. k1")
+
+
 TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "work",
         "description": "Labor for $0.05-$0.20 + 1 random good (ore/food/tech). +10% bonus if married.",
         "parameters": WorkArgs.model_json_schema(),
+    },
+    {
+        "name": "sign_contract",
+        "description": (
+            "Publicly commit to deliver goods to another agent by a deadline, for "
+            "payment on delivery. Binding the moment you sign: missing the deadline "
+            "is recorded as a breach and costs you trust."
+        ),
+        "parameters": SignContractArgs.model_json_schema(),
+    },
+    {
+        "name": "fulfil_contract",
+        "description": (
+            "Deliver the goods you owe on one of your open contracts and collect "
+            "the agreed payment."
+        ),
+        "parameters": FulfilContractArgs.model_json_schema(),
     },
     {
         "name": "trade",
@@ -287,6 +320,8 @@ TOOL_DEFINITIONS: list[dict] = [
 
 ARG_MODELS = {
     "work": WorkArgs,
+    "sign_contract": SignContractArgs,
+    "fulfil_contract": FulfilContractArgs,
     "trade": TradeArgs,
     "bet": BetArgs,
     "socialize": SocializeArgs,

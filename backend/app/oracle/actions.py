@@ -1071,8 +1071,153 @@ async def do_bribe(
     )
 
 
+async def do_sign_contract(
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    target: str,
+    good: str,
+    qty: int,
+    pay: float,
+    deadline_turn: int,
+) -> ActionResult:
+    """Bind the actor to deliver *qty* *good* to *target* by *deadline_turn*.
+
+    Binds on proposal -- there is no acceptance step. The commitment is public
+    and dated, which is what makes a later breach a fact rather than a reading
+    of intent.
+    """
+    from app.models.registry import Contract
+
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, target)
+    if actor is None or other is None or not actor.alive or not other.alive:
+        return ActionResult(False, "contract counterparty invalid")
+    if target == actor_id:
+        return ActionResult(False, "cannot contract with yourself")
+    if deadline_turn <= turn:
+        return ActionResult(False, f"deadline {deadline_turn} is not in the future")
+    if good not in ("ore", "food", "tech"):
+        return ActionResult(False, f"unknown good {good!r}")
+    if qty <= 0:
+        return ActionResult(False, "quantity must be positive")
+
+    existing = (
+        await session.execute(
+            select(Contract).where(Contract.session_id == session_id)
+        )
+    ).scalars().all()
+    contract_id = f"k{len(existing) + 1}"
+
+    session.add(
+        Contract(
+            session_id=session_id,
+            contract_id=contract_id,
+            proposer_id=actor_id,
+            counterparty_id=target,
+            terms={"deliver": {"good": good, "qty": int(qty)}, "pay": round(pay, 2)},
+            created_turn=turn,
+            deadline_turn=deadline_turn,
+            status="open",
+        )
+    )
+    note = (
+        f"signed {contract_id}: owes {qty} {good} to {target} for "
+        f"${round(pay, 2)} by turn {deadline_turn}"
+    )
+    session.add(
+        WorldEvent(
+            session_id=session_id, turn=turn, kind="contract_signed",
+            payload={"contract_id": contract_id, "proposer": actor_id,
+                     "counterparty": target, "deadline": deadline_turn},
+        )
+    )
+    await _record(
+        session, session_id=session_id, turn=turn, actor_id=actor_id,
+        target_id=target, action="sign_contract", delta=0.0,
+        payload={"contract_id": contract_id}, note=note,
+    )
+    return ActionResult(True, note)
+
+
+async def do_fulfil_contract(
+    session: AsyncSession,
+    *,
+    session_id: str,
+    turn: int,
+    actor_id: str,
+    contract_id: str,
+) -> ActionResult:
+    """Deliver the goods and collect payment, closing the contract."""
+    from app.models.registry import Contract
+
+    contract = (
+        await session.execute(
+            select(Contract).where(
+                Contract.session_id == session_id,
+                Contract.contract_id == contract_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if contract is None:
+        return ActionResult(False, f"no contract {contract_id}")
+    if contract.status != "open":
+        return ActionResult(False, f"{contract_id} is already {contract.status}")
+    if contract.proposer_id != actor_id:
+        return ActionResult(False, f"{contract_id} is not yours to fulfil")
+
+    actor = await _get_agent(session, session_id, actor_id)
+    other = await _get_agent(session, session_id, contract.counterparty_id)
+    if actor is None or other is None:
+        return ActionResult(False, "contract party missing")
+
+    deliver = (contract.terms or {}).get("deliver") or {}
+    good, qty = deliver.get("good"), int(deliver.get("qty", 0))
+    pay = float((contract.terms or {}).get("pay", 0.0))
+
+    actor_inv = dict(actor.inventory or {})
+    if actor_inv.get(good, 0) < qty:
+        return ActionResult(
+            False, f"cannot fulfil {contract_id}: holds "
+                   f"{actor_inv.get(good, 0)} {good}, owes {qty}"
+        )
+    if other.balance < pay:
+        return ActionResult(
+            False, f"cannot fulfil {contract_id}: {other.agent_id} cannot pay ${pay}"
+        )
+
+    other_inv = dict(other.inventory or {})
+    actor_inv[good] = actor_inv.get(good, 0) - qty
+    other_inv[good] = other_inv.get(good, 0) + qty
+    actor.inventory = actor_inv
+    other.inventory = other_inv
+    actor.balance = round(actor.balance + pay, 2)
+    other.balance = round(other.balance - pay, 2)
+
+    contract.status = "fulfilled"
+    contract.resolved_turn = turn
+
+    note = f"fulfilled {contract_id}: delivered {qty} {good}, collected ${pay}"
+    session.add(
+        WorldEvent(
+            session_id=session_id, turn=turn, kind="contract_fulfilled",
+            payload={"contract_id": contract_id, "proposer": actor_id},
+        )
+    )
+    await _record(
+        session, session_id=session_id, turn=turn, actor_id=actor_id,
+        target_id=contract.counterparty_id, action="fulfil_contract", delta=pay,
+        payload={"contract_id": contract_id}, note=note,
+    )
+    return ActionResult(True, note, delta=pay)
+
+
 ACTION_TABLE = {
     "work": do_work,
+    "sign_contract": do_sign_contract,
+    "fulfil_contract": do_fulfil_contract,
     "trade": do_trade,
     "bet": do_bet,
     "socialize": do_socialize,

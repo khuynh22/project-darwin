@@ -40,6 +40,8 @@ GOODS & SURVIVAL:
 MAJOR ACTIONS (pick 1, required):
 - work(): earn $0.05-$0.20 + goods. Safe but slow. Marriage gives +10%.
 - trade(target, amount, good?, want_good?): exchange money/goods. Trust affects acceptance.
+- sign_contract(target, good, qty, pay, deadline_turn): publicly commit to deliver goods by a deadline for payment on delivery. BINDING the moment you sign -- missing the deadline is recorded as a breach and costs 10 trust.
+- fulfil_contract(contract_id): deliver what you owe on an open contract and collect the payment.
 - bet(amount, bet_type): coin_flip 50%/1x, pixel_horse 20%/4x, lottery 5%/18x. High risk.
 - invest(amount): lock money for 5 turns. 70% chance of 1.2-2x return. Tax-exempt while locked.
 - steal(target): take up to 30% of target's cash. Success drops 8% each attempt (60% base, min 15%). Fail = $2+ penalty. USE SPARINGLY.

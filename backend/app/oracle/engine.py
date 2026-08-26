@@ -111,6 +111,19 @@ async def _get_agent_by_id(
 
 
 async def _world_state(session: AsyncSession, session_id: str, turn: int) -> dict:
+    from app.models.registry import Contract, Office
+
+    open_contracts = (
+        await session.execute(
+            select(Contract).where(
+                Contract.session_id == session_id, Contract.status == "open"
+            ).order_by(Contract.deadline_turn)
+        )
+    ).scalars().all()
+    offices = (
+        await session.execute(select(Office).where(Office.session_id == session_id))
+    ).scalars().all()
+
     rows = (
         (
             await session.execute(
@@ -124,6 +137,21 @@ async def _world_state(session: AsyncSession, session_id: str, turn: int) -> dic
     )
     return {
         "turn": turn,
+        # Registries are public: an agent can only lie about what it can see.
+        "contracts": [
+            {
+                "contract_id": c.contract_id,
+                "proposer": c.proposer_id,
+                "counterparty": c.counterparty_id,
+                "good": (c.terms or {}).get("deliver", {}).get("good"),
+                "qty": (c.terms or {}).get("deliver", {}).get("qty"),
+                "pay": (c.terms or {}).get("pay"),
+                "deadline_turn": c.deadline_turn,
+                "summary": c.summary(),
+            }
+            for c in open_contracts
+        ],
+        "offices": {o.office: o.holder_id for o in offices},
         "agents": [
             {
                 "agent_id": a.agent_id,
@@ -445,6 +473,50 @@ def _apex_holder(agents: list[Agent], threshold: float) -> str | None:
     return None
 
 
+async def settle_contracts(
+    session: AsyncSession, session_id: str, turn: int
+) -> list[str]:
+    """Mark every open contract past its deadline as breached.
+
+    Idempotent by construction: only ``open`` rows are considered, and a breach
+    flips the status, so trust is never docked twice for one broken promise.
+    Returns the breached contract ids.
+    """
+    from app.models.registry import Contract
+
+    rows = (
+        await session.execute(
+            select(Contract).where(
+                Contract.session_id == session_id,
+                Contract.status == "open",
+                Contract.deadline_turn < turn,
+            )
+        )
+    ).scalars().all()
+
+    breached: list[str] = []
+    for contract in rows:
+        contract.status = "breached"
+        contract.resolved_turn = turn
+        proposer = await _get_agent_by_id(session, session_id, contract.proposer_id)
+        if proposer is not None:
+            # Same penalty as a loan default: a broken promise costs the same
+            # whether it was written down or not.
+            proposer.trust_score = max(0.0, proposer.trust_score - 10)
+        session.add(
+            WorldEvent(
+                session_id=session_id,
+                turn=turn,
+                kind="contract_breached",
+                payload={"contract_id": contract.contract_id,
+                         "proposer": contract.proposer_id,
+                         "counterparty": contract.counterparty_id},
+            )
+        )
+        breached.append(contract.contract_id)
+    return breached
+
+
 async def _process_deferred(
     session: AsyncSession, session_id: str, turn: int, rng: random.Random
 ) -> None:
@@ -651,6 +723,7 @@ async def run_turn(
 
     # Settle maturing investments and loans before agent decisions
     await _process_deferred(session, session_id, turn, rng)
+    await settle_contracts(session, session_id, turn)
 
     db_agents = (
         (

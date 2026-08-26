@@ -10,6 +10,8 @@ from app.models.agent import Agent
 # Default bias used for all stub agents (no hardcoded agent IDs).
 DEFAULT_BIAS = {
     "work": 4,
+    "sign_contract": 2,
+    "fulfil_contract": 2,
     "trade": 2,
     "bet": 1,
     "socialize": 2,
@@ -178,6 +180,32 @@ class StubAgent(BaseAgent):
                 "sabotage",
                 {"target": target, "cost": 1.00},
                 monologue=f"({agent.display_name}) Sabotaging {target}.",
+            )
+
+        if action == "sign_contract":
+            good = rng.choice(["ore", "food", "tech"])
+            return AgentDecision(
+                "sign_contract",
+                {"target": target, "good": good, "qty": rng.randint(1, 3),
+                 "pay": round(rng.uniform(0.2, 1.5), 2),
+                 "deadline_turn": state.get("turn", 1) + rng.randint(2, 6)},
+                monologue=f"({agent.display_name}) Committing to supply {target}.",
+            )
+
+        if action == "fulfil_contract":
+            mine = [
+                c["contract_id"] for c in state.get("contracts", [])
+                if c.get("proposer") == agent.agent_id
+            ]
+            if not mine:
+                return AgentDecision(
+                    "work", {},
+                    monologue=f"({agent.display_name}) Nothing to settle; working.",
+                )
+            return AgentDecision(
+                "fulfil_contract",
+                {"contract_id": rng.choice(mine)},
+                monologue=f"({agent.display_name}) Settling a commitment.",
             )
 
         if action == "invest":
