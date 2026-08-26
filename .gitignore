@@ -51,3 +51,6 @@ thought_logs/
 releases/*/trace.jsonl
 releases/*/verdicts.jsonl
 releases/*/scores.json
+
+# TypeScript incremental build cache: regenerates on every build.
+frontend/tsconfig.tsbuildinfo
