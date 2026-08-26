@@ -21,7 +21,7 @@ from app.agents.base import AgentDecision, BaseAgent
 from app.models.agent import Agent
 from app.models.ledger import ThoughtLog
 from app.probe.schema import DEFAULT_DIVERGENCE_THRESHOLD, Probe
-from app.trace.schema import Instrument, TurnRecord, TurnState
+from app.trace.schema import Instrument, TurnRecord, TurnState, WorldRecord
 
 log = logging.getLogger(__name__)
 
@@ -83,8 +83,13 @@ async def restore_world(
     probe: Probe,
     *,
     states: dict[str, TurnState] | None = None,
+    world: WorldRecord | None = None,
 ) -> None:
     """Seed the roster, then overwrite each row with the frozen state.
+
+    *world* carries the registries in force at the frozen turn. They are part of
+    the stimulus, not decoration: the world brief lists open contracts and office
+    holders, so restoring without them shows the model a different world.
 
     *states* carries the v5 fields the probe world does not model directly --
     ``steal_count``, ``allies``, and the rest. Passing them is what makes a
@@ -93,6 +98,7 @@ async def restore_world(
     without ``allies`` the model is shown a different world brief entirely.
     """
     from app.models.deferred import DeferredAction
+    from app.models.registry import Contract, Office
     from app.oracle.engine import seed_roster
 
     await seed_roster(session, session_id, roster=_roster(probe), seed=probe.world.seed)
@@ -149,6 +155,32 @@ async def restore_world(
                     resolved=False,
                 )
             )
+    if world is not None:
+        for row in world.contracts:
+            session.add(
+                Contract(
+                    session_id=session_id,
+                    contract_id=row["contract_id"],
+                    proposer_id=row["proposer"],
+                    counterparty_id=row["counterparty"],
+                    terms=row.get("terms")
+                    or {"deliver": {"good": row.get("good"), "qty": row.get("qty")},
+                        "pay": row.get("pay", 0.0)},
+                    created_turn=row.get("created_turn", probe.world.start_turn),
+                    deadline_turn=row["deadline_turn"],
+                    status=row.get("status", "open"),
+                )
+            )
+        for office, holder in (world.offices or {}).items():
+            session.add(
+                Office(
+                    session_id=session_id,
+                    office=office,
+                    holder_id=holder,
+                    since_turn=probe.world.start_turn,
+                )
+            )
+
     await session.commit()
 
 

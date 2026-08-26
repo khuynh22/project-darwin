@@ -81,12 +81,16 @@ def _probe_from_state(turn: int, records, manifest) -> Probe:
     )
 
 
-async def _restore(factory, turn, records, manifest, session_id="restored"):
+async def _restore(factory, turn, records, manifest, session_id="restored",
+                   world=None):
     probe = _probe_from_state(turn, records, manifest)
-    # Carry the v5 fields the probe world does not model directly.
+    # Carry the v5 fields the probe world does not model directly, plus the
+    # registries in force -- the brief lists them, so they are stimulus.
     state_by_agent = {r.agent_id: r.state for r in records if r.turn == turn}
+    at_turn = next((w for w in (world or []) if w.turn == turn), None)
     async with factory() as session:
-        await restore_world(session, session_id, probe, states=state_by_agent)
+        await restore_world(session, session_id, probe, states=state_by_agent,
+                            world=at_turn)
     return probe
 
 
@@ -94,13 +98,13 @@ async def test_restored_world_matches_every_agent_column():
     factory, engine = await _factory()
     await _live_run(factory)
     async with factory() as session:
-        manifest, records, _ = await export_session(session, SID, seed=21)
+        manifest, records, world = await export_session(session, SID, seed=21)
         original = (await session.execute(
             select(Agent).where(Agent.session_id == SID)
         )).scalars().all()
         original_by_id = {a.agent_id: a for a in original}
 
-    await _restore(factory, TURNS, records, manifest)
+    await _restore(factory, TURNS, records, manifest, world=world)
     async with factory() as session:
         restored = (await session.execute(
             select(Agent).where(Agent.session_id == "restored")
@@ -122,10 +126,10 @@ async def test_restored_world_brief_is_identical():
     factory, engine = await _factory()
     await _live_run(factory)
     async with factory() as session:
-        manifest, records, _ = await export_session(session, SID, seed=21)
+        manifest, records, world = await export_session(session, SID, seed=21)
         original_state = await _world_state(session, SID, TURNS)
 
-    await _restore(factory, TURNS, records, manifest)
+    await _restore(factory, TURNS, records, manifest, world=world)
     async with factory() as session:
         restored_state = await _world_state(session, "restored", TURNS)
     await engine.dispose()
@@ -152,13 +156,13 @@ async def test_steal_count_actually_survives_the_round_trip():
     factory, engine = await _factory()
     await _live_run(factory)
     async with factory() as session:
-        manifest, records, _ = await export_session(session, SID, seed=21)
+        manifest, records, world = await export_session(session, SID, seed=21)
         thieves = {
             r.agent_id: r.state.steal_count
             for r in records if r.turn == TURNS and (r.state.steal_count or 0) > 0
         }
 
-    await _restore(factory, TURNS, records, manifest)
+    await _restore(factory, TURNS, records, manifest, world=world)
     async with factory() as session:
         restored = (await session.execute(
             select(Agent).where(Agent.session_id == "restored")

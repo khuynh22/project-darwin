@@ -13,6 +13,7 @@ from app.config import ENV_VERSION
 from app.models.agent import Agent
 from app.models.deferred import DeferredAction
 from app.models.ledger import ThoughtLog, TurnSnapshot
+from app.models.registry import Contract, Office
 from app.trace.adapters.legacy_jsonl import is_fallback
 from app.trace.schema import (
     TRACE_SCHEMA_VERSION,
@@ -118,8 +119,47 @@ async def export_session(
             for a in sorted(agents, key=lambda x: x.agent_id)
         ],
     )
+    contracts = (
+        await session.execute(
+            select(Contract).where(Contract.session_id == session_id)
+        )
+    ).scalars().all()
+    offices = (
+        await session.execute(select(Office).where(Office.session_id == session_id))
+    ).scalars().all()
+
+    def _open_at(turn: int) -> list[dict]:
+        """Contracts that were open *at that turn*, not merely open now.
+
+        A contract resolved later was still in force earlier, so replaying a
+        turn must see it. Reading current status would show a world the agents
+        never faced.
+        """
+        return [
+            {
+                "contract_id": c.contract_id,
+                "proposer": c.proposer_id,
+                "counterparty": c.counterparty_id,
+                "terms": c.terms,
+                "good": (c.terms or {}).get("deliver", {}).get("good"),
+                "qty": (c.terms or {}).get("deliver", {}).get("qty"),
+                "pay": (c.terms or {}).get("pay"),
+                "created_turn": c.created_turn,
+                "deadline_turn": c.deadline_turn,
+                "status": "open",
+            }
+            for c in contracts
+            if c.created_turn <= turn
+            and (c.resolved_turn is None or turn < c.resolved_turn)
+        ]
+
     world = [
-        WorldRecord(kind="world", turn=turn)
+        WorldRecord(
+            kind="world",
+            turn=turn,
+            contracts=_open_at(turn),
+            offices={o.office: o.holder_id for o in offices},
+        )
         for turn in sorted({t.turn for t in thoughts})
     ]
     return manifest, records, world

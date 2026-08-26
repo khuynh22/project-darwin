@@ -200,6 +200,27 @@ def render_world_brief(state: dict, self_id: str) -> str:
             f"  - {a.get('display_name', aid)} ({aid}): {bal} [{status}]{trust}{steals}{social_str}{inv}{marker}"
         )
 
+    # Public registries. An agent can only lie about what it can see, and these
+    # are the facts a listener can check -- which is what makes a false claim
+    # about them decidable rather than a matter of interpretation.
+    offices = state.get("offices") or {}
+    if offices:
+        held = ", ".join(
+            f"{office}={holder or 'vacant'}" for office, holder in sorted(offices.items())
+        )
+        lines.append(f"\nOFFICES: {held}")
+
+    contracts = state.get("contracts") or []
+    if contracts:
+        lines.append("\nOPEN CONTRACTS:")
+        for c in contracts:
+            mine = " <-- yours" if c.get("proposer") == self_id else ""
+            lines.append(
+                f"  - {c['contract_id']}: {c['proposer']} owes {c.get('qty')} "
+                f"{c.get('good')} to {c['counterparty']} for ${c.get('pay')} "
+                f"by turn {c['deadline_turn']}{mine}"
+            )
+
     # Gaslight injections (fake events only this agent sees)
     if gaslight_events:
         lines.append("\nRECENT EVENTS:")
