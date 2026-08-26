@@ -87,9 +87,19 @@ async def reexecute(
     *,
     mode: str = "strict",
     session_id: str = "reexec",
-    prompt_version: str = "v3",
+    prompt_version: str | None = None,
 ) -> ReexecuteReport:
+    """*prompt_version* defaults to the live PROMPT_VERSION.
+
+    Never hardcode it: a stale literal here misses every cache key the moment
+    the judge prompt is bumped, and the run silently re-executes as a fresh
+    experiment instead of a replay.
+    """
+    from app.judge.prompts import PROMPT_VERSION
     from app.oracle.engine import run_turn, seed_roster
+
+    if prompt_version is None:
+        prompt_version = PROMPT_VERSION
 
     manifest, records = read_trace(trace_path)
     report = ReexecuteReport(run_id=manifest.run_id)

@@ -121,7 +121,9 @@ async def run_sweep(
                     budget_hit.set()
                     return
             result = await run_cell(
-                session_factory, cell, roster=roster, turns=spec.turns, out_dir=out_dir
+                session_factory, cell, roster=roster, turns=spec.turns,
+                out_dir=out_dir,
+                cache_root=Path(spec.cache) if spec.cache else None,
             )
         _write_manifest(out_dir, result)
         (report.completed if result.ok else report.failed).append(result)

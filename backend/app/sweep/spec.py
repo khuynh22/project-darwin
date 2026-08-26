@@ -50,6 +50,9 @@ class ExperimentSpec(BaseModel):
     turns: int = Field(ge=1)
     out: str
     concurrency: int = Field(default=2, ge=1)
+    # Directory for recorded model decisions. Set it for any run you intend to
+    # replay or publish: a decision not recorded during the run is unrecoverable.
+    cache: str | None = None
     budget: Budget = Field(default_factory=Budget)
 
     @field_validator("seeds")

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.agents.factory import build_agents
 from app.config import ENV_VERSION
 from app.db import Base
+from app.judge.prompts import PROMPT_VERSION
 from app.models import deferred as _deferred  # noqa: F401  (register table)
 from app.oracle.engine import run_turn, seed_roster
 from app.replay.cache import CacheMiss, ResponseCache
@@ -41,7 +42,7 @@ async def _record(tmp_path):
     live = build_agents(roster=_roster())
     agents = {
         aid: CachedAgent(aid, cache=cache, inner=inner, mode="permissive",
-                         model="stub/model", prompt_version="v3")
+                         model="stub/model", prompt_version=PROMPT_VERSION)
         for aid, inner in live.items()
     }
     async with factory() as session:

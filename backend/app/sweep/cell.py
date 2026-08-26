@@ -32,7 +32,14 @@ async def run_cell(
     roster: list[dict],
     turns: int,
     out_dir: Path,
+    cache_root: Path | None = None,
 ) -> CellResult:
+    """Run one cell. With *cache_root*, every model decision is recorded.
+
+    Recording is the difference between a paid run that can be replayed and one
+    that cannot, and it cannot be added afterwards -- the decisions are gone
+    once the run ends.
+    """
     from app.agents.factory import build_agents
     from app.oracle.engine import run_turn, seed_roster
 
@@ -48,6 +55,27 @@ async def run_cell(
             await seed_roster(session, cell.session_id, roster=roster, seed=cell.seed)
 
         agents = build_agents(roster=roster)
+        if cache_root is not None:
+            from app.config import ENV_VERSION
+            from app.judge.prompts import PROMPT_VERSION
+            from app.replay.cache import ResponseCache
+            from app.replay.cached_agent import CachedAgent
+
+            cache = ResponseCache(Path(cache_root) / cell.trace_name,
+                                  env_version=ENV_VERSION)
+            # Key on the roster's model, not the agent object's. StubAgent
+            # reports "stub" while the roster and the trace manifest both say
+            # "stub/model", and a replay reads the manifest -- so keying on the
+            # object would miss every entry it just recorded.
+            models = {spec["agent_id"]: spec.get("model", "") or "" for spec in roster}
+            agents = {
+                agent_id: CachedAgent(
+                    agent_id, cache=cache, inner=inner, mode="permissive",
+                    model=models.get(agent_id, ""),
+                    prompt_version=PROMPT_VERSION,
+                )
+                for agent_id, inner in agents.items()
+            }
 
         for turn in range(1, turns + 1):
             async with session_factory() as session:

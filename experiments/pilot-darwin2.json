@@ -1,0 +1,11 @@
+{
+  "experiment": "pilot-d2",
+  "roster": "rosters/pilot3.json",
+  "conditions": ["neutral"],
+  "seeds": [1],
+  "turns": 30,
+  "out": "runs/pilot-darwin2",
+  "cache": "runs/pilot-darwin2/responses",
+  "concurrency": 1,
+  "budget": {"max_calls": 200}
+}

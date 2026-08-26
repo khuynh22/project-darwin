@@ -155,3 +155,46 @@ async def test_sqlite_is_forced_serial(tmp_path):
 
     assert report.effective_concurrency == 1
     assert len(report.completed) == 4
+
+
+async def test_a_sweep_with_a_cache_records_decisions(tmp_path):
+    """A decision not recorded during the run is unrecoverable afterwards."""
+    factory, engine = await _factory()
+    cache_root = tmp_path / "responses"
+    spec = _spec(conditions=["neutral"], seeds=[1], cache=str(cache_root))
+    report = await run_sweep(spec, session_factory=factory, roster=_roster(),
+                             out_dir=tmp_path)
+    await engine.dispose()
+
+    assert len(report.completed) == 1
+    assert cache_root.is_dir()
+    assert list(cache_root.rglob("*.json")), "no decisions were recorded"
+
+
+async def test_a_sweep_without_a_cache_records_nothing(tmp_path):
+    factory, engine = await _factory()
+    report = await run_sweep(_spec(conditions=["neutral"], seeds=[1]),
+                             session_factory=factory, roster=_roster(),
+                             out_dir=tmp_path)
+    await engine.dispose()
+    assert len(report.completed) == 1
+    assert not (tmp_path / "responses").exists()
+
+
+async def test_a_recorded_sweep_replays_offline(tmp_path):
+    """The whole point: a run recorded once re-executes with no model calls."""
+    from app.replay.reexecute import reexecute
+
+    factory, engine = await _factory()
+    cache_root = tmp_path / "responses"
+    spec = _spec(conditions=["neutral"], seeds=[1], cache=str(cache_root))
+    report = await run_sweep(spec, session_factory=factory, roster=_roster(),
+                             out_dir=tmp_path)
+    trace = report.completed[0].trace_path
+
+    replay = await reexecute(trace, cache_root / "neutral-s1", factory, mode="strict")
+    await engine.dispose()
+
+    assert replay.error == "", replay.error
+    assert replay.cache_misses == 0
+    assert replay.divergences == [], [str(d) for d in replay.divergences]
