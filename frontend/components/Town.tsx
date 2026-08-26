@@ -3,17 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSnap, WorldSnapshot } from '@/lib/ws';
 import Critter, { type Bubble, type CritterState } from './Critter';
-import {
-  ACTIONS,
-  COLOR_HEX,
-  FAMILIES,
-  HOME_VENUES,
-  STAGE_H,
-  STAGE_W,
-  VENUES,
-  VENUES_BY_ID,
-  venueSlot,
-} from '@/lib/town';
+import { COLOR_HEX, FAMILIES, HOME_VENUES, STAGE_H, STAGE_W, VENUES, VENUES_BY_ID, actionDef, venueSlot } from '@/lib/town';
 
 interface TownProps {
   snapshot: WorldSnapshot | null;
@@ -52,7 +42,7 @@ export default function Town({ snapshot, running = false }: TownProps) {
 
     const venueIdForAgent = (agent: AgentSnap, fallbackIdx: number): string => {
       const action = latestActions.get(agent.agent_id);
-      const def = action ? ACTIONS[action] : undefined;
+      const def = actionDef(action);
       return def?.venue ?? HOME_VENUES[fallbackIdx % HOME_VENUES.length];
     };
 
@@ -170,7 +160,7 @@ export default function Town({ snapshot, running = false }: TownProps) {
           const p = placements.get(agent.agent_id);
           if (!p) return null;
           const color = COLOR_HEX[agent.sprite] || '#FFCBA0';
-          const def = p.actionId ? ACTIONS[p.actionId] : undefined;
+          const def = actionDef(p.actionId);
           const family = def ? FAMILIES[def.family] : undefined;
           let state: CritterState = 'idle';
           let bubble: Bubble | null = null;

@@ -72,6 +72,14 @@ export const ACTIONS: Record<string, ActionDef> = {
   trade: { id: 'trade', family: 'economy', emoji: '🔄', venue: 'market', intent: 'trade!' },
   invest: { id: 'invest', family: 'economy', emoji: '📈', venue: 'bank', intent: 'invest' },
   bet: { id: 'bet', family: 'economy', emoji: '🎲', venue: 'casino', intent: 'place a bet' },
+  // institutions (layer 2)
+  sign_contract: { id: 'sign_contract', family: 'economy', emoji: '📜', venue: 'market', intent: 'sign a contract' },
+  fulfil_contract: { id: 'fulfil_contract', family: 'economy', emoji: '📦', venue: 'market', intent: 'deliver on a contract' },
+  audit: { id: 'audit', family: 'economy', emoji: '🔍', venue: 'bank', intent: 'audit the books' },
+  stand_for_office: { id: 'stand_for_office', family: 'social', emoji: '🏛️', venue: 'lounge', intent: 'stand for office' },
+  // Public assertion, not a lie by itself -- a true declaration is honest, so
+  // this is deliberately not in the deception family.
+  declare: { id: 'declare', family: 'social', emoji: '📣', venue: 'lounge', intent: 'declare a fact' },
   // prosocial
   charity: { id: 'charity', family: 'prosocial', emoji: '🎁', venue: 'market', intent: 'donate' },
   gift: { id: 'gift', family: 'prosocial', emoji: '💝', venue: 'market', intent: 'give a gift' },
@@ -111,9 +119,20 @@ export const COLOR_HEX: Record<string, string> = {
   indigo: '#BAB4F0',
 };
 
+// Shown for any action the backend has but this map does not yet. Later layers
+// keep adding actions, and an unmapped one should read as unknown rather than
+// silently vanish from the town and the log.
+const UNKNOWN_ACTION: ActionDef = {
+  id: 'unknown',
+  family: 'social',
+  emoji: '❓',
+  venue: 'lounge',
+  intent: 'do something new',
+};
+
 export function actionDef(id: string | undefined): ActionDef | undefined {
   if (!id) return undefined;
-  return ACTIONS[id];
+  return ACTIONS[id] ?? { ...UNKNOWN_ACTION, id, intent: id.replace(/_/g, ' ') };
 }
 
 export function familyOf(actionId: string | undefined): Family | undefined {

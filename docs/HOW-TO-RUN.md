@@ -155,6 +155,33 @@ result of the 335-turn run failed exactly there.
 
 ---
 
+## Docker — the whole stack
+
+```bash
+cp .env.example .env          # optional: OPENROUTER_API_KEY for an operator fallback
+docker compose up --build
+```
+
+| service | address | what it is |
+|---|---|---|
+| arena | http://localhost:3000 | the UI: live sim, `/gallery`, `/leaderboard` |
+| oracle | http://localhost:8000 | FastAPI: REST + WebSocket + `/releases` |
+| postgres | internal | the ledger |
+
+`docker compose down` stops it; `docker compose down -v` also drops the database
+volume, which is how you get a clean slate.
+
+Two things the compose file does deliberately:
+
+- **`releases/` is mounted read-only** at `/app/releases`, with `RELEASES_DIR` set
+  absolutely. The default path resolves relative to the source tree, which is not where
+  the code sits inside the image — without the explicit setting the gallery silently
+  serves an empty list.
+- **Schema changes apply on boot.** `init_db` backfills new columns by `ALTER TABLE` and
+  creates new tables, so an existing volume picks up contracts, offices, and the extended
+  snapshots without a reset. Watch for `Backfilling column:` in `docker compose logs
+  oracle`.
+
 ## Serving the gallery
 
 ```bash
@@ -163,7 +190,7 @@ mkdir -p releases/<run_id>
 cp runs/<run>/neutral-s1.jsonl releases/<run_id>/trace.jsonl
 cp runs/<run>/verdicts.jsonl   releases/<run_id>/verdicts.jsonl
 
-docker compose up --build     # http://localhost:3000/gallery
+docker compose restart oracle   # the registry caches on (path, mtime)
 ```
 
 The gallery is read-only and never touches the sessions tables. `/gallery` lists releases,

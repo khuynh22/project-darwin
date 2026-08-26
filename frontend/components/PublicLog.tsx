@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import type { WorldSnapshot } from '@/lib/ws';
-import { ACTIONS, COLOR_HEX, FAMILIES } from '@/lib/town';
+import { COLOR_HEX, FAMILIES, actionDef } from '@/lib/town';
 
 interface PublicLogProps {
   snapshot: WorldSnapshot | null;
@@ -47,7 +47,7 @@ export default function PublicLog({ snapshot }: PublicLogProps) {
         {rows.map((row, i) => {
           const agent = agents.find((a) => a.agent_id === row.agent_id);
           const color = agent ? COLOR_HEX[agent.sprite] || '#FFCBA0' : '#C4B59A';
-          const def = ACTIONS[row.action];
+          const def = actionDef(row.action);
           const family = def ? FAMILIES[def.family] : undefined;
           const name = agent?.display_name || row.agent_id;
           return (
