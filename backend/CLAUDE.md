@@ -19,22 +19,32 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
 
 - **`config.py`** -- Settings (pydantic-settings). No hardcoded roster. `get_settings()` is `@lru_cache`d.
 - **`db.py`** -- Engine + SessionLocal + `init_db()` with auto-migration backfill for new columns.
-- **`oracle/schemas.py`** -- 20 Pydantic models (all inherit `_BaseArgs` with `reasoning` + `public_message`). `TOOL_DEFINITIONS`, `ARG_MODELS`, `FREE_ACTIONS`, `MAJOR_ACTIONS` sets.
-- **`oracle/actions.py`** -- 20 `do_*` handlers + `ACTION_TABLE`. All return `ActionResult`.
+- **`oracle/schemas.py`** -- 25 Pydantic models (all inherit `_BaseArgs` with `reasoning` + `public_message`). `TOOL_DEFINITIONS`, `ARG_MODELS`, `FREE_ACTIONS`, `MAJOR_ACTIONS` sets.
+- **`oracle/actions.py`** -- 25 `do_*` handlers + `ACTION_TABLE`. All return `ActionResult`.
 - **`oracle/engine.py`** -- `run_turn()` (parallel decide, sequential apply), `_process_deferred()` (investments, loans, extortion), `_apply_survival_tax()` (progressive brackets, food consumption, strikes, inheritance).
 - **`agents/base.py`** -- `AgentDecision` (major + free action fields), aggressive system prompt, `render_world_brief()` with info asymmetry (fuzzy balances, gaslight injection).
-- **`agents/stub.py`** -- `StubAgent` with `DEFAULT_BIAS` for 20 actions. `_pick_major()` + 40% chance free action.
+- **`agents/stub.py`** -- `StubAgent` with `DEFAULT_BIAS` for 25 actions. `_pick_major()` + 40% chance free action. Settles a satisfiable contract before rolling, and sizes commitments to inventory -- otherwise every contract breaches and breach carries no information.
 - **`agents/openai_agent.py`** -- OpenAI-compatible client; extracts 1-2 tool calls. Every real model is reached through **OpenRouter** (`base_url`). `stub.py` is internal-only (tests/CLI). Providers other than OpenRouter were removed.
 - **`models/agent.py`** -- Agent ORM: balance, trust_score, steal_count, specialty, inventory, social state, will_target, extortion/bribe pending.
 - **`models/deferred.py`** -- DeferredAction for investments/loans maturing over turns.
 - **`models/api_key.py`** -- Fernet-encrypted API key storage.
-- **`thought_export.py`** -- Streaming JSONL exporter (schema v2 with timestamp).
+- **`thought_export.py`** -- Streaming JSONL exporter (legacy; trace v5 is written by `trace/`).
 - **`judge/`** -- Phase 2 offline LLM judge: `runner.py::judge_session` batch-judges a
   session's triples into `deception_judgments` (keyed by session/turn/agent/judge_model/
   prompt_version/sample_idx). `stub_judge.py` = deterministic offline judge for tests.
-  Never runs inside the turn loop. CLI: `python -m scripts.judge_deception`.
-- **`metrics.py`** -- structural metrics + optional `judged_deception` block
-  (`scripts/compute_metrics.py` CLI).
+  Never runs inside the turn loop. CLI: `darwin judge <trace> --out <verdicts>`.
+- **`measure/`** -- coherence, permutation null, BH-FDR, structural metrics, and
+  `calibration.py` (judge accuracy against turns whose truth is known by arithmetic).
+  Pure over plain dicts; imports with no DB driver.
+- **`trace/`** -- schema v5 (run manifest + per-turn triple and full state + world
+  records), reader/writer/validator, and adapters. The portable contract.
+- **`probe/`** -- frozen-stimulus benchmark: schema, replay with divergence
+  accounting, mining, scoring.
+- **`replay/`** -- content-addressed response cache and `CachedAgent`, so a
+  recorded run re-executes offline with no API key.
+- **`sweep/`** -- experiment specs, cell runner, resume, budget guard.
+- **`models/registry.py`** -- `Contract` and `Office`: the tables that let the
+  judge decide a claim by lookup instead of interpretation.
 
 ## Adding a new action
 
@@ -46,8 +56,8 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
 
 ## Action tiers
 
-- **Major** (1 required/turn): work, trade, bet, invest, steal, lend, sabotage, extort, bribe, socialize
-- **Free** (0-1 optional/turn): vouch, will, rest, strike, bluff, propose_deal, slander, gaslight, gift, charity
+- **Major** (1 required/turn): work, trade, bet, invest, steal, lend, sabotage, extort, bribe, socialize, sign_contract, fulfil_contract, audit
+- **Free** (0-1 optional/turn): vouch, will, rest, strike, bluff, propose_deal, slander, gaslight, gift, charity, stand_for_office, declare
 - Free actions can be used as major. Major cannot be used as free.
 - Engine validates `free_action in FREE_ACTIONS` before applying.
 

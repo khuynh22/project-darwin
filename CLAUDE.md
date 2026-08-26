@@ -1,13 +1,15 @@
 # CLAUDE.md -- Project Darwin
 
-LLM economic survival simulation. 3-10 agents compete with 20 actions (work, trade, steal, deceive, socialize) in a goods economy with trust scores, progressive taxation, and information asymmetry. Users configure agents from the UI -- no hardcoded roster.
+LLM economic survival simulation **and deception-measurement harness**. 3-10 agents compete with 25 actions (work, trade, steal, deceive, socialize, contracts, offices) in a goods economy with trust scores, progressive taxation, information asymmetry, and public registries. Users configure agents from the UI -- no hardcoded roster.
+
+The measurement half is the contribution: a portable trace schema, an intent-grounded judge, coherence metrics with a permutation null, a frozen-stimulus probe benchmark, and deterministic offline replay. See `docs/HOW-TO-RUN.md` to operate it and `docs/superpowers/specs/` for the design.
 
 ## Architecture
 
 ```
 Next.js (React)  <-- WS/REST -->  FastAPI (Oracle)  --> Postgres
                                     turn loop + parallel decide()
-                                    20 action handlers
+                                    25 action handlers
                                     trust, goods, tax, deferred actions
                                   --> OpenRouter (one OpenAI-compatible gateway to every model)
 ```
@@ -38,12 +40,12 @@ backend/
       deferred.py         # DeferredAction (investments, loans)
       api_key.py          # Fernet-encrypted API key storage
     oracle/
-      schemas.py          # 20 tool schemas (Pydantic), MAJOR_ACTIONS/FREE_ACTIONS sets
-      actions.py          # 20 do_* handlers + ACTION_TABLE
+      schemas.py          # 25 tool schemas (Pydantic), MAJOR_ACTIONS/FREE_ACTIONS sets
+      actions.py          # 25 do_* handlers + ACTION_TABLE
       engine.py           # run_turn (parallel decide, sequential apply), progressive tax, deferred settlement, extortion enforcement, inheritance
     agents/
       base.py             # BaseAgent, AgentDecision (major + free action), system prompt, info-asymmetric world brief
-      stub.py             # StubAgent with DEFAULT_BIAS for all 20 actions (internal: tests/CLI only)
+      stub.py             # StubAgent with DEFAULT_BIAS for all 25 actions (internal: tests/CLI only)
       openai_agent.py     # OpenAI-compatible client; every real model runs through OpenRouter via base_url
       factory.py          # build_agents(roster): provider="stub" -> StubAgent, else OpenRouter; per-session key
 
@@ -60,7 +62,8 @@ frontend/
 
 ## Game mechanics
 
-- **20 actions** in 2 tiers: 10 major (required, 1/turn) + 10 free (optional, 1/turn alongside major)
+- **25 actions** in 2 tiers: major (required, 1/turn) + free (optional, 1/turn alongside major)
+- **Contracts and offices**: `sign_contract` binds on proposal; missing the deadline is recorded as a breach. Offices (bank/auditor/arbiter/collector) are takeable while vacant for 20 turns. `declare` asserts a registry fact and the engine records asserted beside actual.
 - **Goods economy**: 3 goods (ore $0.30, food $0.25, tech $0.50). Each agent has a random specialty (produces 2-3x). Food consumed every tax cycle or $1 penalty.
 - **Progressive tax**: 0% on $0-2, 5% on $2-5, 10% on $5-10, 15% on $10-20, 20% on $20+. Invested capital exempt. 3+ agents striking waives tax.
 - **Trust score** (0-100): affects trade acceptance. Modified by slander (-5 to -10), vouch (+5), steal (-3 to -5), trade (+1), loan default (-10).
