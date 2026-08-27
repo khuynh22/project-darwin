@@ -76,9 +76,17 @@ export default function ReplayPage({
   return (
     <main className="min-h-screen px-5 py-8 md:px-10">
       <header className="max-w-5xl mx-auto mb-4">
-        <Link href="/gallery" className="text-[12px] text-cozy-accent hover:underline">
-          ← all releases
-        </Link>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link href="/gallery" className="text-[12px] text-cozy-accent hover:underline">
+            ← all releases
+          </Link>
+          <Link
+            href={`/gallery/${encodeURIComponent(decoded)}/3d`}
+            className="text-[12px] text-cozy-accent hover:underline"
+          >
+            3-D world →
+          </Link>
+        </div>
         <h1 className="font-display font-bold text-[22px] text-cozy-ink mt-1">
           {decoded}
         </h1>

@@ -1,6 +1,8 @@
 # CLAUDE.md -- frontend/
 
-Next.js 15 (App Router) + React 19 + Tailwind 3. Pure React UI -- **no Phaser, no canvas**. The frontend is a viewer only; all game logic lives in the backend Oracle. The look is a cozy "tiny town of LLM critters" (cream palette, Fredoka/Nunito/JetBrains Mono).
+Next.js 15 (App Router) + React 19 + Tailwind 3. The frontend is a viewer only; all game logic lives in the backend Oracle. The look is a cozy "tiny town of LLM critters" (cream palette, Fredoka/Nunito/JetBrains Mono).
+
+**The live session view is pure React + CSS -- no Phaser, no canvas, no sprite library.** The one exception is `components/three/`, the 3-D gallery renderer (spec `2026-08-24-layered-economy-and-replay-design.md` §6): React Three Fiber, reachable only from `/gallery/[runId]/3d`, and a playback renderer over a released trace with no game logic of its own. The 2-D view stays the canonical one -- it is where the judge's verdict sits beside each turn -- and the 3-D route degrades to it when WebGL is unavailable.
 
 ## Run
 
@@ -18,6 +20,8 @@ Talks to `http://localhost:8000` (REST) and `ws://localhost:8000/ws` (WS). Overr
 - **`app/session/[sessionId]/page.tsx`** -- The simulation view. Outer shell, header (brand + stat pills + Step/+10/Auto/Share/Export/Config/Reset), main grid `1fr 340px` (Town | Roster), logs grid `1fr 1fr` (PublicLog | ThoughtLog), footer keyboard hint, ConfigPanel + pause Dialog. Reads `sessionId` via `useParams`; all fetches hit `/sessions/{id}/...`. Owns the WS connection (`connectOracle(sessionId, ...)`) and auto-play loop. "Share" copies the URL.
 - **`app/layout.tsx`** -- Loads Fredoka / Nunito / JetBrains Mono via `next/font/google` and exposes them as CSS variables.
 - **`app/globals.css`** -- Design tokens, body dot texture, critter anatomy keyframes, bubble morph, dust puff, delta float, log-in animation, button styles, cozy inputs.
+- **`lib/world3d.ts`** -- 3-D helpers: stage-pixel to world-unit mapping (the 3-D view reuses the 2-D layout so both read as one world), agent slot placement, and the WebGL capability check.
+- **`components/three/`** -- `WorldScene` (canvas, lights, ground, auto-fitting camera) and `VenueBlock`. Gallery only.
 - **`lib/town.ts`** -- Single source for town data: 6 `VENUES` (work, market, bank, casino, lounge, alley) at fixed `(x,y)` in a 780×560 stage, 5 `FAMILIES` (economy/prosocial/aggression/deception/social) with color + emoji, `ACTIONS` mapping every backend action id → `{family, emoji, venue, intent}`, `COLOR_HEX` agent palette, `venueSlot()` slot offsets so multiple critters share a venue without overlapping.
 - **`lib/ws.ts`** -- Types (`AgentSnap`, `ThoughtSnap`, `PausedEvent`), `ORACLE_HTTP`, `createSession()`, and `connectOracle(sessionId, onSnapshot, onPaused)` (fetches `/sessions/{id}/state`, opens `/ws/{id}`).
 - **`components/Town.tsx`** -- The town stage. Renders venue houses + center plaza + critters. Places each agent at its action's venue slot. Honors the spouse-follow rule (lower agent_id picks, partner mirrors).
@@ -74,6 +78,6 @@ Tailwind 3 with a cozy palette (`cozy-*` colors in `tailwind.config.js`) plus to
 
 - Don't compute balances in the frontend. Oracle is authoritative.
 - Don't add a state manager. Snapshot prop pattern is sufficient.
-- Don't add Phaser, canvas, or any sprite library. Pure React + CSS.
+- Don't add Phaser, canvas, or any sprite library to the **live session view**. Pure React + CSS there. `components/three/` is the scoped exception, for the gallery replay only.
 - Don't use legacy sprite names (scholar, trickster, cipher, etc.). Use color names only.
 - Don't time-stamp log rows with `Date.now()` during render -- it jitters every snapshot.
