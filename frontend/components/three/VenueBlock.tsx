@@ -2,10 +2,10 @@
 
 import { Text } from '@react-three/drei';
 import type { Venue } from '@/lib/town';
-import { venuePosition } from '@/lib/world3d';
+import { VENUE_FOOTPRINT, venuePosition } from '@/lib/world3d';
 
 const HEIGHT = 1.6;
-const SIZE = 5.2;
+const SIZE = VENUE_FOOTPRINT;
 
 /** One venue as a raised district: a plinth, a roof slab, and a floating label. */
 export default function VenueBlock({ venue }: { venue: Venue }) {

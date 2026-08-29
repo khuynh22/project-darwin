@@ -13,6 +13,10 @@ export const STAGE_H = 560;
 
 export type Vec3 = [number, number, number];
 
+/** Side length of a venue block, in world units. Shared so agent slots can be
+ *  placed clear of it instead of guessing at its size. */
+export const VENUE_FOOTPRINT = 5.2;
+
 /** Stage pixel coordinates -> world units, centred on the origin. */
 export function stageToWorld(x: number, y: number, height = 0): Vec3 {
   const scale = (GROUND * 2) / STAGE_W;
