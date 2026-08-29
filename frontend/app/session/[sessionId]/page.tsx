@@ -314,6 +314,40 @@ export default function SessionPage() {
                 </p>
               </div>
             </div>
+          ) : webgl === false ? (
+            <div className="h-full min-h-[560px] grid place-items-center px-6">
+              <div className="max-w-md">
+                <div className="font-display font-semibold text-[15px] text-cozy-ink mb-1">
+                  This browser cannot render the world
+                </div>
+                <p className="text-[13px] text-cozy-ink-soft leading-snug">
+                  WebGL is unavailable or disabled, and the world is drawn with it. The
+                  run itself is unaffected — it is still being recorded, and the roster,
+                  the public feed and the private monologues below are all live.
+                </p>
+                <p className="text-[13px] text-cozy-ink-soft leading-snug mt-2">
+                  Read it as data instead:{' '}
+                  <a
+                    href={`${base}/trace/turns?offset=0&limit=200`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-cozy-accent hover:underline"
+                  >
+                    this run&apos;s trace
+                  </a>{' '}
+                  or{' '}
+                  <a
+                    href={`${base}/export/thoughts`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-cozy-accent hover:underline"
+                  >
+                    the private monologues
+                  </a>
+                  .
+                </p>
+              </div>
+            </div>
           ) : (
             webgl && <WorldScene frame={frame} />
           )}
