@@ -20,6 +20,7 @@ from app.models.agent import Agent
 from app.models.ledger import ThoughtLog, Transaction, TurnSnapshot, WorldEvent
 from app.oracle.actions import ACTION_TABLE
 from app.oracle.schemas import ARG_MODELS
+from app.trace.recorder import record_turn
 
 log = logging.getLogger(__name__)
 
@@ -1018,6 +1019,11 @@ async def run_turn(
         )
 
     await session.commit()
+
+    # After the commit, never before: the database is the source of truth and a
+    # trace is a record of it. record_turn swallows its own failures.
+    await record_turn(session, session_id, turn, seed=seed, condition=condition)
+
     return TurnResult(turn=turn, apex_declared=apex, eliminated=eliminated)
 
 
