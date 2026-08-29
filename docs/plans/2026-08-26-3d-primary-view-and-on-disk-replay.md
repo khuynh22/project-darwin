@@ -60,7 +60,7 @@ gated by F8.
 
 ## Tasks
 
-- [ ] **S1 · Spike: can the triple stay legible inside the 3-D view?** — `senior-engineer`
+- [x] **S1 · Spike: can the triple stay legible inside the 3-D view?** — `senior-engineer`
   - Goal: a written answer to "where does the triple panel live — docked beside the canvas,
     or as an in-canvas HTML overlay — and does it read as well as `TurnCard` at 1280x800
     and at 390x844?", with a screenshot of each candidate.
@@ -83,7 +83,7 @@ gated by F8.
     ceiling; below T3 because the architecture is already decided — this only chooses
     where a panel sits.
 
-- [ ] **B1 · Extract a single-turn record builder from `export_session`** — `senior-engineer`
+- [x] **B1 · Extract a single-turn record builder from `export_session`** — `senior-engineer`
   - Goal: `export_session` produces identical output while a new public function builds
     the `TurnRecord`s and `WorldRecord` for exactly one turn.
   - Files in scope: `backend/app/trace/adapters/darwin_db.py`, `backend/app/trace/__init__.py`
@@ -101,7 +101,7 @@ gated by F8.
     caller contract (spec §4.1 completeness) is load-bearing for every restored probe.
     Contract-change trigger on the ladder.
 
-- [ ] **B2 · Stream a trace to disk from `run_turn`** — `senior-engineer`
+- [x] **B2 · Stream a trace to disk from `run_turn`** — `senior-engineer`
   - Goal: running a session from the UI leaves a parseable `runs/<session_id>/trace.jsonl`
     that grows by one turn's records per turn, and a process killed mid-run leaves a
     truncated-but-parseable file.
@@ -121,7 +121,7 @@ gated by F8.
   - Tier: **T2.** Touches the only mutation path in the system, and turns user-controlled
     input into a filesystem path — security-surface trigger on the ladder.
 
-- [ ] **B3 · Serve a live session's on-disk trace to the frontend** — `software-engineer`
+- [x] **B3 · Serve a live session's on-disk trace to the frontend** — `software-engineer`
   - Goal: `GET /sessions/{id}/trace/turns?offset=&limit=` returns the same shape as
     `GET /releases/{run_id}/turns`, read from `runs/<session_id>/trace.jsonl`.
   - Files in scope: `backend/app/main.py`, `backend/app/releases.py` (reuse the reader, do
@@ -137,7 +137,7 @@ gated by F8.
   - Tier: **T1.** One endpoint copied from a demonstrated pattern two screens up in the
     same file, no interface anyone else depends on.
 
-- [ ] **F0 · Add a frontend unit-test runner** — `software-engineer`
+- [x] **F0 · Add a frontend unit-test runner** — `software-engineer`
   - Goal: `npm test` runs and passes in `frontend/`, and CI runs it.
   - Files in scope: `frontend/package.json`, a vitest config, one trivial test,
     `.github/workflows/ci.yml`.
@@ -151,7 +151,7 @@ gated by F8.
   - Depends on: none.
   - Tier: **T1.** New tooling, but a well-trodden pattern with no interface impact.
 
-- [ ] **F1 · `lib/frame.ts`: one view-model from both sources** — `senior-engineer`
+- [x] **F1 · `lib/frame.ts`: one view-model from both sources** — `senior-engineer`
   - Goal: `buildFrameFromSnapshot(WorldSnapshot)` and `buildFramesFromTurns(ReleaseTurn[])`
     return the same `WorldFrame` type — per-agent venue, slot position, colour, action and
     the triple — so the renderer never sees which source it came from.
@@ -173,7 +173,7 @@ gated by F8.
   - Tier: **T2.** Inventing the abstraction the whole plan rests on, out of logic currently
     fused to a component. The pattern must be created, not copied — above T1's ceiling.
 
-- [ ] **F2 · Render agents in the scene from a `WorldFrame`** — `software-engineer`
+- [x] **F2 · Render agents in the scene from a `WorldFrame`** — `software-engineer`
   - Goal: `/gallery/[runId]/3d` shows one pawn per living agent, at its action's venue, in
     its agent colour, for a given frame.
   - Files in scope: new `frontend/components/three/AgentPawn.tsx`,
@@ -190,7 +190,7 @@ gated by F8.
   - Tier: **T1.** A new component built by copying `VenueBlock`'s demonstrated shape,
     consuming a contract someone else defined.
 
-- [ ] **F3 · Selection and the triple panel** — `software-engineer`
+- [x] **F3 · Selection and the triple panel** — `software-engineer`
   - Goal: clicking a pawn shows that agent-turn's private reasoning, public message,
     applied action and verdict, in the layout S1 chose.
   - Files in scope: `frontend/components/three/WorldScene.tsx`,
@@ -207,7 +207,7 @@ gated by F8.
   - Tier: **T1.** The hard question — where the panel sits and whether it reads — was
     answered by S1. What remains is wiring a click to a known component.
 
-- [ ] **F4 · Turn scrubber over a released run** — `software-engineer`
+- [x] **F4 · Turn scrubber over a released run** — `software-engineer`
   - Goal: a turn slider and play/pause step the 3-D gallery view through the whole run, and
     the pawns and panel follow the cursor.
   - Files in scope: `frontend/app/gallery/[runId]/3d/page.tsx`, new
@@ -223,7 +223,7 @@ gated by F8.
   - Depends on: F3.
   - Tier: **T1.** Paging and an interval loop, both demonstrated elsewhere in this app.
 
-- [ ] **F5 · The live session view renders the 3-D scene** — `senior-engineer`
+- [x] **F5 · The live session view renders the 3-D scene** — `senior-engineer`
   - Goal: `/session/[sessionId]` shows the 3-D world driven by the live WebSocket snapshot,
     with Step / +10 / Auto / Config / Reset still working exactly as before.
   - Files in scope: `frontend/app/session/[sessionId]/page.tsx`,
@@ -242,7 +242,7 @@ gated by F8.
   - Tier: **T2.** Replaces the primary view of the application and changes what a running
     session looks like; blast radius exceeds the component being edited.
 
-- [ ] **F6 · Delete the 2-D stage, keep `CritterAvatar`** — `software-engineer`
+- [x] **F6 · Delete the 2-D stage, keep `CritterAvatar`** — `software-engineer`
   - Goal: `frontend/components/Town.tsx` is gone, `Critter.tsx`'s stage rendering is gone,
     and the roster and config modal still show their avatar heads.
   - Files in scope: delete `frontend/components/Town.tsx`; move `CritterAvatar` out of
@@ -263,7 +263,7 @@ gated by F8.
   - Tier: **T1.** Five files, so above T0's two-file ceiling, but every edit is named here
     and no judgement is required.
 
-- [ ] **F7 · Honest capability notice when WebGL is unavailable** — `intern-engineer`
+- [x] **F7 · Honest capability notice when WebGL is unavailable** — `intern-engineer`
   - Goal: with WebGL unavailable, both `/session/[sessionId]` and `/gallery/[runId]/3d` show
     a notice explaining that the world needs WebGL, linking to the run's raw trace and the
     thoughts export — never a blank canvas.
@@ -280,7 +280,7 @@ gated by F8.
   - Depends on: F5.
   - Tier: **T0.** Two files, one copied block, no schema, no interface, no judgement.
 
-- [ ] **F8 · Browser gate for the triple** — `test-engineer`
+- [x] **F8 · Browser gate for the triple** — `test-engineer`
   - Goal: an automated check loads `/gallery/[runId]/3d`, selects an agent-turn, and asserts
     the private reasoning, public message, applied action and verdict are all present and
     visible.
@@ -299,7 +299,7 @@ gated by F8.
     standing between F6 and an unverified deletion. Assigned to `test-engineer` rather than
     `software-engineer` for that reason.
 
-- [ ] **D1 · Documentation catches up with the decisions** — `docs-engineer`
+- [x] **D1 · Documentation catches up with the decisions** — `docs-engineer`
   - Goal: a reader who opens the repo after this lands is not told the frontend has a 2-D
     town, or that the 3-D view is gallery-only.
   - Files in scope: `frontend/CLAUDE.md`, `CLAUDE.md` (repo layout block),
@@ -316,6 +316,38 @@ gated by F8.
   - Depends on: F6, F7.
   - Tier: **T1.** Mechanical against a settled system, but it spans four files and must
     describe the decisions accurately.
+
+## Corrections found while executing
+
+Four things the plan got wrong, recorded rather than quietly worked around.
+
+- **S1's definition of done named `npm run dev`.** The 3-D scene does not render there:
+  `reactStrictMode` double-mounts the R3F canvas and the GL context is lost. Every visual
+  check ran against `npm run build && npm start` instead. Pre-existing on `main`, not
+  introduced here, and not fixed here.
+- **F2's file list omitted `lib/world3d.ts`.** Agent slots at the old radius fell inside
+  the venue footprint, so pawns were drawn behind the plinth — F2's own goal, "shows one
+  pawn per living agent", was not observably met without widening it. `VENUE_FOOTPRINT`
+  moved to `lib/world3d.ts` so the clearance is asserted rather than assumed.
+- **F3 needed `TurnCard.tsx`.** S1 required reusing `Channel` rather than restyling it,
+  and `Channel` was private to `TurnCard`. Extracted to `components/Triple.tsx`, along
+  with the verdict row, in a separate structural commit.
+- **F7's premise and F8's fixture were both wrong.** F7 assumed the 2-D view no longer
+  existed; only the 2-D *town stage* was deleted, and `/gallery/[runId]` still shows the
+  same run with verdicts — so the gallery notice was left as written and only the session
+  view gained one. F8's fixture was to be the checked-in release, but `releases/*/trace.jsonl`
+  is gitignored and CI has no copy; the gate stubs the Oracle with an inline fixture instead.
+
+## Noticed, not touched
+
+- The dev-mode WebGL context loss above. A `<StrictMode>` exemption around the canvas, or
+  an R3F upgrade, would fix it; neither was in scope.
+- `frontend/CLAUDE.md` says `ACTIONS` maps "all 20 backend actions"; the backend has 25.
+  Pre-existing, and correcting it means auditing the table, not editing a number.
+- `build_turn` reads office holders as they stand *now* while contracts are reconstructed
+  as they stood at that turn (`darwin_db.py`). Pre-existing asymmetry, carried through the
+  extraction unchanged because B1 forbade changing any mapping.
+- `runs/` has no retention policy, as ADR 2 says. Abandoned sessions accumulate.
 
 ## Not in this plan
 
