@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useMemo, useState } from 'react';
 import { buildFramesFromTurns, type WorldFrame } from '@/lib/frame';
 import {
   fetchRelease,
@@ -10,6 +10,7 @@ import {
   fetchVerdicts,
   type ReleaseDetail,
 } from '@/lib/releases';
+import TriplePanel from '@/components/three/TriplePanel';
 import { hasWebGL } from '@/lib/world3d';
 
 const PAGE = 200;
@@ -33,6 +34,7 @@ export default function World3DPage({
   const [webgl, setWebgl] = useState<boolean | null>(null);
   const [frames, setFrames] = useState<WorldFrame[]>([]);
   const [cursor] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     setWebgl(hasWebGL());
@@ -42,9 +44,20 @@ export default function World3DPage({
       .catch(() => setFrames([]));
   }, [decoded]);
 
+  const frame = frames[cursor] ?? null;
+
+  // Something is always selected once a turn is loaded: an empty panel beside
+  // a full world reads as broken rather than as "nothing chosen yet".
+  const selected = useMemo(() => {
+    if (!frame) return null;
+    return (
+      frame.agents.find((a) => a.agentId === selectedId) ?? frame.agents[0] ?? null
+    );
+  }, [frame, selectedId]);
+
   return (
     <main className="min-h-screen px-5 py-6 md:px-10">
-      <header className="max-w-6xl mx-auto mb-3">
+      <header className="max-w-[1400px] mx-auto mb-3">
         <div className="flex items-center gap-3 flex-wrap">
           <Link
             href={`/gallery/${encodeURIComponent(decoded)}`}
@@ -53,7 +66,7 @@ export default function World3DPage({
             ← turn-by-turn view
           </Link>
           <span className="text-[11px] text-cozy-ink-faint">
-            drag to orbit · scroll to zoom
+            drag to orbit · scroll to zoom · click an agent
           </span>
         </div>
         <h1 className="font-display font-bold text-[22px] text-cozy-ink mt-1">
@@ -68,7 +81,7 @@ export default function World3DPage({
         )}
       </header>
 
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-[1400px] mx-auto">
         {webgl === false && (
           <div className="bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-[18px] p-5">
             <div className="font-display font-semibold text-[15px] text-cozy-ink mb-1">
@@ -89,11 +102,20 @@ export default function World3DPage({
         )}
 
         {webgl && (
-          <div
-            className="rounded-[20px] overflow-hidden border-[1.5px] border-cozy-card-edge shadow-cozy bg-cozy-bg1"
-            style={{ aspectRatio: '16 / 10', maxHeight: '72vh', minHeight: 380 }}
-          >
-            <WorldScene frame={frames[cursor] ?? null} />
+          <div className="grid gap-3 lg:grid-cols-[1fr_380px] items-start">
+            <div
+              className="rounded-[20px] overflow-hidden border-[1.5px] border-cozy-card-edge shadow-cozy bg-cozy-bg1"
+              style={{ aspectRatio: '16 / 10', maxHeight: '72vh', minHeight: 300 }}
+            >
+              <WorldScene
+                frame={frame}
+                selectedId={selected?.agentId ?? null}
+                onSelect={setSelectedId}
+              />
+            </div>
+            <div className="min-w-0 lg:max-h-[72vh] lg:overflow-y-auto">
+              <TriplePanel agent={selected} turn={frame?.turn ?? 0} />
+            </div>
           </div>
         )}
       </div>

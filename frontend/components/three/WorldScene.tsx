@@ -18,9 +18,13 @@ import VenueBlock from '@/components/three/VenueBlock';
  */
 export default function WorldScene({
   frame,
+  selectedId,
+  onSelect,
   children,
 }: {
   frame?: WorldFrame | null;
+  selectedId?: string | null;
+  onSelect?: (agentId: string) => void;
   children?: ReactNode;
 }) {
   return (
@@ -58,7 +62,12 @@ export default function WorldScene({
           change, so an agent walking in would re-aim the camera on every turn.
           The venues are fixed, so fitting to them alone is stable. */}
       {frame?.agents.map((agent) => (
-        <AgentPawn key={agent.agentId} agent={agent} />
+        <AgentPawn
+          key={agent.agentId}
+          agent={agent}
+          selected={agent.agentId === selectedId}
+          onSelect={onSelect}
+        />
       ))}
 
       {children}
