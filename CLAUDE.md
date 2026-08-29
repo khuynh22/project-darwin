@@ -50,15 +50,30 @@ backend/
       factory.py          # build_agents(roster): provider="stub" -> StubAgent, else OpenRouter; per-session key
 
 frontend/
-  app/page.tsx            # Main layout: header, world map, public/private logs, sidebar
+  app/session/[sessionId]/page.tsx  # Live view: header, 3-D world, roster, public/private logs
+  app/gallery/[runId]/3d/page.tsx   # Replay view: 3-D world, turn scrubber, triple panel
   components/
-    WorldMap.tsx           # 6 venue cards (3x2 grid) with agent chips showing name/balance/action
-    Sidebar.tsx            # Agent cards: balance, invested, trust bar, inventory, specialty, social, badges
+    three/
+      WorldScene.tsx        # Canvas, lights, ground, auto-fitting camera; renders a WorldFrame
+      VenueBlock.tsx        # One venue as a raised district
+      AgentPawn.tsx         # One agent as a coloured pawn; clickable in the replay view
+      TriplePanel.tsx       # Selected agent-turn: reasoning, message, action, verdict
+      TurnScrubber.tsx      # Replay transport (step / scrub / play)
+    Triple.tsx              # Channel + VerdictRow, shared by TurnCard and TriplePanel
+    Sidebar.tsx             # Agent cards: balance, invested, trust bar, inventory, specialty, social, badges
     PublicLog.tsx           # Public feed (actions + public_message broadcasts)
     ThoughtLog.tsx          # Private reasoning (observer only)
-    ConfigPanel.tsx         # Agent setup modal: provider, model, color, API keys (per-provider), personality
+    ConfigPanel.tsx         # Agent setup modal: model, color, API key, personality
+    Avatar.tsx              # The roster head shown beside an agent's name
+  lib/frame.ts            # WorldFrame: one view-model built from a live snapshot or a trace
+  lib/town.ts             # Venues, action->venue table, agent palette
   lib/ws.ts               # Types (AgentSnap, ThoughtSnap, WorldSnapshot, PausedEvent) + WS connection
 ```
+
+**The world is 3-D, in both views.** One renderer, fed by `lib/frame.ts`, so the live
+session and a replayed run cannot disagree about where an agent stood. There is no 2-D
+fallback: a browser without WebGL gets an explicit notice and links to the run as data.
+See `docs/adr/2026-08-26-3d-primary-renderer.md`.
 
 ## Game mechanics
 
@@ -81,7 +96,7 @@ frontend/
 2. `oracle/actions.py` -- `do_<name>()` handler + add to `ACTION_TABLE`
 3. `agents/stub.py` -- add to `DEFAULT_BIAS` + argument generation in `_pick_major()`
 4. `agents/base.py` -- add to system prompt
-5. `frontend/components/WorldMap.tsx::ACTION_VENUE` -- map to venue
+5. `frontend/lib/town.ts::ACTIONS` -- map the action id to `{family, emoji, venue, intent}`
 
 ## Key conventions
 

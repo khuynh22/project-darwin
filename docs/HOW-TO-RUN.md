@@ -194,8 +194,36 @@ docker compose restart oracle   # the registry caches on (path, mtime)
 ```
 
 The gallery is read-only and never touches the sessions tables. `/gallery` lists releases,
-`/gallery/<run_id>` replays turn by turn with the triple beside the judge's verdict, and
+`/gallery/<run_id>` replays turn by turn with the triple beside the judge's verdict,
+`/gallery/<run_id>/3d` replays the same run in the 3-D world with a turn scrubber, and
 `/leaderboard` shows probe scores with their excluded counts and divergence.
+
+## Replaying a run you drove from the UI
+
+A session run from the browser writes its own trace as it goes — one turn appended after
+each turn commits, so a run that is still going, or one whose process died, is still
+readable.
+
+```bash
+ls runs/<session_id>/trace.jsonl                       # the file, as it grows
+curl "localhost:8000/sessions/<session_id>/trace/turns?offset=0&limit=50"
+darwin replay runs/<session_id>/trace.jsonl            # or: python -m app.cli.main replay ...
+```
+
+It is schema v5, the same format `/releases` serves, so everything downstream — the
+judge, the metrics, probe mining — reads it without conversion. What it is *not* is a
+release: the manifest declares `max_turns` as its horizon rather than the length the run
+actually reached, and it has no verdicts, scores or `about.md`. Publishing means copying
+it into `releases/<run_id>/` as above, which is a deliberate act and not something
+pressing Step does for you.
+
+`runs/` is gitignored and has no retention policy — abandoned sessions accumulate, so
+delete them yourself. Set `RUNS_DIR` to move the directory.
+
+**No world in the browser?** The 3-D view needs WebGL, and the page says so plainly when
+it is unavailable, with links to the trace and the monologue export. Note also that the
+scene does not render under `next dev` at all (React strict mode double-mounts the canvas
+and the GL context is lost) — use a production build to look at it.
 
 ---
 
