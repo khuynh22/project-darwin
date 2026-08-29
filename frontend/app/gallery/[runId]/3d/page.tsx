@@ -3,8 +3,16 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
-import { fetchRelease, type ReleaseDetail } from '@/lib/releases';
+import { buildFramesFromTurns, type WorldFrame } from '@/lib/frame';
+import {
+  fetchRelease,
+  fetchTurns,
+  fetchVerdicts,
+  type ReleaseDetail,
+} from '@/lib/releases';
 import { hasWebGL } from '@/lib/world3d';
+
+const PAGE = 200;
 
 // The scene pulls in three.js, which has no business in the server bundle and
 // no business loading at all for a viewer that cannot render it.
@@ -23,10 +31,15 @@ export default function World3DPage({
 
   const [detail, setDetail] = useState<ReleaseDetail | null>(null);
   const [webgl, setWebgl] = useState<boolean | null>(null);
+  const [frames, setFrames] = useState<WorldFrame[]>([]);
+  const [cursor] = useState(0);
 
   useEffect(() => {
     setWebgl(hasWebGL());
     fetchRelease(decoded).then(setDetail).catch(() => setDetail(null));
+    Promise.all([fetchTurns(decoded, 0, PAGE), fetchVerdicts(decoded)])
+      .then(([page, verdicts]) => setFrames(buildFramesFromTurns(page.turns, verdicts)))
+      .catch(() => setFrames([]));
   }, [decoded]);
 
   return (
@@ -80,7 +93,7 @@ export default function World3DPage({
             className="rounded-[20px] overflow-hidden border-[1.5px] border-cozy-card-edge shadow-cozy bg-cozy-bg1"
             style={{ aspectRatio: '16 / 10', maxHeight: '72vh', minHeight: 380 }}
           >
-            <WorldScene />
+            <WorldScene frame={frames[cursor] ?? null} />
           </div>
         )}
       </div>

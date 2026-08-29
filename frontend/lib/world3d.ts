@@ -37,8 +37,11 @@ export function venuePosition(venue: Venue): Vec3 {
  */
 export function agentSlot(venue: Venue, index: number, total: number): Vec3 {
   const [x, , z] = venuePosition(venue);
-  if (total <= 1) return [x, 0, z + 2.2];
-  const radius = 2.2 + Math.floor(index / 6) * 1.3;
+  // Outside the block, not on it: a pawn within the footprint is drawn behind
+  // the plinth and the roof slab, which hides the agent entirely.
+  const inner = VENUE_FOOTPRINT / 2 + 1.0;
+  if (total <= 1) return [x, 0, z + inner];
+  const radius = inner + Math.floor(index / 6) * 1.3;
   const angle = (index % 6) * ((Math.PI * 2) / 6) + Math.PI / 2;
   return [x + Math.cos(angle) * radius, 0, z + Math.sin(angle) * radius];
 }

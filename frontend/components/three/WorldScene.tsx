@@ -3,8 +3,10 @@
 import { Bounds, OrbitControls } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import type { ReactNode } from 'react';
+import type { WorldFrame } from '@/lib/frame';
 import { VENUES } from '@/lib/town';
 import { GROUND } from '@/lib/world3d';
+import AgentPawn from '@/components/three/AgentPawn';
 import VenueBlock from '@/components/three/VenueBlock';
 
 /**
@@ -14,7 +16,13 @@ import VenueBlock from '@/components/three/VenueBlock';
  * what a trace already carries. That is what lets it lag the backend without
  * blocking anything.
  */
-export default function WorldScene({ children }: { children?: ReactNode }) {
+export default function WorldScene({
+  frame,
+  children,
+}: {
+  frame?: WorldFrame | null;
+  children?: ReactNode;
+}) {
   return (
     <Canvas
       shadows
@@ -45,6 +53,13 @@ export default function WorldScene({ children }: { children?: ReactNode }) {
           <VenueBlock key={venue.id} venue={venue} />
         ))}
       </Bounds>
+
+      {/* Outside the Bounds on purpose. Bounds refits whenever its children
+          change, so an agent walking in would re-aim the camera on every turn.
+          The venues are fixed, so fitting to them alone is stable. */}
+      {frame?.agents.map((agent) => (
+        <AgentPawn key={agent.agentId} agent={agent} />
+      ))}
 
       {children}
 
