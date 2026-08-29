@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import {
   Check,
@@ -20,8 +21,9 @@ import {
 import Sidebar from '@/components/Sidebar';
 import ThoughtLog from '@/components/ThoughtLog';
 import PublicLog from '@/components/PublicLog';
-import Town from '@/components/Town';
 import ConfigPanel from '@/components/ConfigPanel';
+import { buildFrameFromSnapshot } from '@/lib/frame';
+import { hasWebGL } from '@/lib/world3d';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -41,6 +43,13 @@ import {
 
 // Auto-play tick must be >= walk duration so movement completes before next turn.
 const AUTO_PLAY_DELAY_MS = 3700;
+
+// three.js has no business in the server bundle, and no business loading at
+// all for a viewer that cannot render it.
+const WorldScene = dynamic(() => import('@/components/three/WorldScene'), {
+  ssr: false,
+  loading: () => null,
+});
 
 export default function SessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -73,6 +82,9 @@ export default function SessionPage() {
   }, [sessionId]);
 
   const hasAgents = (snapshot?.agents?.length ?? 0) > 0;
+  const [webgl, setWebgl] = useState<boolean | null>(null);
+  useEffect(() => setWebgl(hasWebGL()), []);
+  const frame = useMemo(() => buildFrameFromSnapshot(snapshot), [snapshot]);
 
   const step = useCallback(
     async (turns = 1) => {
@@ -284,9 +296,28 @@ export default function SessionPage() {
         </div>
       </header>
 
-      {/* Main: Town + Roster */}
+      {/* Main: World + Roster */}
       <div className="grid grid-cols-[1fr_340px] gap-[14px] mb-3">
-        <Town snapshot={snapshot} running={running} />
+        <div
+          className="rounded-3xl overflow-hidden border-[1.5px] border-cozy-card-edge shadow-cozy-md bg-[#FFF3DC]"
+          style={{ minHeight: 560 }}
+        >
+          {!hasAgents ? (
+            <div className="h-full min-h-[560px] grid place-items-center px-6 text-center">
+              <div className="max-w-sm">
+                <div className="text-3xl mb-2">🌱</div>
+                <div className="font-display font-semibold text-[15px] text-cozy-ink mb-1">
+                  No critters yet
+                </div>
+                <p className="text-[13px] text-cozy-ink-soft leading-snug">
+                  Configure a roster to populate the town.
+                </p>
+              </div>
+            </div>
+          ) : (
+            webgl && <WorldScene frame={frame} />
+          )}
+        </div>
         <Sidebar snapshot={snapshot} />
       </div>
 
