@@ -339,4 +339,43 @@ gated by F8.
 
 ## S1 outcome
 
-_To be filled in by S1, before any F3, F5 or F6 work begins._
+**Answer: the panel is docked beside the canvas, and its channels stack vertically.**
+ADR 1 stands — the triple stays legible in the 3-D view.
+
+Method: `TurnCard` itself was rendered in both candidate layouts over the live
+`WorldScene`, against `releases/leaderboard_335t_20260726` turn 1 (`qwen`, judged
+`misdirection`, conf 0.70 — a turn that exercises all four fields). Captured with
+Playwright at 1280x800 and 390x844, `deviceScaleFactor: 2`.
+
+What the four captures showed:
+
+| Layout | 1280x800 | 390x844 |
+|---|---|---|
+| Dock (`lg:grid-cols-[1fr_380px]`) | Readable. All four fields visible without scrolling. | **Best of the four.** Canvas on top, panel below, channels full width. |
+| Overlay (absolute, over canvas) | Panel occludes two of six venues (Alley, Lounge) outright. | Broken — panel overflows the canvas box, text clipped mid-sentence. |
+
+Three findings that bind F3:
+
+1. **Overlay is rejected on evidence, not taste.** At 1280x800 it hides a third of the
+   world it is explaining. Spec §6 forbids a world that buries the triple; an overlay
+   inverts the same failure.
+2. **`TurnCard`'s `md:grid-cols-3` must not be reused as-is.** That breakpoint is
+   viewport-based, so in a 380px dock on a wide screen it packs three channels into
+   ~110px columns — legible but cramped at 3-4 words a line. The same card at 390px
+   viewport, where the grid collapses, reads markedly better. F3's `TriplePanel` must
+   stack the channels unconditionally and reuse `Channel` alone, not the whole card.
+3. **Panel width, not viewport width, is the constraint.** A dock narrower than ~360px
+   starts wrapping the judge row; keep 380px as the floor.
+
+Also settled, and it changes F8: **the 3-D scene does not render under `npm run dev`.**
+`reactStrictMode: true` (`frontend/next.config.js:3`) double-mounts the R3F `Canvas`; the
+first renderer's disposal takes the GL context with it and the surviving canvas reports
+`isContextLost() === true`. Reproduced on the committed `main` build in two independent
+browsers, so it predates this plan. Under `npm run build && npm start` the same page
+renders correctly (`lost: false`). Every visual check in this plan — S1, F3, F8 — runs
+against a production build. This is recorded as a pre-existing defect, not fixed here.
+
+Evidence (screenshots, kept out of the repo — a spike keeps no files):
+`s1-dock-wide.png`, `s1-dock-narrow.png`, `s1-overlay-wide.png`, `s1-overlay-narrow.png`
+in the session scratchpad. Deviation from S1's stated definition of done, which asked for
+them appended here; ~1.1 MB of PNGs for a discarded prototype is not worth the repo.
