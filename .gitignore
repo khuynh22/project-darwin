@@ -56,5 +56,9 @@ releases/*/scores.json
 # becomes citable only when it is promoted into releases/.
 runs/
 
+# Playwright run artifacts.
+frontend/test-results/
+frontend/playwright-report/
+
 # TypeScript incremental build cache: regenerates on every build.
 frontend/tsconfig.tsbuildinfo
