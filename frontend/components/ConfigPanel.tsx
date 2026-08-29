@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CritterAvatar } from '@/components/Critter';
+import { CritterAvatar } from '@/components/Avatar';
 import { COLOR_HEX } from '@/lib/town';
 
 const FALLBACK_MODEL = 'anthropic/claude-opus-4.7';

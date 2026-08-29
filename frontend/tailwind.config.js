@@ -51,10 +51,6 @@ module.exports = {
           '0%': { opacity: '0', transform: 'translateX(-6px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
-        'ts-pulse': {
-          '0%, 100%': { transform: 'scale(1)' },
-          '50%': { transform: 'scale(1.04)' },
-        },
       },
       animation: {
         'fade-in': 'fade-in 150ms ease-out',
@@ -62,7 +58,6 @@ module.exports = {
         'dialog-in': 'zoom-in-95 180ms cubic-bezier(0.16, 1, 0.3, 1)',
         'dialog-out': 'zoom-out-95 140ms ease-in',
         'log-in': 'log-in 0.3s ease-out',
-        'ts-pulse': 'ts-pulse 2.4s ease-in-out infinite',
       },
     },
   },
