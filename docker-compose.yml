@@ -47,11 +47,17 @@ services:
       # Absolute on purpose: the default resolves relative to the source tree,
       # which is not where the code sits inside the image.
       RELEASES_DIR: /app/releases
+      # Same reason. Left unset it resolves to /runs, which is outside every
+      # volume — the turn loop would write traces that die with the container.
+      RUNS_DIR: /app/runs
     volumes:
       - darwin_logs:/app/thought_logs
       # Published artifacts for the gallery. Read-only: these endpoints only
       # read, and nothing in the container should be able to rewrite a release.
       - ./releases:/app/releases:ro
+      # Live traces, written one turn at a time. Bound to the host so a run you
+      # drove in the browser is replayable from a shell, and survives `down`.
+      - ./runs:/app/runs
     ports:
       - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000

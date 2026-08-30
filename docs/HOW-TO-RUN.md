@@ -164,7 +164,7 @@ docker compose up --build
 
 | service | address | what it is |
 |---|---|---|
-| arena | http://localhost:3000 | the UI: live sim, `/gallery`, `/leaderboard` |
+| arena | http://localhost:3000 | the UI: live sim in 3-D, `/gallery`, `/leaderboard` |
 | oracle | http://localhost:8000 | FastAPI: REST + WebSocket + `/releases` |
 | postgres | internal | the ledger |
 
@@ -177,6 +177,9 @@ Two things the compose file does deliberately:
   absolutely. The default path resolves relative to the source tree, which is not where
   the code sits inside the image — without the explicit setting the gallery silently
   serves an empty list.
+- **`runs/` is mounted read-write** at `/app/runs`, with `RUNS_DIR` set absolutely for the
+  same reason. Every turn driven from the browser appends there, so a run is replayable
+  from a host shell while it is still going, and survives `docker compose down`.
 - **Schema changes apply on boot.** `init_db` backfills new columns by `ALTER TABLE` and
   creates new tables, so an existing volume picks up contracts, offices, and the extended
   snapshots without a reset. Watch for `Backfilling column:` in `docker compose logs
