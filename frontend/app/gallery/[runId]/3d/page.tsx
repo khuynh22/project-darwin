@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TriplePanel from '@/components/three/TriplePanel';
 import TurnScrubber from '@/components/three/TurnScrubber';
+import type { ViewMode } from '@/components/three/WorldScene';
 import { buildFramesFromTurns } from '@/lib/frame';
 import {
   fetchRelease,
@@ -50,6 +51,8 @@ export default function World3DPage({
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<ViewMode>('walk');
+  const [locked, setLocked] = useState(false);
 
   // Guards the pager against a second request for a page already in flight;
   // the cursor can cross the margin several times while one is pending.
@@ -137,8 +140,17 @@ export default function World3DPage({
           >
             ← turn-by-turn view
           </Link>
+          <button
+            type="button"
+            onClick={() => setMode((m) => (m === 'walk' ? 'overview' : 'walk'))}
+            className="text-[12px] px-3 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card text-cozy-ink"
+          >
+            {mode === 'walk' ? '↑ overview' : '↓ walk the town'}
+          </button>
           <span className="text-[11px] text-cozy-ink-faint">
-            drag to orbit · scroll to zoom · click an agent
+            {mode === 'walk'
+              ? 'click the world to look around · WASD to walk · shift to run · esc to let go'
+              : 'drag to orbit · scroll to zoom · click an agent'}
           </span>
         </div>
         <h1 className="font-display font-bold text-[22px] text-cozy-ink mt-1">
@@ -177,14 +189,23 @@ export default function World3DPage({
           <div className="grid gap-3 lg:grid-cols-[1fr_380px] items-start">
             <div className="grid gap-2 min-w-0">
               <div
-                className="rounded-[20px] overflow-hidden border-[1.5px] border-cozy-card-edge shadow-cozy bg-cozy-bg1"
+                className="relative rounded-[20px] overflow-hidden border-[1.5px] border-cozy-card-edge shadow-cozy bg-cozy-bg1"
                 style={{ aspectRatio: '16 / 10', maxHeight: '68vh', minHeight: 300 }}
               >
                 <WorldScene
                   frame={frame}
+                  mode={mode}
                   selectedId={selected?.agentId ?? null}
                   onSelect={setSelectedId}
+                  onLockChange={setLocked}
                 />
+                {mode === 'walk' && !locked && (
+                  <div className="absolute inset-0 grid place-items-center pointer-events-none">
+                    <div className="px-4 py-2 rounded-pill bg-cozy-card/90 border-[1.5px] border-cozy-card-edge text-[12px] text-cozy-ink shadow-cozy">
+                      Click to look around
+                    </div>
+                  </div>
+                )}
               </div>
               <TurnScrubber
                 index={cursor}
