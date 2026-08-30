@@ -56,7 +56,9 @@ frontend/
     three/
       WorldScene.tsx        # Canvas, lights, ground, auto-fitting camera; renders a WorldFrame
       VenueBlock.tsx        # One venue as a raised district
-      AgentPawn.tsx         # One agent as a coloured pawn; clickable in the replay view
+      AgentPawn.tsx         # One agent, walking to wherever this turn put it
+      FirstPersonControls.tsx # Pointer lock + WASD; you, standing in the town
+      ProximityFocus.tsx    # Reports whoever you are standing in front of
       TriplePanel.tsx       # Selected agent-turn: reasoning, message, action, verdict
       TurnScrubber.tsx      # Replay transport (step / scrub / play)
     Triple.tsx              # Channel + VerdictRow, shared by TurnCard and TriplePanel
@@ -66,13 +68,19 @@ frontend/
     ConfigPanel.tsx         # Agent setup modal: model, color, API key, personality
     Avatar.tsx              # The roster head shown beside an agent's name
   lib/frame.ts            # WorldFrame: one view-model built from a live snapshot or a trace
+  lib/firstPerson.ts      # Eye height, walk speed, collision against the venue blocks
+  lib/motion.ts           # Walking an agent from last turn's venue to this one's
+  lib/proximity.ts        # Who you are close enough to, and facing, to be reading
   lib/town.ts             # Venues, action->venue table, agent palette
   lib/ws.ts               # Types (AgentSnap, ThoughtSnap, WorldSnapshot, PausedEvent) + WS connection
 ```
 
-**The world is 3-D, in both views.** One renderer, fed by `lib/frame.ts`, so the live
-session and a replayed run cannot disagree about where an agent stood. There is no 2-D
-fallback: a browser without WebGL gets an explicit notice and links to the run as data.
+**The world is 3-D and you stand in it.** Both views open on foot — pointer lock to look,
+WASD to walk, an `overview` toggle for the orbiting camera — and you read an agent by
+walking up to it rather than clicking it. Agents walk between venues as turns land. One
+renderer, fed by `lib/frame.ts`, so the live session and a replayed run cannot disagree
+about where an agent stood. There is no 2-D fallback: a browser without WebGL gets an
+explicit notice and links to the run as data.
 See `docs/adr/2026-08-26-3d-primary-renderer.md`.
 
 ## Game mechanics

@@ -223,6 +223,12 @@ pressing Step does for you.
 `runs/` is gitignored and has no retention policy — abandoned sessions accumulate, so
 delete them yourself. Set `RUNS_DIR` to move the directory.
 
+**Getting around.** Both the live session and the replay open on foot. Click the world to
+take the mouse, WASD to walk, shift to run, escape to let go. Walk up to an agent and its
+turn — private reasoning, public message, applied action, and the judge's verdict where
+there is one — appears beside it. The `overview` button lifts you back out to the orbiting
+camera, which is the better one for scrubbing a long run.
+
 **No world in the browser?** The 3-D view needs WebGL, and the page says so plainly when
 it is unavailable, with links to the trace and the monologue export. Note also that the
 scene does not render under `next dev` at all (React strict mode double-mounts the canvas
