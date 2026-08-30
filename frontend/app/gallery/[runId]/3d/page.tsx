@@ -53,6 +53,7 @@ export default function World3DPage({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>('walk');
   const [locked, setLocked] = useState(false);
+  const [hud, setHud] = useState(true);
 
   // Guards the pager against a second request for a page already in flight;
   // the cursor can cross the margin several times while one is pending.
@@ -114,6 +115,17 @@ export default function World3DPage({
     return () => clearInterval(id);
   }, [playing, frames.length]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyH' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement;
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
+      setHud((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const seek = useCallback(
     (next: number) => setCursor(Math.max(0, Math.min(next, frames.length - 1))),
     [frames.length],
@@ -134,43 +146,10 @@ export default function World3DPage({
   }, [frame, selectedId, mode]);
 
   return (
-    <main className="min-h-screen px-5 py-6 md:px-10">
-      <header className="max-w-[1400px] mx-auto mb-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <Link
-            href={`/gallery/${encodeURIComponent(decoded)}`}
-            className="text-[12px] text-cozy-accent hover:underline"
-          >
-            ← turn-by-turn view
-          </Link>
-          <button
-            type="button"
-            onClick={() => setMode((m) => (m === 'walk' ? 'overview' : 'walk'))}
-            className="text-[12px] px-3 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card text-cozy-ink"
-          >
-            {mode === 'walk' ? '↑ overview' : '↓ walk the town'}
-          </button>
-          <span className="text-[11px] text-cozy-ink-faint">
-            {mode === 'walk'
-              ? 'click the world to look around · WASD to walk · shift to run · esc to let go'
-              : 'drag to orbit · scroll to zoom · click an agent'}
-          </span>
-        </div>
-        <h1 className="font-display font-bold text-[22px] text-cozy-ink mt-1">
-          {decoded}
-        </h1>
-        {detail && (
-          <div className="flex gap-3 flex-wrap text-[12px] font-mono text-cozy-ink-soft mt-1">
-            <span>{detail.horizon} turns</span>
-            <span>{detail.n_agents} agents</span>
-            <span>{detail.state_fidelity} state</span>
-          </div>
-        )}
-      </header>
-
-      <div className="max-w-[1400px] mx-auto">
-        {webgl === false && (
-          <div className="bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-[18px] p-5">
+    <main className="fixed inset-0 overflow-hidden bg-cozy-bg1">
+      {webgl === false && (
+        <div className="h-full grid place-items-center px-5">
+          <div className="bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-[18px] p-5 max-w-md shadow-cozy">
             <div className="font-display font-semibold text-[15px] text-cozy-ink mb-1">
               This browser cannot render the 3-D view
             </div>
@@ -186,55 +165,117 @@ export default function World3DPage({
               beside each turn.
             </p>
           </div>
-        )}
+        </div>
+      )}
 
-        {webgl && (
-          <div className="grid gap-3 lg:grid-cols-[1fr_380px] items-start">
-            <div className="grid gap-2 min-w-0">
-              <div
-                className="relative rounded-[20px] overflow-hidden border-[1.5px] border-cozy-card-edge shadow-cozy bg-cozy-bg1"
-                style={{ aspectRatio: '16 / 10', maxHeight: '68vh', minHeight: 300 }}
-              >
-                <WorldScene
-                  frame={frame}
-                  mode={mode}
-                  selectedId={selected?.agentId ?? null}
-                  onSelect={setSelectedId}
-                  onLockChange={setLocked}
-                />
-                {mode === 'walk' && !locked && (
-                  <div className="absolute inset-0 grid place-items-center pointer-events-none">
-                    <div className="px-4 py-2 rounded-pill bg-cozy-card/90 border-[1.5px] border-cozy-card-edge text-[12px] text-cozy-ink shadow-cozy">
-                      Click to look around
-                    </div>
-                  </div>
-                )}
-              </div>
-              <TurnScrubber
-                index={cursor}
-                loaded={frames.length}
-                total={detail?.horizon ?? frames.length}
-                turn={frame?.turn ?? 0}
-                playing={playing}
-                onSeek={seek}
-                onTogglePlay={() => setPlaying((p) => !p)}
-              />
-            </div>
-
-            <div className="min-w-0 lg:max-h-[72vh] lg:overflow-y-auto">
-              <TriplePanel
-                agent={selected}
-                turn={frame?.turn ?? 0}
-                emptyHint={
-                  mode === 'walk'
-                    ? 'Walk up to an agent to read what it thought, what it said, and what it did on this turn.'
-                    : undefined
-                }
-              />
-            </div>
+      {webgl && (
+        <>
+          {/* The world takes the whole viewport. Everything else floats on it. */}
+          <div className="absolute inset-0">
+            <WorldScene
+              frame={frame}
+              mode={mode}
+              selectedId={selected?.agentId ?? null}
+              onSelect={setSelectedId}
+              onLockChange={setLocked}
+            />
           </div>
-        )}
-      </div>
+
+          {mode === 'walk' && !locked && (
+            <div className="absolute inset-0 grid place-items-center pointer-events-none">
+              <div className="px-4 py-2 rounded-pill bg-cozy-card/90 border-[1.5px] border-cozy-card-edge text-[12px] text-cozy-ink shadow-cozy">
+                Click to look around
+              </div>
+            </div>
+          )}
+
+          {/* Nothing in the overlay layer eats a click unless it is a control:
+              the canvas underneath needs the click that grabs the pointer. */}
+          <div className="absolute inset-0 pointer-events-none flex flex-col gap-3 p-3 md:p-4">
+            {hud && (
+              <div className="flex items-start gap-2 flex-wrap pointer-events-auto">
+                <div className="flex items-center gap-2 flex-wrap rounded-[16px] bg-cozy-card/92 border-[1.5px] border-cozy-card-edge shadow-cozy px-3 py-2 backdrop-blur-sm">
+                  <Link
+                    href={`/gallery/${encodeURIComponent(decoded)}`}
+                    className="text-[12px] text-cozy-accent hover:underline"
+                  >
+                    ← turn-by-turn
+                  </Link>
+                  <span className="font-display font-bold text-[13px] text-cozy-ink">
+                    {decoded}
+                  </span>
+                  {detail && (
+                    <span className="text-[11px] font-mono text-cozy-ink-soft">
+                      {detail.horizon} turns · {detail.n_agents} agents ·{' '}
+                      {detail.state_fidelity} state
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setMode((m) => (m === 'walk' ? 'overview' : 'walk'))}
+                    className="text-[12px] px-3 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card text-cozy-ink"
+                  >
+                    {mode === 'walk' ? '↑ overview' : '↓ walk the town'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHud(false)}
+                    className="text-[12px] px-3 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card text-cozy-ink"
+                    title="Hide the overlay (H)"
+                  >
+                    hide
+                  </button>
+                </div>
+                <span className="text-[11px] text-cozy-ink-faint bg-cozy-card/80 rounded-pill px-2.5 py-1.5">
+                  {mode === 'walk'
+                    ? 'click to look · WASD to walk · shift to run · esc to let go'
+                    : 'drag to orbit · scroll to zoom · click an agent'}
+                </span>
+              </div>
+            )}
+
+            {!hud && (
+              <button
+                type="button"
+                onClick={() => setHud(true)}
+                className="self-start pointer-events-auto text-[12px] px-3 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card/90 text-cozy-ink"
+              >
+                show overlay
+              </button>
+            )}
+
+            {hud && (
+              <div className="flex-1 min-h-0 flex justify-end">
+                <div className="w-[380px] max-w-[calc(100vw-1.5rem)] overflow-y-auto pointer-events-auto">
+                  <TriplePanel
+                    agent={selected}
+                    turn={frame?.turn ?? 0}
+                    emptyHint={
+                      mode === 'walk'
+                        ? 'Walk up to an agent to read what it thought, what it said, and what it did on this turn.'
+                        : undefined
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {hud && (
+              <div className="pointer-events-auto rounded-[16px] bg-cozy-card/92 border-[1.5px] border-cozy-card-edge shadow-cozy px-3 py-2 backdrop-blur-sm">
+                <TurnScrubber
+                  index={cursor}
+                  loaded={frames.length}
+                  total={detail?.horizon ?? frames.length}
+                  turn={frame?.turn ?? 0}
+                  playing={playing}
+                  onSeek={seek}
+                  onTogglePlay={() => setPlaying((p) => !p)}
+                />
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </main>
   );
 }
