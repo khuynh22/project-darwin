@@ -36,7 +36,10 @@ export default defineConfig({
     // renders there.
     command: `npm run build && npx next start -p ${PORT}`,
     port: PORT,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse: a server left running on this port from an earlier build
+    // makes the gate pass or fail against code that is not the code under
+    // test, which is worse than having no gate.
+    reuseExistingServer: false,
     timeout: 300_000,
   },
 });
