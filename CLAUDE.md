@@ -55,8 +55,9 @@ frontend/
   components/
     three/
       WorldScene.tsx        # Canvas, lights, ground, auto-fitting camera; renders a WorldFrame
-      VenueBlock.tsx        # One venue as a raised district
+      VenueBlock.tsx        # One venue as a building: door, windows, roof, sign
       AgentPawn.tsx         # One agent, walking to wherever this turn put it
+      AgentBody.tsx         # The person: head, torso, arms and legs that swing
       FirstPersonControls.tsx # Pointer lock + WASD; you, standing in the town
       ProximityFocus.tsx    # Reports whoever you are standing in front of
       TriplePanel.tsx       # Selected agent-turn: reasoning, message, action, verdict
@@ -71,6 +72,8 @@ frontend/
   lib/firstPerson.ts      # Eye height, walk speed, collision against the venue blocks
   lib/motion.ts           # Walking an agent from last turn's venue to this one's
   lib/proximity.ts        # Who you are close enough to, and facing, to be reading
+  lib/gait.ts             # Body proportions and the walk cycle, driven by ground covered
+  lib/architecture.ts     # What each venue is built like, sized against the collision box
   lib/town.ts             # Venues, action->venue table, agent palette
   lib/ws.ts               # Types (AgentSnap, ThoughtSnap, WorldSnapshot, PausedEvent) + WS connection
 ```
