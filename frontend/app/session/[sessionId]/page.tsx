@@ -89,6 +89,7 @@ export default function SessionPage() {
   const frame = useMemo(() => buildFrameFromSnapshot(snapshot), [snapshot]);
   const [mode, setMode] = useState<ViewMode>('walk');
   const [locked, setLocked] = useState(false);
+  const [hud, setHud] = useState(true);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const focused = useMemo(
     () => frame.agents.find((a) => a.agentId === focusedId) ?? null,
@@ -191,7 +192,7 @@ export default function SessionPage() {
     setConfigOpen(true);
   }
 
-  // Keyboard shortcuts: S = Step, Space = Auto, R = Reset
+  // Keyboard shortcuts: S = Step, Space = Auto, R = Reset, H = overlay
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -203,6 +204,8 @@ export default function SessionPage() {
         if (hasAgents && !running && !autoPlay) step(1);
       } else if (e.key === 'r' || e.key === 'R') {
         resetSim();
+      } else if (e.key === 'h' || e.key === 'H') {
+        setHud((v) => !v);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -216,205 +219,240 @@ export default function SessionPage() {
   const treasury = snapshot?.agents.reduce((sum, a) => sum + a.balance, 0) ?? 0;
   const vis = snapshot?.balance_visibility;
 
-  return (
-    <main className="relative z-[1] mx-auto max-w-[1440px] px-[22px] pt-[14px] pb-[22px]">
-      {/* Header */}
-      <header className="flex items-center justify-between gap-6 bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-[22px] px-4 py-[10px] shadow-cozy mb-3">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-[38px] h-[38px] rounded-[12px] grid place-items-center text-[20px]"
-            style={{ background: '#FFC089', boxShadow: '0 2px 0 rgba(74,58,46,0.08)' }}
-          >
-            🌱
-          </div>
-          <div>
-            <h1 className="font-display font-semibold text-[19px] leading-none text-cozy-ink">
-              Project Darwin
-            </h1>
-            <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-cozy-ink-soft mt-[3px]">
-              A tiny town of LLM critters
+  const header = (
+        <header className="flex items-center justify-between gap-6 bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-[22px] px-4 py-[10px] shadow-cozy mb-3">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-[38px] h-[38px] rounded-[12px] grid place-items-center text-[20px]"
+              style={{ background: '#FFC089', boxShadow: '0 2px 0 rgba(74,58,46,0.08)' }}
+            >
+              🌱
+            </div>
+            <div>
+              <h1 className="font-display font-semibold text-[19px] leading-none text-cozy-ink">
+                Project Darwin
+              </h1>
+              <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-cozy-ink-soft mt-[3px]">
+                A tiny town of LLM critters
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-[10px]">
-          <StatPill label="Turn" value={String(turn).padStart(2, '0')} mono />
-          <StatPill label="Alive" value={`${aliveCount}/${totalAgents}`} />
-          <StatPill label="Treasury" value={`$${treasury.toFixed(2)}`} mono />
-          {vis && hasAgents && <VisPill vis={vis} />}
-          {running && (
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-cozy-accent">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-cozy-accent animate-pulse" />
-              thinking…
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-[10px]">
-          <Button
-            variant="default"
-            onClick={() => step(1)}
-            disabled={running || !hasAgents || autoPlay}
-          >
-            <StepForward size={14} /> Step
-          </Button>
-          <Button
-            variant="default"
-            onClick={() => step(10)}
-            disabled={running || !hasAgents || autoPlay}
-          >
-            <ChevronsRight size={14} /> +10
-          </Button>
-          <Button
-            variant={autoPlay ? 'success' : 'primary'}
-            onClick={toggleAutoPlay}
-            disabled={!hasAgents}
-          >
-            <span className="dot" />
-            {autoPlay ? (
-              <>
-                <Square size={12} /> Auto · ON
-              </>
-            ) : (
-              <>
-                <Play size={12} /> Auto
-              </>
+          <div className="flex items-center gap-[10px]">
+            <StatPill label="Turn" value={String(turn).padStart(2, '0')} mono />
+            <StatPill label="Alive" value={`${aliveCount}/${totalAgents}`} />
+            <StatPill label="Treasury" value={`$${treasury.toFixed(2)}`} mono />
+            {vis && hasAgents && <VisPill vis={vis} />}
+            {running && (
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-cozy-accent">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-cozy-accent animate-pulse" />
+                thinking…
+              </span>
             )}
-          </Button>
-          {(running || autoPlay) && (
-            <Button variant="danger" onClick={stopRun}>
-              <CircleStop size={14} /> Stop
+          </div>
+
+          <div className="flex items-center gap-[10px]">
+            <Button
+              variant="default"
+              onClick={() => step(1)}
+              disabled={running || !hasAgents || autoPlay}
+            >
+              <StepForward size={14} /> Step
             </Button>
-          )}
-          <div className="w-px h-6 bg-cozy-card-edge mx-1" />
-          <Button variant="ghost" onClick={shareLink}>
-            {copied ? <Check size={14} /> : <Share2 size={14} />} {copied ? 'Copied' : 'Share'}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => window.open(`${base}/export/thoughts`, '_blank')}
+            <Button
+              variant="default"
+              onClick={() => step(10)}
+              disabled={running || !hasAgents || autoPlay}
+            >
+              <ChevronsRight size={14} /> +10
+            </Button>
+            <Button
+              variant={autoPlay ? 'success' : 'primary'}
+              onClick={toggleAutoPlay}
+              disabled={!hasAgents}
+            >
+              <span className="dot" />
+              {autoPlay ? (
+                <>
+                  <Square size={12} /> Auto · ON
+                </>
+              ) : (
+                <>
+                  <Play size={12} /> Auto
+                </>
+              )}
+            </Button>
+            {(running || autoPlay) && (
+              <Button variant="danger" onClick={stopRun}>
+                <CircleStop size={14} /> Stop
+              </Button>
+            )}
+            <div className="w-px h-6 bg-cozy-card-edge mx-1" />
+            <Button variant="ghost" onClick={shareLink}>
+              {copied ? <Check size={14} /> : <Share2 size={14} />} {copied ? 'Copied' : 'Share'}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => window.open(`${base}/export/thoughts`, '_blank')}
+            >
+              <Download size={14} /> Export
+            </Button>
+            <Button variant="ghost" onClick={() => setConfigOpen(true)}>
+              <Settings2 size={14} /> Config
+            </Button>
+            <Button variant="ghost" onClick={resetSim}>
+              <RotateCcw size={14} /> Reset
+            </Button>
+          </div>
+        </header>
+  );
+
+  return (
+    <main className="fixed inset-0 z-[1] overflow-hidden bg-cozy-bg1">
+      {/* Header */}
+
+      {/* The world is the page. Everything else floats on it, and the overlay
+          layer takes no pointer events except on its own controls — the click
+          that grabs the mouse has to reach the canvas underneath. */}
+      <div className="absolute inset-0">
+        {!hasAgents ? (
+          <div className="h-full grid place-items-center px-6 text-center">
+            <div className="max-w-sm">
+              <div className="text-3xl mb-2">🌱</div>
+              <div className="font-display font-semibold text-[15px] text-cozy-ink mb-1">
+                No critters yet
+              </div>
+              <p className="text-[13px] text-cozy-ink-soft leading-snug">
+                Configure a roster to populate the town.
+              </p>
+            </div>
+          </div>
+        ) : webgl === false ? (
+          <div className="h-full grid place-items-center px-6">
+            <div className="max-w-md bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-[18px] p-5 shadow-cozy">
+              <div className="font-display font-semibold text-[15px] text-cozy-ink mb-1">
+                This browser cannot render the world
+              </div>
+              <p className="text-[13px] text-cozy-ink-soft leading-snug">
+                WebGL is unavailable or disabled, and the world is drawn with it. The
+                run itself is unaffected — it is still being recorded, and the roster,
+                the public feed and the private monologues are all live.
+              </p>
+              <p className="text-[13px] text-cozy-ink-soft leading-snug mt-2">
+                Read it as data instead:{' '}
+                <a
+                  href={`${base}/trace/turns?offset=0&limit=200`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-cozy-accent hover:underline"
+                >
+                  this run&apos;s trace
+                </a>{' '}
+                or{' '}
+                <a
+                  href={`${base}/export/thoughts`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-cozy-accent hover:underline"
+                >
+                  the private monologues
+                </a>
+                .
+              </p>
+            </div>
+          </div>
+        ) : (
+          webgl && (
+            <WorldScene
+              frame={frame}
+              mode={mode}
+              selectedId={focusedId}
+              onSelect={(id) => setFocusedId(id || null)}
+              onLockChange={setLocked}
+            />
+          )
+        )}
+      </div>
+
+      {webgl && hasAgents && mode === 'walk' && !locked && (
+        <div className="absolute inset-0 grid place-items-center pointer-events-none">
+          <div className="px-4 py-2 rounded-pill bg-cozy-card/90 border-[1.5px] border-cozy-card-edge text-[12px] text-cozy-ink shadow-cozy">
+            Click to look around
+          </div>
+        </div>
+      )}
+
+      <div className="absolute inset-0 pointer-events-none flex flex-col gap-2 p-3">
+        {hud && (
+          <div className="pointer-events-auto shrink-0 flex flex-col gap-2">
+            {header}
+            <div className="flex items-center gap-2 flex-wrap">
+              {webgl && hasAgents && (
+                <button
+                  type="button"
+                  onClick={() => setMode((m) => (m === 'walk' ? 'overview' : 'walk'))}
+                  className="text-[11px] px-2.5 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card/90 text-cozy-ink"
+                >
+                  {mode === 'walk' ? '↑ overview' : '↓ walk the town'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setHud(false)}
+                className="text-[11px] px-2.5 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card/90 text-cozy-ink"
+                title="Hide the overlay (H)"
+              >
+                hide overlay
+              </button>
+              <span className="text-[10px] text-cozy-ink-faint bg-cozy-card/80 rounded-pill px-2 py-1">
+                {webgl && hasAgents && mode === 'walk'
+                  ? 'click to look · WASD to walk · shift to run · esc to let go'
+                  : 'drag to orbit · scroll to zoom'}
+              </span>
+              <span className="text-[10px] font-semibold text-cozy-ink-soft bg-cozy-card/80 rounded-pill px-2 py-1">
+                <Kbd>S</Kbd> Step&nbsp; <Kbd>Space</Kbd> Auto&nbsp; <Kbd>R</Kbd> Reset&nbsp;{' '}
+                <Kbd>H</Kbd> Overlay
+              </span>
+            </div>
+          </div>
+        )}
+
+        {!hud && (
+          <button
+            type="button"
+            onClick={() => setHud(true)}
+            className="self-start pointer-events-auto text-[12px] px-3 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card/90 text-cozy-ink"
           >
-            <Download size={14} /> Export
-          </Button>
-          <Button variant="ghost" onClick={() => setConfigOpen(true)}>
-            <Settings2 size={14} /> Config
-          </Button>
-          <Button variant="ghost" onClick={resetSim}>
-            <RotateCcw size={14} /> Reset
-          </Button>
-        </div>
-      </header>
+            show overlay
+          </button>
+        )}
 
-      {/* Main: World + Roster */}
-      <div className="grid grid-cols-[1fr_340px] gap-[14px] mb-3">
-        <div
-          className="rounded-3xl overflow-hidden border-[1.5px] border-cozy-card-edge shadow-cozy-md bg-[#FFF3DC]"
-          style={{ minHeight: 560 }}
-        >
-          {!hasAgents ? (
-            <div className="h-full min-h-[560px] grid place-items-center px-6 text-center">
-              <div className="max-w-sm">
-                <div className="text-3xl mb-2">🌱</div>
-                <div className="font-display font-semibold text-[15px] text-cozy-ink mb-1">
-                  No critters yet
-                </div>
-                <p className="text-[13px] text-cozy-ink-soft leading-snug">
-                  Configure a roster to populate the town.
-                </p>
+        <div className="flex-1 min-h-0 flex gap-2 justify-between items-start">
+          {/* Only while you are standing in front of someone: a caption on what
+              you are looking at, not a panel permanently covering the world. */}
+          <div className="w-[340px] max-w-[45vw] self-end pointer-events-auto">
+            {hud && webgl && mode === 'walk' && focused && (
+              <div className="max-h-[46vh] overflow-y-auto">
+                <TriplePanel agent={focused} turn={frame.turn} />
               </div>
+            )}
+          </div>
+
+          {hud && (
+            <div className="w-[340px] max-w-[45vw] max-h-full overflow-y-auto pointer-events-auto">
+              <Sidebar snapshot={snapshot} />
             </div>
-          ) : webgl === false ? (
-            <div className="h-full min-h-[560px] grid place-items-center px-6">
-              <div className="max-w-md">
-                <div className="font-display font-semibold text-[15px] text-cozy-ink mb-1">
-                  This browser cannot render the world
-                </div>
-                <p className="text-[13px] text-cozy-ink-soft leading-snug">
-                  WebGL is unavailable or disabled, and the world is drawn with it. The
-                  run itself is unaffected — it is still being recorded, and the roster,
-                  the public feed and the private monologues below are all live.
-                </p>
-                <p className="text-[13px] text-cozy-ink-soft leading-snug mt-2">
-                  Read it as data instead:{' '}
-                  <a
-                    href={`${base}/trace/turns?offset=0&limit=200`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-cozy-accent hover:underline"
-                  >
-                    this run&apos;s trace
-                  </a>{' '}
-                  or{' '}
-                  <a
-                    href={`${base}/export/thoughts`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-cozy-accent hover:underline"
-                  >
-                    the private monologues
-                  </a>
-                  .
-                </p>
-              </div>
-            </div>
-          ) : (
-            webgl && (
-              <div className="relative h-full min-h-[560px]">
-                <WorldScene
-                  frame={frame}
-                  mode={mode}
-                  selectedId={focusedId}
-                  onSelect={(id) => setFocusedId(id || null)}
-                  onLockChange={setLocked}
-                />
-
-                <div className="absolute top-3 left-3 flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setMode((m) => (m === 'walk' ? 'overview' : 'walk'))}
-                    className="text-[11px] px-2.5 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card/90 text-cozy-ink"
-                  >
-                    {mode === 'walk' ? '↑ overview' : '↓ walk the town'}
-                  </button>
-                  <span className="text-[10px] text-cozy-ink-faint bg-cozy-card/80 rounded-pill px-2 py-1">
-                    {mode === 'walk'
-                      ? 'WASD to walk · shift to run · esc to let go'
-                      : 'drag to orbit · scroll to zoom'}
-                  </span>
-                </div>
-
-                {mode === 'walk' && !locked && (
-                  <div className="absolute inset-0 grid place-items-center pointer-events-none">
-                    <div className="px-4 py-2 rounded-pill bg-cozy-card/90 border-[1.5px] border-cozy-card-edge text-[12px] text-cozy-ink shadow-cozy">
-                      Click to look around
-                    </div>
-                  </div>
-                )}
-
-                {/* Only while you are standing in front of someone, so it is a
-                    caption on what you are looking at rather than a panel
-                    permanently covering a third of the world. */}
-                {mode === 'walk' && focused && (
-                  <div className="absolute left-3 bottom-3 w-[340px] max-w-[calc(100%-1.5rem)] max-h-[52%] overflow-y-auto">
-                    <TriplePanel agent={focused} turn={frame.turn} />
-                  </div>
-                )}
-              </div>
-            )
           )}
         </div>
-        <Sidebar snapshot={snapshot} />
+
+        {hud && (
+          <div className="shrink-0 grid grid-cols-2 gap-2 pointer-events-auto" style={{ maxHeight: '27vh' }}>
+            <PublicLog snapshot={snapshot} />
+            <ThoughtLog snapshot={snapshot} />
+          </div>
+        )}
       </div>
 
-      {/* Logs */}
-      <div className="grid grid-cols-2 gap-[14px]">
-        <PublicLog snapshot={snapshot} />
-        <ThoughtLog snapshot={snapshot} />
-      </div>
-
-      <div className="text-center text-[11px] font-semibold text-cozy-ink-soft mt-3">
-        <Kbd>S</Kbd> Step &nbsp;·&nbsp; <Kbd>Space</Kbd> Auto &nbsp;·&nbsp; <Kbd>R</Kbd> Reset
-      </div>
 
       <ConfigPanel
         sessionId={sessionId}
