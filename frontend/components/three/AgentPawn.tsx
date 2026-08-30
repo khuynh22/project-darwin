@@ -4,18 +4,14 @@ import { Billboard, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import type { Group } from 'three';
+import AgentBody, { type Gait } from '@/components/three/AgentBody';
 import type { FrameAgent } from '@/lib/frame';
+import { BODY, advancePhase } from '@/lib/gait';
 import { easeInOutCubic, facingAngle, lerp3, walkDuration } from '@/lib/motion';
 import type { Vec3 } from '@/lib/world3d';
 
-// Person-sized, so standing next to one reads as standing next to someone.
-const BODY_RADIUS = 0.32;
-const BODY_HEIGHT = 1.7;
-
-// A step's worth of rise and fall. Enough to read as walking from across the
-// plaza, small enough not to look like hopping when you are stood next to it.
-const BOB_HEIGHT = 0.07;
-const BOB_STEPS = 9;
+/** Room for the body, for the selection ring and the label above it. */
+const SELECT_RADIUS = 0.34;
 
 /**
  * One agent, walking to wherever this turn put it.
@@ -45,6 +41,10 @@ export default function AgentPawn({
     facing: 0,
   });
 
+  // Written every frame and read by AgentBody, which is why it is a ref and
+  // not a prop: ten agents re-rendering per frame is a slideshow.
+  const gait = useRef<Gait>({ phase: 0, walking: false });
+
   useFrame((_, rawDelta) => {
     const node = group.current;
     if (!node) return;
@@ -68,8 +68,14 @@ export default function AgentPawn({
 
     const [x, , z] = lerp3(state.from, state.to, eased);
     const walking = t < 1;
-    const bob = walking ? Math.abs(Math.sin(eased * Math.PI * BOB_STEPS)) * BOB_HEIGHT : 0;
-    node.position.set(x, bob, z);
+
+    // The gait is driven by ground actually covered this frame, so the legs
+    // keep up with the body whatever the walk's duration works out to be.
+    const stepped = Math.hypot(x - node.position.x, z - node.position.z);
+    gait.current.phase = advancePhase(gait.current.phase, walking ? stepped : 0);
+    gait.current.walking = walking;
+
+    node.position.set(x, 0, z);
 
     if (walking) {
       state.facing = facingAngle(state.from, state.to, state.facing);
@@ -95,33 +101,24 @@ export default function AgentPawn({
         document.body.style.cursor = '';
       }}
     >
-      <mesh position={[0, BODY_HEIGHT / 2, 0]} castShadow receiveShadow>
-        <capsuleGeometry args={[BODY_RADIUS, BODY_HEIGHT - BODY_RADIUS * 2, 4, 12]} />
-        <meshStandardMaterial
-          color={agent.color}
-          roughness={0.6}
-          emissive={selected ? '#E8956A' : '#000000'}
-          emissiveIntensity={selected ? 0.55 : 0}
-        />
-      </mesh>
+      <AgentBody color={agent.color} gait={gait} />
 
-      {/* Which way it is facing, so a walking agent reads as going somewhere
-          rather than sliding. */}
-      <mesh position={[0, BODY_HEIGHT * 0.72, -BODY_RADIUS * 0.85]}>
-        <sphereGeometry args={[BODY_RADIUS * 0.28, 10, 10]} />
-        <meshStandardMaterial color="#3A2E24" roughness={0.9} />
+      {/* A hit target the raycaster can actually hit: picking a stick figure
+          limb by limb misses between the arms and the body. */}
+      <mesh position={[0, BODY.height / 2, 0]} visible={false}>
+        <capsuleGeometry args={[SELECT_RADIUS, BODY.height - SELECT_RADIUS * 2, 4, 8]} />
       </mesh>
 
       {selected && (
         <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[BODY_RADIUS + 0.2, BODY_RADIUS + 0.38, 24]} />
+          <ringGeometry args={[SELECT_RADIUS + 0.18, SELECT_RADIUS + 0.34, 24]} />
           <meshBasicMaterial color="#E8956A" />
         </mesh>
       )}
 
       {/* Billboarded explicitly: the group turns to face where the agent is
           walking, and a name that turns away with it is useless. */}
-      <Billboard position={[0, BODY_HEIGHT + 0.42, 0]}>
+      <Billboard position={[0, BODY.height + 0.32, 0]}>
         <Text
           fontSize={0.34}
           color="#4A3A2E"
