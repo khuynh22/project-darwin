@@ -22,6 +22,8 @@ import Sidebar from '@/components/Sidebar';
 import ThoughtLog from '@/components/ThoughtLog';
 import PublicLog from '@/components/PublicLog';
 import ConfigPanel from '@/components/ConfigPanel';
+import TriplePanel from '@/components/three/TriplePanel';
+import type { ViewMode } from '@/components/three/WorldScene';
 import { buildFrameFromSnapshot } from '@/lib/frame';
 import { hasWebGL } from '@/lib/world3d';
 import { Button } from '@/components/ui/button';
@@ -85,6 +87,13 @@ export default function SessionPage() {
   const [webgl, setWebgl] = useState<boolean | null>(null);
   useEffect(() => setWebgl(hasWebGL()), []);
   const frame = useMemo(() => buildFrameFromSnapshot(snapshot), [snapshot]);
+  const [mode, setMode] = useState<ViewMode>('walk');
+  const [locked, setLocked] = useState(false);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const focused = useMemo(
+    () => frame.agents.find((a) => a.agentId === focusedId) ?? null,
+    [frame, focusedId],
+  );
 
   const step = useCallback(
     async (turns = 1) => {
@@ -349,7 +358,49 @@ export default function SessionPage() {
               </div>
             </div>
           ) : (
-            webgl && <WorldScene frame={frame} />
+            webgl && (
+              <div className="relative h-full min-h-[560px]">
+                <WorldScene
+                  frame={frame}
+                  mode={mode}
+                  selectedId={focusedId}
+                  onSelect={(id) => setFocusedId(id || null)}
+                  onLockChange={setLocked}
+                />
+
+                <div className="absolute top-3 left-3 flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setMode((m) => (m === 'walk' ? 'overview' : 'walk'))}
+                    className="text-[11px] px-2.5 py-1 rounded-pill border-[1.5px] border-cozy-card-edge bg-cozy-card/90 text-cozy-ink"
+                  >
+                    {mode === 'walk' ? '↑ overview' : '↓ walk the town'}
+                  </button>
+                  <span className="text-[10px] text-cozy-ink-faint bg-cozy-card/80 rounded-pill px-2 py-1">
+                    {mode === 'walk'
+                      ? 'WASD to walk · shift to run · esc to let go'
+                      : 'drag to orbit · scroll to zoom'}
+                  </span>
+                </div>
+
+                {mode === 'walk' && !locked && (
+                  <div className="absolute inset-0 grid place-items-center pointer-events-none">
+                    <div className="px-4 py-2 rounded-pill bg-cozy-card/90 border-[1.5px] border-cozy-card-edge text-[12px] text-cozy-ink shadow-cozy">
+                      Click to look around
+                    </div>
+                  </div>
+                )}
+
+                {/* Only while you are standing in front of someone, so it is a
+                    caption on what you are looking at rather than a panel
+                    permanently covering a third of the world. */}
+                {mode === 'walk' && focused && (
+                  <div className="absolute left-3 bottom-3 w-[340px] max-w-[calc(100%-1.5rem)] max-h-[52%] overflow-y-auto">
+                    <TriplePanel agent={focused} turn={frame.turn} />
+                  </div>
+                )}
+              </div>
+            )
           )}
         </div>
         <Sidebar snapshot={snapshot} />
