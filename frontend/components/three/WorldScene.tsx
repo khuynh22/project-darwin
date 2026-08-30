@@ -1,8 +1,9 @@
 'use client';
 
 import { Bounds, OrbitControls } from '@react-three/drei';
-import { Canvas } from '@react-three/fiber';
-import type { ReactNode } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
+import { useEffect, type ReactNode } from 'react';
+import type { PerspectiveCamera } from 'three';
 import type { WorldFrame } from '@/lib/frame';
 import { VENUES } from '@/lib/town';
 import { GROUND } from '@/lib/world3d';
@@ -19,6 +20,33 @@ import { EYE_HEIGHT } from '@/lib/firstPerson';
  * blocking anything.
  */
 export type ViewMode = 'overview' | 'walk';
+
+/**
+ * Puts the camera back where the mode expects it.
+ *
+ * The Canvas `camera` prop is read once, at mount. Switching modes does not
+ * remount, so without this you leave walk mode with the camera still standing
+ * at eye height and the overview looks along the ground from the far corner.
+ */
+function CameraRig({ mode }: { mode: ViewMode }) {
+  const camera = useThree((state) => state.camera) as PerspectiveCamera;
+
+  useEffect(() => {
+    if (mode === 'overview') {
+      camera.position.set(0, 34, 40);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+      camera.fov = 42;
+    } else {
+      camera.fov = 70;
+    }
+    camera.near = 0.1;
+    camera.far = 400;
+    camera.updateProjectionMatrix();
+  }, [camera, mode]);
+
+  return null;
+}
 
 export default function WorldScene({
   frame,
@@ -52,6 +80,8 @@ export default function WorldScene({
       {/* At eye height the ground runs to a hard edge against the clear colour.
           Fog hides the seam and gives the plaza some depth; overview looks down
           on it from outside, where fog would only wash the town out. */}
+      <CameraRig mode={mode} />
+
       {walking && <fog attach="fog" args={['#FFF4E3', 26, 95]} />}
 
       <hemisphereLight args={['#FFF4E3', '#E8C9A0', 1.05]} />
