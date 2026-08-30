@@ -89,6 +89,16 @@ async function stubOracle(page: Page) {
   });
 }
 
+/**
+ * The page opens on foot. Reading an agent there means walking up to it, which
+ * a headless run cannot do reliably, so the panel assertions drive the
+ * overview — the same panel, the same component, with a selection that does
+ * not depend on where the camera is standing.
+ */
+async function toOverview(page: Page) {
+  await page.getByRole('button', { name: 'overview' }).click();
+}
+
 test.beforeEach(async ({ page }) => {
   await stubOracle(page);
   await page.goto(`/gallery/${RUN}/3d`);
@@ -105,7 +115,17 @@ test('the world renders rather than falling back to the no-WebGL notice', async 
   expect(live, 'the WebGL context must survive mounting').toBe(true);
 });
 
+test('on foot the panel admits nobody is nearby rather than quoting a stranger', async ({
+  page,
+}) => {
+  // Falling back to "some agent" would attribute a monologue to whoever the
+  // frame happened to list first, several buildings away.
+  await expect(page.getByText('Walk up to an agent')).toBeVisible();
+  await expect(page.getByText('ALPHA PRIVATE ONE')).toHaveCount(0);
+});
+
 test('all four fields of the triple are visible for the selected agent-turn', async ({ page }) => {
+  await toOverview(page);
   await expect(page.getByText('private reasoning')).toBeVisible();
   await expect(page.getByText('ALPHA PRIVATE ONE')).toBeVisible();
 
@@ -122,6 +142,7 @@ test('all four fields of the triple are visible for the selected agent-turn', as
 });
 
 test('stepping to the next turn moves the panel with the world', async ({ page }) => {
+  await toOverview(page);
   await expect(page.getByText('ALPHA PRIVATE ONE')).toBeVisible();
 
   await page.getByRole('button', { name: 'next' }).click();
@@ -134,6 +155,7 @@ test('stepping to the next turn moves the panel with the world', async ({ page }
 });
 
 test('an agent with no verdict still shows its triple', async ({ page }) => {
+  await toOverview(page);
   await page.getByRole('button', { name: 'next' }).click();
   await expect(page.getByText('ALPHA OUTCOME TWO')).toBeVisible();
   await expect(page.getByText('ALPHA PUBLIC TWO')).toBeVisible();

@@ -18,17 +18,16 @@ import type { FrameAgent } from '@/lib/frame';
 export default function TriplePanel({
   agent,
   turn,
+  emptyHint = 'Select an agent in the world to read what it thought, what it said, and what it did on this turn.',
 }: {
   agent: FrameAgent | null;
   turn: number;
+  emptyHint?: string;
 }) {
   if (!agent) {
     return (
       <div className="bg-cozy-card border-[1.5px] border-cozy-card-edge rounded-[18px] p-4 shadow-cozy">
-        <div className="text-[13px] text-cozy-ink-soft leading-snug">
-          Select an agent in the world to read what it thought, what it said, and what
-          it did on this turn.
-        </div>
+        <div className="text-[13px] text-cozy-ink-soft leading-snug">{emptyHint}</div>
       </div>
     );
   }

@@ -121,14 +121,17 @@ export default function World3DPage({
 
   const frame = frames[Math.min(cursor, Math.max(0, frames.length - 1))] ?? null;
 
-  // Something is always selected once a turn is loaded: an empty panel beside
-  // a full world reads as broken rather than as "nothing chosen yet".
   const selected = useMemo(() => {
     if (!frame) return null;
-    return (
-      frame.agents.find((a) => a.agentId === selectedId) ?? frame.agents[0] ?? null
-    );
-  }, [frame, selectedId]);
+    const named = frame.agents.find((a) => a.agentId === selectedId) ?? null;
+    // On foot the panel shows whoever you are standing in front of, and nobody
+    // when you are standing alone — falling back to the first agent would put
+    // words in the mouth of someone across the plaza. From above there is
+    // always a selection, because an empty panel beside a full world reads as
+    // broken rather than as "nothing chosen yet".
+    if (mode === 'walk') return named;
+    return named ?? frame.agents[0] ?? null;
+  }, [frame, selectedId, mode]);
 
   return (
     <main className="min-h-screen px-5 py-6 md:px-10">
@@ -219,7 +222,15 @@ export default function World3DPage({
             </div>
 
             <div className="min-w-0 lg:max-h-[72vh] lg:overflow-y-auto">
-              <TriplePanel agent={selected} turn={frame?.turn ?? 0} />
+              <TriplePanel
+                agent={selected}
+                turn={frame?.turn ?? 0}
+                emptyHint={
+                  mode === 'walk'
+                    ? 'Walk up to an agent to read what it thought, what it said, and what it did on this turn.'
+                    : undefined
+                }
+              />
             </div>
           </div>
         )}

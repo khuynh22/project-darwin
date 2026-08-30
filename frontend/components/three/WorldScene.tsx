@@ -9,6 +9,7 @@ import { VENUES } from '@/lib/town';
 import { GROUND } from '@/lib/world3d';
 import AgentPawn from '@/components/three/AgentPawn';
 import FirstPersonControls from '@/components/three/FirstPersonControls';
+import ProximityFocus from '@/components/three/ProximityFocus';
 import VenueBlock from '@/components/three/VenueBlock';
 import { EYE_HEIGHT } from '@/lib/firstPerson';
 
@@ -129,6 +130,14 @@ export default function WorldScene({
       ))}
 
       {children}
+
+      {walking && frame && (
+        <ProximityFocus
+          agents={frame.agents}
+          focusedId={selectedId ?? null}
+          onFocus={(id) => onSelect?.(id ?? '')}
+        />
+      )}
 
       {walking ? (
         <FirstPersonControls onLockChange={onLockChange} />
