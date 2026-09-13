@@ -21,7 +21,13 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
 - **`db.py`** -- Engine + SessionLocal + `init_db()` with auto-migration backfill for new columns.
 - **`oracle/schemas.py`** -- 25 Pydantic models (all inherit `_BaseArgs` with `reasoning` + `public_message`). `TOOL_DEFINITIONS`, `ARG_MODELS`, `FREE_ACTIONS`, `MAJOR_ACTIONS` sets.
 - **`oracle/actions.py`** -- 25 `do_*` handlers + `ACTION_TABLE`. All return `ActionResult`.
-- **`oracle/engine.py`** -- `run_turn()` (parallel decide, sequential apply), `_process_deferred()` (investments, loans, extortion), `_apply_survival_tax()` (progressive brackets, food consumption, strikes, inheritance).
+- **`oracle/engine.py`** -- `run_turn()` (legacy lockstep loop, parallel decide, sequential apply), `_process_deferred()` (investments, loans, extortion), `_apply_survival_tax()` (progressive brackets, food consumption, strikes, inheritance).
+- **`oracle/event_engine.py`** -- `run_events()`, the continuous loop that replaced the turn. Pops the next scheduled agent, accrues the economy for the elapsed span, applies the decision, fires interrupts, sleeps the agent for as long as it asked.
+- **`oracle/clock.py`** -- fixed-point time. `BEAT = 1000` ticks; integers, not floats, because replay needs exact arithmetic.
+- **`oracle/scheduler.py`** -- the priority queue. Ordering is `(tick, agent_id)`, never arrival order. Owns `agent_seq`, `WAKE_TRIGGERS`, and the `self_paced` / `lockstep` policies.
+- **`oracle/durations.py`** -- `ACTION_BEATS` per action, plus deliberation charged from tokens spent (never from measured latency).
+- **`oracle/space.py`** -- venue positions mirroring `frontend/lib/town.ts`, travel time, and co-location witnesses.
+- **`oracle/accrual.py`** -- tax and hunger as rates, settled on whole-beat boundaries so the bill is independent of event granularity.
 - **`agents/base.py`** -- `AgentDecision` (major + free action fields), aggressive system prompt, `render_world_brief()` with info asymmetry (fuzzy balances, gaslight injection).
 - **`agents/stub.py`** -- `StubAgent` with `DEFAULT_BIAS` for 25 actions. `_pick_major()` + 40% chance free action. Settles a satisfiable contract before rolling, and sizes commitments to inventory -- otherwise every contract breaches and breach carries no information.
 - **`agents/openai_agent.py`** -- OpenAI-compatible client; extracts 1-2 tool calls. Every real model is reached through **OpenRouter** (`base_url`). `stub.py` is internal-only (tests/CLI). Providers other than OpenRouter were removed.
@@ -61,11 +67,23 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
 - Free actions can be used as major. Major cannot be used as free.
 - Engine validates `free_action in FREE_ACTIONS` before applying.
 
+## Time
+
+No turns. See `docs/adr/2026-08-30-continuous-event-clock.md` and the Time section of the
+root `CLAUDE.md`. The three rules that bite most often:
+
+- Coherence gaps are measured in `agent_seq`, never `event_id`. Use `measure/coherence.by_agent_seq`.
+- `_apply_decision` must strip `wake_after` / `wake_if` before dispatching to a handler --
+  they are on `_BaseArgs`, so every tool call carries them.
+- A new `Agent` column that changes an outcome distribution must be added to `TurnSnapshot`
+  **and** `TurnState` **and** `probe/replay.py`, or `test_restore_fidelity` fails. That
+  guard is reflection-based, which is how `steal_count` was caught, and `food_buffer` after it.
+
 ## Economy
 
 - Goods: ore, food, tech. Each agent has a random specialty (2-3x production).
-- Food consumed every 10 turns or $1 penalty. Pure trade commodity otherwise.
-- Progressive tax: 0% ($0-2), 5% ($2-5), 10% ($5-10), 15% ($10-20), 20% ($20+). Invested capital exempt.
+- Food drains continuously: 1 unit per 10 beats, else $0.10/beat hunger. `food_buffer` carries the fractional part. Pure trade commodity otherwise.
+- Progressive tax: 0% ($0-2), 5% ($2-5), 10% ($5-10), 15% ($10-20), 20% ($20+). Invested capital exempt. Charged per beat, so it compounds within the cycle and takes ~1/3 less than the old cliff at $10.
 - Steal: success = max(15%, 60% - 8% * steal_count). Penalty = max($2, $1 + $0.50 * steal_count).
 - Loans: 1.1x repayment in 5 turns. Default = -10 trust for debtor.
 - Bankruptcy: `_check_bankruptcies` runs at the end of every turn; any alive agent with `balance <= 0` is eliminated (estate = $0, inventory still transfers). Tax-time deaths still flow through `_apply_survival_tax` with the pre-tax estate.

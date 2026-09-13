@@ -32,11 +32,12 @@ Talks to `http://localhost:8000` (REST) and `ws://localhost:8000/ws` (WS). Overr
 - **`app/globals.css`** -- Design tokens, body dot texture, log-in animation, trust-bar fill, button styles, cozy inputs. The stage critter's anatomy, bubble and dust keyframes went with the 2-D town.
 - **`lib/world3d.ts`** -- 3-D geometry: stage-pixel to world-unit mapping (the world reuses the old 780x560 venue layout), `VENUE_FOOTPRINT`, `agentSlot()` (slots sit *outside* the venue block, or the pawn is drawn behind it), and `hasWebGL()`.
 - **`lib/firstPerson.ts`** -- being a body in the town: eye height, walk and run speeds, the keys-and-yaw to displacement rule, and collision against the venue blocks. Pure; the controller owns the camera and the clock, nothing else.
-- **`lib/motion.ts`** -- getting an agent from where it was to where it is: easing, walk duration bounds, and which way to face. Rendering only — the trace says where an agent stood on each turn and nothing about the space between.
+- **`lib/clock.ts`** -- simulation time, mirroring `backend/app/oracle/clock.py`. `BEAT = 1000` ticks. The two must agree or walks render at the wrong speed while every number in the trace still looks right.
+- **`lib/motion.ts`** -- easing, walk duration bounds, and which way to face. The body faces **+Z**, deliberately against the three.js -Z convention: the toes and the forward lean point that way, and it puts a resting agent's face toward the overview camera instead of the back of its head.
 - **`lib/gait.ts`** -- body proportions in metres, and the walk cycle. The pose is a pure function of ground covered, never of elapsed time; legs swing in opposition and each arm swings with the leg on the other side.
 - **`lib/architecture.ts`** -- what each venue is built like: storeys, roof kind, window grid, awning, columns. Every dimension is measured against `VENUE_FOOTPRINT`, which is the box the walker collides with — a building wider than that has eaves you walk through.
 - **`lib/proximity.ts`** -- who you are close enough to, and facing, to be reading. Scored by distance divided by how centred they are, so the panel describes the body filling your screen rather than whoever is nearest.
-- **`lib/frame.ts`** -- `WorldFrame`, the only thing the renderer sees. `buildFrameFromSnapshot()` for the live view, `buildFramesFromTurns()` for a trace. Owns venue assignment, the spouse-follow rule and slot packing. A live frame carries `verdict: null` -- the judge runs offline.
+- **`lib/frame.ts`** -- `WorldFrame`, the only thing the renderer sees. Three builders, one per clock: `buildFrameFromSnapshot()` (live), `buildFramesFromTurns()` (v4/v5 trace), and `sampleFrameAtTick()` / `eventFrames()` (v6 event trace). Owns venue assignment, the spouse-follow rule and slot packing. A live frame carries `verdict: null` -- the judge runs offline.
 - **`components/three/`** -- `WorldScene` (canvas, lights, ground, fog on foot, and `CameraRig`, which repositions the camera on a mode change because the Canvas `camera` prop is read once at mount), `FirstPersonControls`, `ProximityFocus`, `VenueBlock` (a building with a door, windows, roof and sign, turned to face the plaza), `AgentPawn` (walks to its new position each turn), `AgentBody` (the person: head, torso, swinging limbs), `TriplePanel`, `TurnScrubber`. Pawns and `<Bounds>` do not mix: `Bounds` re-aims the camera to frame its children, so it wraps only the venues, and only in the overview.
 - **`components/Triple.tsx`** -- `Channel` and `VerdictRow`, shared by `TurnCard` (2-D turn list) and `TriplePanel` (3-D). Two presentations of the triple would be two instruments.
 - **`components/Avatar.tsx`** -- `CritterAvatar`, the roster head beside an agent's name.
@@ -46,6 +47,27 @@ Talks to `http://localhost:8000` (REST) and `ws://localhost:8000/ws` (WS). Overr
 - **`components/PublicLog.tsx`** -- "Town Square" public feed: agent-color dot, bolded name, family-tinted action intent, outcome, optional public_message in italic quote.
 - **`components/ThoughtLog.tsx`** -- "Inner Thoughts" private monologue (italic, observer only).
 - **`components/ConfigPanel.tsx`** -- Agent setup modal. Takes a `sessionId` prop; posts to `/sessions/{id}/configure`. One session-level **OpenRouter** API key (sent inline as `keys: {openrouter: rawKey}`, encrypted + scoped to the session) + a per-agent **model id** text field (any OpenRouter id, e.g. `openai/gpt-5`). No provider dropdown. Color picker. Balance visibility (public/fuzzy/hidden). Optional personality.
+
+## Two clocks
+
+A run is either **turn-shaped** (v4/v5) or **event-shaped** (v6), and the replay
+view picks by asking `/releases/{id}/events` — an empty answer means the old
+clock. Old releases are never re-recorded, so both paths stay.
+
+- **Turn-shaped**: one frame per turn, every agent in it, walk duration guessed
+  render-side by `walkDuration`. That guess carries no claim: the trace says
+  where an agent stood on each turn and nothing about the space between.
+- **Event-shaped**: agents act at unrelated moments, so there is no "who acted on
+  turn N". Frames are sampled on an even grid of simulation time by
+  `eventFrames`, and each `FrameAgent` carries a real walk window
+  (`from` / `departsAt` / `arrivesAt`) that the backend charged against the
+  clock. `AgentPawn` animates on it, so a journey takes exactly as long as the
+  world says it took. Anything else would draw a walk that did not happen.
+
+The current tick reaches the scene as a **ref**, not a prop: it advances every
+animation frame during playback, and a state update per frame would re-render
+every pawn. Both paths are gated in a real browser — `e2e/triple.spec.ts` for
+turns, `e2e/continuous.spec.ts` for the clock.
 
 ## Layout
 
@@ -99,8 +121,10 @@ Tailwind 3 with a cozy palette (`cozy-*` colors in `tailwind.config.js`) plus to
 - Don't reintroduce a 2-D world renderer as a WebGL fallback. A renderer CI never exercises rots silently (ADR 2026-08-26). The fallback is an honest notice plus the raw trace.
 - Don't verify anything visual with `npm run dev` -- the canvas is dead there. Build first.
 - Don't put walking, collision or focus logic in a component. It lives in `lib/`, where it is tested without a browser; the components own the camera, the clock and the keyboard.
-- Don't let a walk outlive the turn that caused it (`MAX_WALK_SECONDS`). Replay advances every 700ms, and an agent still crossing the plaza from two turns ago is lying about where it is.
+- Don't let a walk outlive the turn that caused it (`MAX_WALK_SECONDS`) on the **turn** clock. Replay advances every 700ms, and an agent still crossing the plaza from two turns ago is lying about where it is. On the **event** clock the bound does not apply: the walk's duration comes from the trace, and shortening it would show a journey the world did not take.
 - Don't size a building by eye. `VENUE_FOOTPRINT` is the collision box; anything past it is scenery you walk through. Put the number in `lib/architecture.ts`, where the invariant is tested.
 - Don't drive an animation from elapsed time when it represents movement. Time-driven legs windmill while the body inches along.
+- Don't assume an agent faces -Z. The body is +Z-forward; `facingAngle` and the forward lean both depend on it.
+- Don't switch camera velocity on and off. `smoothVelocity` ramps it, because an instant start and a dead stop read as jerky at any frame rate; the check for a stopped camera happens *after* smoothing or deceleration never runs.
 - Don't use legacy sprite names (scholar, trickster, cipher, etc.). Use color names only.
 - Don't time-stamp log rows with `Date.now()` during render -- it jitters every snapshot.

@@ -42,7 +42,13 @@ backend/
     oracle/
       schemas.py          # 25 tool schemas (Pydantic), MAJOR_ACTIONS/FREE_ACTIONS sets
       actions.py          # 25 do_* handlers + ACTION_TABLE
-      engine.py           # run_turn (parallel decide, sequential apply), progressive tax, deferred settlement, extortion enforcement, inheritance
+      engine.py           # run_turn (legacy lockstep loop), progressive tax, deferred settlement, extortion enforcement, inheritance
+      clock.py            # Fixed-point simulation time. BEAT = 1000 ticks
+      scheduler.py        # The event queue: wakes, interrupts, agent_seq, lockstep policy
+      durations.py        # How long an action occupies you; deliberation charged from tokens
+      space.py            # Venues, travel time, who witnessed what
+      accrual.py          # Tax and hunger as continuous rates, settled on beat boundaries
+      event_engine.py     # run_events: the continuous loop that replaced the turn
     agents/
       base.py             # BaseAgent, AgentDecision (major + free action), system prompt, info-asymmetric world brief
       stub.py             # StubAgent with DEFAULT_BIAS for all 25 actions (internal: tests/CLI only)
@@ -86,12 +92,36 @@ about where an agent stood. There is no 2-D fallback: a browser without WebGL ge
 explicit notice and links to the run as data.
 See `docs/adr/2026-08-26-3d-primary-renderer.md`.
 
+## Time
+
+**There are no turns.** The world runs on a discrete-event clock and agents wake at their
+own pace. See `docs/adr/2026-08-30-continuous-event-clock.md`.
+
+- **Three coordinates, not interchangeable.** `event_id` is the global total order and the
+  trace's primary key. `tick` is simulation time (fixed-point, `BEAT = 1000` ticks) and
+  drives economic accrual. `agent_seq` is how many times *that agent* has acted.
+- **All deception-coherence gaps are measured in `agent_seq`.** Measured in `event_id` a
+  gap mostly counts other agents acting and this one sleeping; tested against the 335-turn
+  verdict set that inflates `max_return_gap` by ~380 on a 0-200 baseline. Run rows through
+  `measure/coherence.by_agent_seq` first. `tests/test_coherence_scheduling_invariance.py`
+  pins this.
+- **Agents schedule themselves.** Every tool call carries `wake_after` (beats to sleep) and
+  `wake_if` (triggers that wake it early, validated against `scheduler.WAKE_TRIGGERS`). A
+  prompt is only sent when an agent wakes, so cost tracks activity.
+- **Actions and thinking both cost time.** Action duration comes from `durations.ACTION_BEATS`;
+  deliberation is charged from tokens spent, never from measured latency -- wall-clock never
+  enters the simulation, so a slow model and a fast one produce identical traces.
+- **Tax and hunger accrue continuously**, settled on whole-beat boundaries so the bill does
+  not depend on how finely events chopped up time. Sleeping does not pause the drain.
+- **`policy="lockstep"`** gives every agent a one-beat wake, ignores duration, and disables
+  interrupts -- the old turn loop as a configuration, kept so frozen-stimulus probes run.
+
 ## Game mechanics
 
 - **25 actions** in 2 tiers: major (required, 1/turn) + free (optional, 1/turn alongside major)
 - **Contracts and offices**: `sign_contract` binds on proposal; missing the deadline is recorded as a breach. Offices (bank/auditor/arbiter/collector) are takeable while vacant for 20 turns. `declare` asserts a registry fact and the engine records asserted beside actual.
 - **Goods economy**: 3 goods (ore $0.30, food $0.25, tech $0.50). Each agent has a random specialty (produces 2-3x). Food consumed every tax cycle or $1 penalty.
-- **Progressive tax**: 0% on $0-2, 5% on $2-5, 10% on $5-10, 15% on $10-20, 20% on $20+. Invested capital exempt. 3+ agents striking waives tax.
+- **Progressive tax**: 0% on $0-2, 5% on $2-5, 10% on $5-10, 15% on $10-20, 20% on $20+. Invested capital exempt. 3+ agents striking waives tax. Charged as a per-beat rate; a continuous drain compounds within the cycle, so effective take is ~1/3 below the old ten-turn cliff at $10.
 - **Trust score** (0-100): affects trade acceptance. Modified by slander (-5 to -10), vouch (+5), steal (-3 to -5), trade (+1), loan default (-10).
 - **Info asymmetry**: agents only see own balance + spouse/allies. Others show fuzzy range. Gaslight injects fake events.
 - **Steal nerf**: success 60% - 8%/attempt (min 15%). Penalty $2 base + $0.50/attempt.
