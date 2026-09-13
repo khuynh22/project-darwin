@@ -41,7 +41,13 @@ from app.oracle.engine import (
     _world_state,
 )
 from app.oracle.scheduler import Policy, ScheduledEvent, Scheduler
-from app.oracle.space import Placement, observable_by, travel_ticks, venue_for
+from app.oracle.space import (
+    DEFAULT_VENUE,
+    Placement,
+    observable_by,
+    travel_ticks,
+    venue_for,
+)
 from app.trace.recorder import record_event
 from app.trace.schema import EventRecord, TurnState
 
@@ -191,6 +197,7 @@ async def run_events(
     )
     for db_agent in alive:
         scheduler.admit(db_agent.agent_id)
+        at_venue[db_agent.agent_id] = db_agent.venue or DEFAULT_VENUE
 
     while not scheduler.horizon_reached(horizon_beats):
         if max_events is not None and len(result.events) >= max_events:
@@ -222,6 +229,7 @@ async def run_events(
         state["_condition"] = condition
         state["_tick"] = event.tick
         state["_wake_reason"] = event.wake_reason
+        state["_venue"] = at_venue.get(event.agent_id, DEFAULT_VENUE)
         history = await _agent_history(session, session_id, event.agent_id)
 
         try:
@@ -266,6 +274,7 @@ async def run_events(
         from_venue = at_venue.get(event.agent_id, venue)
         travel = travel_ticks(from_venue, venue)
         at_venue[event.agent_id] = venue
+        db_agent.venue = venue
         think = deliberation_ticks(decision.reasoning_tokens, decision.completion_tokens)
         busy = travel + commit_ticks(
             decision.action,
@@ -325,6 +334,7 @@ async def run_events(
                     spouse_id=db_agent.spouse_id,
                     steal_count=db_agent.steal_count,
                     food_buffer=db_agent.food_buffer,
+                    venue=venue,
                     allies=list(db_agent.allies or []),
                     enemies=list(db_agent.enemies or []),
                 ),

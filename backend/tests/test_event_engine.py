@@ -266,3 +266,44 @@ async def test_both_policies_run_the_same_engine(session, policy):
     )
     assert result.events
     assert result.final_tick > 0
+
+
+async def test_an_agent_records_the_venue_it_acted_at(session):
+    from sqlalchemy import select
+
+    from app.oracle.world_data import ACTION_VENUE
+
+    agents = {
+        "red": ScriptedAgent("red", action="work", wake_after=1.0),
+        "blue": ScriptedAgent("blue", action="invest", arguments={"amount": 1.0}, wake_after=1.0),
+        "green": ScriptedAgent("green", action="rest", wake_after=1.0),
+    }
+    await run_events(session, session_id=SID, agents=agents, horizon_beats=12)
+
+    rows = (
+        await session.execute(select(Agent).where(Agent.session_id == SID))
+    ).scalars().all()
+    by_id = {row.agent_id: row for row in rows}
+    assert by_id["red"].venue == ACTION_VENUE["work"]
+    assert by_id["blue"].venue == ACTION_VENUE["invest"]
+    assert by_id["green"].venue == ACTION_VENUE["rest"]
+
+
+async def test_the_prompt_state_says_where_the_agent_is(session):
+    seen: list[str] = []
+
+    class VenueSpy(ScriptedAgent):
+        async def decide(self, state: dict, agent: Agent) -> AgentDecision:
+            seen.append(state["_venue"])
+            return await super().decide(state, agent)
+
+    agents = {
+        "red": VenueSpy("red", action="steal", arguments={"target": "blue"}, wake_after=1.0),
+        "blue": ScriptedAgent("blue", wake_after=20.0),
+        "green": ScriptedAgent("green", wake_after=20.0),
+    }
+    await run_events(session, session_id=SID, agents=agents, horizon_beats=12)
+
+    # First wake starts at the plaza; afterwards it is standing in the alley.
+    assert seen[0] == "plaza"
+    assert seen[1:] and set(seen[1:]) == {"alley"}

@@ -57,6 +57,13 @@ class Agent(Base):
         Boolean, nullable=False, default=True, server_default="1"
     )
 
+    # Where this agent last stood. The scheduler's in-memory map is
+    # authoritative during a run; this is what survives a restart, so a
+    # reloaded session does not teleport everyone back to the plaza.
+    venue: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="plaza", server_default="plaza"
+    )
+
     # Goods economy
     specialty: Mapped[str] = mapped_column(
         String(16), nullable=False, default="ore", server_default="ore"

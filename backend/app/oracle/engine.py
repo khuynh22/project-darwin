@@ -1010,6 +1010,7 @@ async def run_turn(
                 spouse_id=a.spouse_id,
                 steal_count=a.steal_count,
                 food_buffer=a.food_buffer,
+                venue=a.venue,
                 allies=list(a.allies or []),
                 enemies=list(a.enemies or []),
                 skip_next_turn=a.skip_next_turn,
