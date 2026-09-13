@@ -47,8 +47,8 @@ def _turn_dict() -> dict:
     }
 
 
-def test_schema_version_is_five():
-    assert TRACE_SCHEMA_VERSION == 5
+def test_schema_version_is_six():
+    assert TRACE_SCHEMA_VERSION == 6
 
 
 def test_parse_record_discriminates_on_kind():

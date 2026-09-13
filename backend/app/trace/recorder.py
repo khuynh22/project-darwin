@@ -31,6 +31,7 @@ from app.models.deferred import DeferredAction
 from app.models.ledger import ThoughtLog, TurnSnapshot
 from app.models.registry import Contract, Office
 from app.trace.adapters.darwin_db import build_turn, export_session
+from app.trace.schema import EventRecord
 
 log = logging.getLogger(__name__)
 
@@ -78,20 +79,9 @@ async def record_turn(
             log.warning("trace not recorded: unsafe session id %r", session_id)
             return
 
-        if not path.exists():
-            manifest, _turns, _world = await export_session(
-                session, session_id, condition=condition, seed=seed
-            )
-            # export_session reports the horizon a finished run reached; here the
-            # run has barely started, and a manifest claiming horizon 1 makes
-            # every later turn fail validation. Declare the ceiling instead. The
-            # agent rows are a turn-1 snapshot for the same reason -- promotion
-            # into releases/ rewrites the manifest with what actually happened.
-            manifest = manifest.model_copy(
-                update={"horizon": max(get_settings().max_turns, turn)}
-            )
-            path.parent.mkdir(parents=True, exist_ok=True)
-            _append(path, manifest.model_dump(mode="json"), truncate=True)
+        await _ensure_manifest(
+            session, session_id, path, seed=seed, condition=condition, horizon=turn
+        )
 
         records, world = build_turn(turn, **await _rows(session, session_id, turn))
         for record in records:
@@ -99,6 +89,70 @@ async def record_turn(
         _append(path, world.model_dump(mode="json"))
     except Exception:  # noqa: BLE001 -- the turn already committed; see module docstring
         log.exception("trace not recorded for session %r turn %s", session_id, turn)
+
+
+async def record_event(
+    session: AsyncSession,
+    session_id: str,
+    record: EventRecord,
+    *,
+    seed: int = 0,
+    condition: str = "neutral",
+) -> None:
+    """Append one event's record. Never raises.
+
+    The event loop has no turns to batch by, so this appends per event rather
+    than per turn. Same two rules as ``record_turn``: the database has already
+    committed, and a write failure is logged rather than allowed to fail an
+    event that happened.
+    """
+    try:
+        path = trace_path(session_id)
+        if path is None:
+            log.warning("trace not recorded: unsafe session id %r", session_id)
+            return
+        await _ensure_manifest(
+            session,
+            session_id,
+            path,
+            seed=seed,
+            condition=condition,
+            horizon=record.agent_seq,
+        )
+        _append(path, record.model_dump(mode="json"))
+    except Exception:  # noqa: BLE001 -- the event already committed
+        log.exception(
+            "trace not recorded for session %r event %s", session_id, record.event_id
+        )
+
+
+async def _ensure_manifest(
+    session: AsyncSession,
+    session_id: str,
+    path: Path,
+    *,
+    seed: int,
+    condition: str,
+    horizon: int,
+) -> None:
+    """Write the run manifest if this is the first record of the run.
+
+    ``export_session`` reports the horizon a finished run reached; here the run
+    has barely started, and a manifest claiming horizon 1 makes every later
+    record fail validation. Declare the ceiling instead. The agent rows are an
+    opening snapshot for the same reason -- promotion into ``releases/``
+    rewrites the manifest with what actually happened.
+    """
+    if path.exists():
+        return
+    manifest, _turns, _world = await export_session(
+        session, session_id, condition=condition, seed=seed
+    )
+    manifest = manifest.model_copy(
+        update={"horizon": max(get_settings().max_turns, horizon)}
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _append(path, manifest.model_dump(mode="json"), truncate=True)
 
 
 async def _rows(session: AsyncSession, session_id: str, turn: int) -> dict:

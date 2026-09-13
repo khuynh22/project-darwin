@@ -66,6 +66,13 @@ class Agent(Base):
     )
 
     # Status effects
+    # Fractional satiety, in units of food. Continuous hunger needs somewhere to
+    # carry the part of a unit an agent has eaten but not yet used up; without it
+    # accrual would round every partial beat away and nobody would ever starve.
+    food_buffer: Mapped[float] = mapped_column(
+        Float, nullable=False, default=1.0, server_default="1.0"
+    )
+
     rest_bonus: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
     )

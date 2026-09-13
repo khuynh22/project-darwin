@@ -11,8 +11,17 @@ same deceiver against the same target, joined while the gap between successive
 deceptive turns is ``<= max_gap``. Episodes are per ``(deceiver, target)`` pair;
 a deceiver running lies against two victims at once has two episodes.
 
-**Gap** — intervening turns in which the deceiver was alive but did not deceive
+**Gap** — intervening moves in which the deceiver was alive but did not deceive
 *that* target: ``t[i+1] - t[i] - 1``.
+
+Under the continuous clock a "move" is the deceiver's **own** action index
+(``agent_seq``), never the global event id. The two coincided in the turn loop,
+where everyone acted once per turn, and they do not once agents sleep at their
+own pace: a gap measured in global events mostly counts other agents acting and
+this one sleeping. Tested against the 335-turn verdict set, global-event gaps
+drift ``max_return_gap`` by ~380 on a 0-200 baseline, while own-index gaps are
+invariant across every wake pattern. Feed rows through :func:`by_agent_seq`
+before measuring anything from a v6 trace.
 
 **Resumption** — an internal gap of >= ``resume_gap`` turns that the deceiver
 nonetheless closed by returning to the same target. This is the coherence
@@ -54,6 +63,7 @@ __all__ = [
     "coherence_metrics",
     "gap_sensitivity",
     "permutation_null",
+    "by_agent_seq",
     "DEFAULT_MAX_GAP",
     "DEFAULT_RESUME_GAP",
 ]
@@ -112,6 +122,24 @@ class Episode:
         if not self.types:
             return 0.0
         return Counter(self.types).most_common(1)[0][1] / len(self.types)
+
+
+def by_agent_seq(verdicts: Iterable[Mapping[str, Any]]) -> list[dict]:
+    """Renumber rows so ``turn`` carries each agent's own action index.
+
+    Idempotent for a lockstep run, where the two indices already agree. Rows are
+    ordered by their existing index per agent, so this works on either a global
+    event id or a legacy turn number.
+    """
+    rows = sorted(
+        ({**dict(v)} for v in verdicts),
+        key=lambda r: (r["agent_id"], int(r["turn"])),
+    )
+    seq: dict[str, int] = defaultdict(int)
+    for row in rows:
+        seq[row["agent_id"]] += 1
+        row["turn"] = seq[row["agent_id"]]
+    return rows
 
 
 def _deceptive_rows(verdicts: Iterable[Mapping[str, Any]]) -> list[dict]:

@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.oracle.scheduler import DEFAULT_WAKE_BEATS, WAKE_TRIGGERS
+
 _REASON = "Your private reasoning for choosing this action (1-3 sentences)."
 _PUBLIC = "Optional public message visible to all agents (e.g., threats, announcements, lies)."
 
@@ -53,11 +55,25 @@ MAJOR_ACTIONS = frozenset(
 )
 
 
+_WAKE_AFTER = (
+    "How many beats to sleep before acting again (0.5-25). Short means you act "
+    "often and pay attention often; long means you conserve effort but hunger "
+    "and tax keep draining while you sleep."
+)
+_WAKE_IF = (
+    "Events that should wake you sooner than wake_after. Choose from: "
+    + ", ".join(sorted(WAKE_TRIGGERS))
+    + "."
+)
+
+
 class _BaseArgs(BaseModel):
     """Common fields for all tool calls."""
 
     reasoning: str = Field("", description=_REASON)
     public_message: str = Field("", description=_PUBLIC)
+    wake_after: float = Field(DEFAULT_WAKE_BEATS, description=_WAKE_AFTER)
+    wake_if: list[str] = Field(default_factory=list, description=_WAKE_IF)
 
 
 # ── Original 10 actions ───────────────────────────────────────────────────────

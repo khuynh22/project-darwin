@@ -216,6 +216,7 @@ def _state(
         alive=sorted(alive) if alive else None,
         spouse_id=snap.spouse_id,
         steal_count=snap.steal_count,
+        food_buffer=snap.food_buffer,
         allies=list(snap.allies or []),
         enemies=list(snap.enemies or []),
         skip_next_turn=snap.skip_next_turn,

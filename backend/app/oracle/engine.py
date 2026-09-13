@@ -232,6 +232,9 @@ async def _apply_decision(
     validated.pop(
         "public_message", None
     )  # public_message stored separately on ThoughtLog
+    # Scheduling request, consumed by the scheduler rather than the handler.
+    validated.pop("wake_after", None)
+    validated.pop("wake_if", None)
     kwargs = dict(
         session_id=session_id, turn=turn, actor_id=agent.agent_id, **validated
     )
@@ -1006,6 +1009,7 @@ async def run_turn(
                 inventory=dict(a.inventory or {}),
                 spouse_id=a.spouse_id,
                 steal_count=a.steal_count,
+                food_buffer=a.food_buffer,
                 allies=list(a.allies or []),
                 enemies=list(a.enemies or []),
                 skip_next_turn=a.skip_next_turn,

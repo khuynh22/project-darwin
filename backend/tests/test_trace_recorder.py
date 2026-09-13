@@ -99,3 +99,52 @@ async def test_a_failing_trace_write_does_not_fail_the_turn(tmp_path, monkeypatc
         _manifest, turns, _world = await export_session(session, "resilient", seed=11)
 
     assert turns, "the turns must have run and committed despite the write failing"
+
+
+def test_read_events_returns_v6_rows_and_ignores_turn_traces(tmp_path):
+    """A v6 trace is unreadable through `read_turns`, which drops event records
+    silently -- so the events path has to exist and be exercised."""
+    import json
+
+    from app.releases import read_events
+
+    run = tmp_path / "evt"
+    run.mkdir()
+    manifest = {
+        "kind": "run",
+        "schema_version": 6,
+        "run_id": "evt",
+        "env": {"name": "darwin"},
+        "horizon": 10,
+        "agents": [],
+    }
+    rows = [manifest] + [
+        {
+            "kind": "event",
+            "event_id": i,
+            "tick": i * 1000,
+            "agent_seq": i,
+            "agent_id": "red",
+            "action": "work",
+            "venue": "work",
+            "travel_ticks": 500,
+        }
+        for i in range(1, 4)
+    ]
+    (run / "trace.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8"
+    )
+
+    events, total = read_events(tmp_path, "evt", offset=0, limit=50)
+    assert total == 3
+    assert [e.event_id for e in events] == [1, 2, 3]
+    assert [e.tick for e in events] == [1000, 2000, 3000]
+    assert events[0].travel_ticks == 500
+    # agent_seq, never event_id, is what a coherence reader must see as "turn".
+    assert [e.turn for e in events] == [1, 2, 3]
+
+
+def test_read_events_is_empty_for_a_missing_run(tmp_path):
+    from app.releases import read_events
+
+    assert read_events(tmp_path, "nope") == ([], 0)
