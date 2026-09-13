@@ -164,7 +164,7 @@ docker compose up --build
 
 | service | address | what it is |
 |---|---|---|
-| arena | http://localhost:3000 | the UI: live sim, `/gallery`, `/leaderboard` |
+| arena | http://localhost:3000 | the UI: live sim in 3-D, `/gallery`, `/leaderboard` |
 | oracle | http://localhost:8000 | FastAPI: REST + WebSocket + `/releases` |
 | postgres | internal | the ledger |
 
@@ -177,6 +177,9 @@ Two things the compose file does deliberately:
   absolutely. The default path resolves relative to the source tree, which is not where
   the code sits inside the image — without the explicit setting the gallery silently
   serves an empty list.
+- **`runs/` is mounted read-write** at `/app/runs`, with `RUNS_DIR` set absolutely for the
+  same reason. Every turn driven from the browser appends there, so a run is replayable
+  from a host shell while it is still going, and survives `docker compose down`.
 - **Schema changes apply on boot.** `init_db` backfills new columns by `ALTER TABLE` and
   creates new tables, so an existing volume picks up contracts, offices, and the extended
   snapshots without a reset. Watch for `Backfilling column:` in `docker compose logs
@@ -194,8 +197,42 @@ docker compose restart oracle   # the registry caches on (path, mtime)
 ```
 
 The gallery is read-only and never touches the sessions tables. `/gallery` lists releases,
-`/gallery/<run_id>` replays turn by turn with the triple beside the judge's verdict, and
+`/gallery/<run_id>` replays turn by turn with the triple beside the judge's verdict,
+`/gallery/<run_id>/3d` replays the same run in the 3-D world with a turn scrubber, and
 `/leaderboard` shows probe scores with their excluded counts and divergence.
+
+## Replaying a run you drove from the UI
+
+A session run from the browser writes its own trace as it goes — one turn appended after
+each turn commits, so a run that is still going, or one whose process died, is still
+readable.
+
+```bash
+ls runs/<session_id>/trace.jsonl                       # the file, as it grows
+curl "localhost:8000/sessions/<session_id>/trace/turns?offset=0&limit=50"
+darwin replay runs/<session_id>/trace.jsonl            # or: python -m app.cli.main replay ...
+```
+
+It is schema v5, the same format `/releases` serves, so everything downstream — the
+judge, the metrics, probe mining — reads it without conversion. What it is *not* is a
+release: the manifest declares `max_turns` as its horizon rather than the length the run
+actually reached, and it has no verdicts, scores or `about.md`. Publishing means copying
+it into `releases/<run_id>/` as above, which is a deliberate act and not something
+pressing Step does for you.
+
+`runs/` is gitignored and has no retention policy — abandoned sessions accumulate, so
+delete them yourself. Set `RUNS_DIR` to move the directory.
+
+**Getting around.** Both the live session and the replay open on foot. Click the world to
+take the mouse, WASD to walk, shift to run, escape to let go. Walk up to an agent and its
+turn — private reasoning, public message, applied action, and the judge's verdict where
+there is one — appears beside it. The `overview` button lifts you back out to the orbiting
+camera, which is the better one for scrubbing a long run.
+
+**No world in the browser?** The 3-D view needs WebGL, and the page says so plainly when
+it is unavailable, with links to the trace and the monologue export. Note also that the
+scene does not render under `next dev` at all (React strict mode double-mounts the canvas
+and the GL context is lost) — use a production build to look at it.
 
 ---
 

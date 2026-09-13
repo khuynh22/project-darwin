@@ -31,7 +31,7 @@ async def test_export_session_produces_valid_manifest_and_turns():
 
         manifest, turns, _world = await export_session(session, SID, run_id="r", seed=3)
 
-    assert manifest.schema_version == 5
+    assert manifest.schema_version == 6
     assert manifest.state_fidelity == "full"
     assert manifest.horizon == 3
     assert set(manifest.lifespans()) == {"a0", "a1", "a2"}

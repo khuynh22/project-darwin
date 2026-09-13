@@ -19,8 +19,9 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app.trace.io import read_events as read_event_records
 from app.trace.io import read_trace
-from app.trace.schema import RunManifest, TurnRecord
+from app.trace.schema import EventRecord, RunManifest, TurnRecord
 
 log = logging.getLogger(__name__)
 
@@ -124,6 +125,24 @@ def read_turns(
     limit = max(1, min(limit, MAX_PAGE))
     offset = max(0, offset)
     return (release.turns[offset:offset + limit], len(release.turns))
+
+
+def read_events(
+    root: Path, run_id: str, *, offset: int = 0, limit: int = 50
+) -> tuple[list[EventRecord], int]:
+    """One page of a v6 event trace. Empty for a turn-shaped run.
+
+    Read from the file rather than from the cached ``Release``, which carries
+    turns only: a v6 trace has no turns, and widening ``Release`` would make
+    every existing reader load event rows it has no use for.
+    """
+    path = Path(root) / run_id / TRACE_NAME
+    if not path.exists():
+        return ([], 0)
+    events = read_event_records(path)
+    limit = max(1, min(limit, MAX_PAGE))
+    offset = max(0, offset)
+    return (events[offset:offset + limit], len(events))
 
 
 def read_verdicts(root: Path, run_id: str) -> dict[tuple[int, str], dict]:

@@ -120,6 +120,25 @@ async def release_turns(run_id: str, offset: int = 0, limit: int = 50) -> dict:
     }
 
 
+@app.get("/releases/{run_id}/events")
+async def release_events(run_id: str, offset: int = 0, limit: int = 200) -> dict:
+    """One page of a v6 event trace.
+
+    Separate from ``/turns`` rather than folded into it: the two describe
+    different clocks, and a caller that asks for turns must not silently get
+    rows keyed by a coordinate it will misread as a turn number.
+    """
+    from app.releases import MAX_PAGE, read_events
+
+    events, total = read_events(_releases_root(), run_id, offset=offset, limit=limit)
+    return {
+        "events": [e.model_dump(mode="json") for e in events],
+        "total": total,
+        "offset": max(0, offset),
+        "limit": max(1, min(limit, MAX_PAGE)),
+    }
+
+
 @app.get("/releases/{run_id}/verdicts")
 async def release_verdicts(
     run_id: str, turn: int | None = None, agent: str | None = None
@@ -446,6 +465,56 @@ async def events(session_id: str, limit: int = 50) -> dict:
         )
     return {
         "events": [{"turn": e.turn, "kind": e.kind, "payload": e.payload} for e in rows]
+    }
+
+
+@app.get("/sessions/{session_id}/trace/events")
+async def session_trace_events(
+    session_id: str, offset: int = 0, limit: int = 200
+) -> dict:
+    """A live session's event trace, same shape as the release endpoint.
+
+    A live trace and a published one are the same file in the same format, so
+    the replay view does not care which it is looking at.
+    """
+    from app.releases import MAX_PAGE, read_events
+    from app.trace.recorder import runs_root, trace_path
+
+    if trace_path(session_id) is None:
+        raise HTTPException(status_code=404, detail=f"no trace for {session_id!r}")
+    events, total = read_events(runs_root(), session_id, offset=offset, limit=limit)
+    return {
+        "events": [e.model_dump(mode="json") for e in events],
+        "total": total,
+        "offset": max(0, offset),
+        "limit": max(1, min(limit, MAX_PAGE)),
+    }
+
+
+@app.get("/sessions/{session_id}/trace/turns")
+async def session_trace_turns(session_id: str, offset: int = 0, limit: int = 50) -> dict:
+    """Paged turns from the trace the turn loop is streaming for this session.
+
+    Same shape as ``/releases/{run_id}/turns``, and the same reader: a live
+    trace and a published one are the same file in the same format, so the
+    replay view does not care which it is looking at. Verdicts have no
+    counterpart here — the judge runs offline, after the run.
+    """
+    from app.releases import MAX_PAGE, load_release, read_turns
+    from app.trace.recorder import runs_root, trace_path
+
+    if trace_path(session_id) is None:
+        raise HTTPException(status_code=404, detail=f"no trace for {session_id!r}")
+    root = runs_root()
+    if load_release(root, session_id) is None:
+        raise HTTPException(status_code=404, detail=f"no trace for {session_id!r}")
+
+    turns, total = read_turns(root, session_id, offset=offset, limit=limit)
+    return {
+        "turns": [t.model_dump(mode="json") for t in turns],
+        "total": total,
+        "offset": max(0, offset),
+        "limit": max(1, min(limit, MAX_PAGE)),
     }
 
 

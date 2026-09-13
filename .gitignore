@@ -52,5 +52,13 @@ releases/*/trace.jsonl
 releases/*/verdicts.jsonl
 releases/*/scores.json
 
+# Live-session traces streamed by the turn loop. Working artifacts: a run
+# becomes citable only when it is promoted into releases/.
+runs/
+
+# Playwright run artifacts.
+frontend/test-results/
+frontend/playwright-report/
+
 # TypeScript incremental build cache: regenerates on every build.
 frontend/tsconfig.tsbuildinfo

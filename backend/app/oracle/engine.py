@@ -20,6 +20,7 @@ from app.models.agent import Agent
 from app.models.ledger import ThoughtLog, Transaction, TurnSnapshot, WorldEvent
 from app.oracle.actions import ACTION_TABLE
 from app.oracle.schemas import ARG_MODELS
+from app.trace.recorder import record_turn
 
 log = logging.getLogger(__name__)
 
@@ -231,6 +232,9 @@ async def _apply_decision(
     validated.pop(
         "public_message", None
     )  # public_message stored separately on ThoughtLog
+    # Scheduling request, consumed by the scheduler rather than the handler.
+    validated.pop("wake_after", None)
+    validated.pop("wake_if", None)
     kwargs = dict(
         session_id=session_id, turn=turn, actor_id=agent.agent_id, **validated
     )
@@ -1005,6 +1009,7 @@ async def run_turn(
                 inventory=dict(a.inventory or {}),
                 spouse_id=a.spouse_id,
                 steal_count=a.steal_count,
+                food_buffer=a.food_buffer,
                 allies=list(a.allies or []),
                 enemies=list(a.enemies or []),
                 skip_next_turn=a.skip_next_turn,
@@ -1018,6 +1023,11 @@ async def run_turn(
         )
 
     await session.commit()
+
+    # After the commit, never before: the database is the source of truth and a
+    # trace is a record of it. record_turn swallows its own failures.
+    await record_turn(session, session_id, turn, seed=seed, condition=condition)
+
     return TurnResult(turn=turn, apex_declared=apex, eliminated=eliminated)
 
 

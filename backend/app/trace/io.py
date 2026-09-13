@@ -7,7 +7,13 @@ from collections.abc import Iterator
 from pathlib import Path
 from types import TracebackType
 
-from app.trace.schema import RunManifest, TurnRecord, WorldRecord, parse_record
+from app.trace.schema import (
+    EventRecord,
+    RunManifest,
+    TurnRecord,
+    WorldRecord,
+    parse_record,
+)
 
 
 class TraceWriter:
@@ -71,6 +77,16 @@ def read_trace(path: Path) -> tuple[RunManifest, list[TurnRecord]]:
     if manifest is None:
         raise ValueError(f"{path}: no run manifest (is this a legacy v2/v3 export?)")
     return manifest, turns
+
+
+def read_events(path: Path) -> list[EventRecord]:
+    """Event records in file order, for a v6 trace. Empty for v4 and v5.
+
+    Kept separate from :func:`read_trace` for the same reason world records are:
+    every existing reader keeps working against a turn-shaped file without
+    change, and a reader that wants events asks for them.
+    """
+    return [r for r in map(parse_record, _iter_raw(path)) if isinstance(r, EventRecord)]
 
 
 def read_world(path: Path) -> dict[int, WorldRecord]:

@@ -119,7 +119,28 @@ class StubAgent(BaseAgent):
                     "offer": "$0.50",
                     "ask": "alliance",
                 }
+        self._plan_wake(decision, agent, rng)
         return decision
+
+    @staticmethod
+    def _plan_wake(decision: AgentDecision, agent: Agent, rng: random.Random) -> None:
+        """Give the stub a plausible, varied cadence.
+
+        Offline runs are how the event scheduler gets exercised without spending
+        anything, so a stub that always slept for one beat would leave the
+        interesting half of the loop -- ragged wakes and interrupts -- untested.
+        A poor agent stays awake because it cannot afford to drift; a rich one
+        can afford to sleep.
+        """
+        if agent.balance < 3.0:
+            decision.wake_after = round(rng.uniform(0.5, 2.0), 2)
+        elif agent.balance < 10.0:
+            decision.wake_after = round(rng.uniform(1.0, 5.0), 2)
+        else:
+            decision.wake_after = round(rng.uniform(2.0, 12.0), 2)
+
+        triggers = ["stolen_from", "extorted", "sabotaged", "contract_due", "addressed"]
+        decision.wake_if = rng.sample(triggers, rng.randint(1, 3))
 
     def _pick_major(self, state: dict, agent: Agent, rng: random.Random) -> AgentDecision:
         # Settle a commitment it can actually meet before rolling for anything

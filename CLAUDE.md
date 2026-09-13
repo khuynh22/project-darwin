@@ -42,7 +42,13 @@ backend/
     oracle/
       schemas.py          # 25 tool schemas (Pydantic), MAJOR_ACTIONS/FREE_ACTIONS sets
       actions.py          # 25 do_* handlers + ACTION_TABLE
-      engine.py           # run_turn (parallel decide, sequential apply), progressive tax, deferred settlement, extortion enforcement, inheritance
+      engine.py           # run_turn (legacy lockstep loop), progressive tax, deferred settlement, extortion enforcement, inheritance
+      clock.py            # Fixed-point simulation time. BEAT = 1000 ticks
+      scheduler.py        # The event queue: wakes, interrupts, agent_seq, lockstep policy
+      durations.py        # How long an action occupies you; deliberation charged from tokens
+      space.py            # Venues, travel time, who witnessed what
+      accrual.py          # Tax and hunger as continuous rates, settled on beat boundaries
+      event_engine.py     # run_events: the continuous loop that replaced the turn
     agents/
       base.py             # BaseAgent, AgentDecision (major + free action), system prompt, info-asymmetric world brief
       stub.py             # StubAgent with DEFAULT_BIAS for all 25 actions (internal: tests/CLI only)
@@ -50,22 +56,72 @@ backend/
       factory.py          # build_agents(roster): provider="stub" -> StubAgent, else OpenRouter; per-session key
 
 frontend/
-  app/page.tsx            # Main layout: header, world map, public/private logs, sidebar
+  app/session/[sessionId]/page.tsx  # Live view: header, 3-D world, roster, public/private logs
+  app/gallery/[runId]/3d/page.tsx   # Replay view: 3-D world, turn scrubber, triple panel
   components/
-    WorldMap.tsx           # 6 venue cards (3x2 grid) with agent chips showing name/balance/action
-    Sidebar.tsx            # Agent cards: balance, invested, trust bar, inventory, specialty, social, badges
+    three/
+      WorldScene.tsx        # Canvas, lights, ground, auto-fitting camera; renders a WorldFrame
+      VenueBlock.tsx        # One venue as a building: door, windows, roof, sign
+      AgentPawn.tsx         # One agent, walking to wherever this turn put it
+      AgentBody.tsx         # The person: head, torso, arms and legs that swing
+      FirstPersonControls.tsx # Pointer lock + WASD; you, standing in the town
+      ProximityFocus.tsx    # Reports whoever you are standing in front of
+      TriplePanel.tsx       # Selected agent-turn: reasoning, message, action, verdict
+      TurnScrubber.tsx      # Replay transport (step / scrub / play)
+    Triple.tsx              # Channel + VerdictRow, shared by TurnCard and TriplePanel
+    Sidebar.tsx             # Agent cards: balance, invested, trust bar, inventory, specialty, social, badges
     PublicLog.tsx           # Public feed (actions + public_message broadcasts)
     ThoughtLog.tsx          # Private reasoning (observer only)
-    ConfigPanel.tsx         # Agent setup modal: provider, model, color, API keys (per-provider), personality
+    ConfigPanel.tsx         # Agent setup modal: model, color, API key, personality
+    Avatar.tsx              # The roster head shown beside an agent's name
+  lib/frame.ts            # WorldFrame: one view-model built from a live snapshot or a trace
+  lib/firstPerson.ts      # Eye height, walk speed, collision against the venue blocks
+  lib/motion.ts           # Walking an agent from last turn's venue to this one's
+  lib/proximity.ts        # Who you are close enough to, and facing, to be reading
+  lib/gait.ts             # Body proportions and the walk cycle, driven by ground covered
+  lib/architecture.ts     # What each venue is built like, sized against the collision box
+  lib/town.ts             # Venues, action->venue table, agent palette
   lib/ws.ts               # Types (AgentSnap, ThoughtSnap, WorldSnapshot, PausedEvent) + WS connection
 ```
+
+**The world is 3-D and you stand in it.** Both views open on foot — pointer lock to look,
+WASD to walk, an `overview` toggle for the orbiting camera — and you read an agent by
+walking up to it rather than clicking it. Agents walk between venues as turns land. One
+renderer, fed by `lib/frame.ts`, so the live session and a replayed run cannot disagree
+about where an agent stood. There is no 2-D fallback: a browser without WebGL gets an
+explicit notice and links to the run as data.
+See `docs/adr/2026-08-26-3d-primary-renderer.md`.
+
+## Time
+
+**There are no turns.** The world runs on a discrete-event clock and agents wake at their
+own pace. See `docs/adr/2026-08-30-continuous-event-clock.md`.
+
+- **Three coordinates, not interchangeable.** `event_id` is the global total order and the
+  trace's primary key. `tick` is simulation time (fixed-point, `BEAT = 1000` ticks) and
+  drives economic accrual. `agent_seq` is how many times *that agent* has acted.
+- **All deception-coherence gaps are measured in `agent_seq`.** Measured in `event_id` a
+  gap mostly counts other agents acting and this one sleeping; tested against the 335-turn
+  verdict set that inflates `max_return_gap` by ~380 on a 0-200 baseline. Run rows through
+  `measure/coherence.by_agent_seq` first. `tests/test_coherence_scheduling_invariance.py`
+  pins this.
+- **Agents schedule themselves.** Every tool call carries `wake_after` (beats to sleep) and
+  `wake_if` (triggers that wake it early, validated against `scheduler.WAKE_TRIGGERS`). A
+  prompt is only sent when an agent wakes, so cost tracks activity.
+- **Actions and thinking both cost time.** Action duration comes from `durations.ACTION_BEATS`;
+  deliberation is charged from tokens spent, never from measured latency -- wall-clock never
+  enters the simulation, so a slow model and a fast one produce identical traces.
+- **Tax and hunger accrue continuously**, settled on whole-beat boundaries so the bill does
+  not depend on how finely events chopped up time. Sleeping does not pause the drain.
+- **`policy="lockstep"`** gives every agent a one-beat wake, ignores duration, and disables
+  interrupts -- the old turn loop as a configuration, kept so frozen-stimulus probes run.
 
 ## Game mechanics
 
 - **25 actions** in 2 tiers: major (required, 1/turn) + free (optional, 1/turn alongside major)
 - **Contracts and offices**: `sign_contract` binds on proposal; missing the deadline is recorded as a breach. Offices (bank/auditor/arbiter/collector) are takeable while vacant for 20 turns. `declare` asserts a registry fact and the engine records asserted beside actual.
 - **Goods economy**: 3 goods (ore $0.30, food $0.25, tech $0.50). Each agent has a random specialty (produces 2-3x). Food consumed every tax cycle or $1 penalty.
-- **Progressive tax**: 0% on $0-2, 5% on $2-5, 10% on $5-10, 15% on $10-20, 20% on $20+. Invested capital exempt. 3+ agents striking waives tax.
+- **Progressive tax**: 0% on $0-2, 5% on $2-5, 10% on $5-10, 15% on $10-20, 20% on $20+. Invested capital exempt. 3+ agents striking waives tax. Charged as a per-beat rate; a continuous drain compounds within the cycle, so effective take is ~1/3 below the old ten-turn cliff at $10.
 - **Trust score** (0-100): affects trade acceptance. Modified by slander (-5 to -10), vouch (+5), steal (-3 to -5), trade (+1), loan default (-10).
 - **Info asymmetry**: agents only see own balance + spouse/allies. Others show fuzzy range. Gaslight injects fake events.
 - **Steal nerf**: success 60% - 8%/attempt (min 15%). Penalty $2 base + $0.50/attempt.
@@ -81,7 +137,7 @@ frontend/
 2. `oracle/actions.py` -- `do_<name>()` handler + add to `ACTION_TABLE`
 3. `agents/stub.py` -- add to `DEFAULT_BIAS` + argument generation in `_pick_major()`
 4. `agents/base.py` -- add to system prompt
-5. `frontend/components/WorldMap.tsx::ACTION_VENUE` -- map to venue
+5. `frontend/lib/town.ts::ACTIONS` -- map the action id to `{family, emoji, venue, intent}`
 
 ## Key conventions
 

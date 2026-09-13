@@ -298,6 +298,15 @@ Stated plainly, because reviewers will press on it:
 
 ## 6. The 3-D view
 
+> **Superseded in part, 2026-08-26.** Two clauses below no longer hold: the 3-D view is
+> *not* an additional route, and it does *not* degrade to the 2-D view. It is now the only
+> world renderer, in the live session as well as the gallery, and `Town.tsx` is deleted; a
+> browser without WebGL gets an explicit notice rather than a second renderer. The
+> reasoning, and the consequences, are in `docs/adr/2026-08-26-3d-primary-renderer.md`.
+> The triple-legibility clause is unchanged and became a blocking gate, since there is no
+> longer a second view to fall back to.
+
+
 **Constraint that makes this cheap:** the 3-D view is a **playback renderer over trace v5**. It
 consumes the same records the text replay does. It contains no game logic, gets no privileged
 data, and adds no measurement surface — which is exactly why it can be built last and in parallel

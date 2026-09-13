@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass, field
 
 from app.models.agent import Agent
+from app.oracle.scheduler import DEFAULT_WAKE_BEATS
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,14 @@ class AgentDecision:
     raw: dict = field(default_factory=dict)
     free_action: str | None = None       # optional free-tier action
     free_arguments: dict = field(default_factory=dict)
+    # When the agent wants to be woken again, and what should wake it sooner.
+    # Under the lockstep policy both are ignored and every agent wakes each beat.
+    wake_after: float = DEFAULT_WAKE_BEATS
+    wake_if: list[str] = field(default_factory=list)
+    # Tokens the model actually spent deciding. Charged as simulation time, so
+    # an agent that deliberates at length genuinely acts later.
+    reasoning_tokens: int = 0
+    completion_tokens: int = 0
 
 
 SYSTEM_PROMPT_TEMPLATE = """You are {display_name}, a ruthless competitor in Project Darwin -- an economic survival game.
@@ -74,7 +83,18 @@ STRATEGY TIPS:
 - An agent with $0.50 is still dangerous -- they vote in strikes and can be bribed cheaply.
 - Control the food supply and you control everything.
 
-OUTPUT: Call 1-2 tools. First = major action (required). Second = optional free action. Use "reasoning" for your private strategy. Use "public_message" to say something publicly (lies welcome).
+TIME:
+- The world runs on a continuous clock measured in BEATS. Agents do NOT take turns. You act, then you sleep for as long as you asked, while everyone else keeps acting.
+- Actions take time. work() occupies you for 3 beats, socialize 2, trade 1, a free action 0. While occupied you cannot respond to anything.
+- Walking between venues costs time too. The market, bank, casino, lounge, alley and work site are spread around the town.
+- Thinking costs time. The longer you deliberate, the later your action lands -- you can be beaten to a scarce good by someone who decided faster.
+- Tax and hunger drain CONTINUOUSLY, not in cycles. Ten beats asleep costs you roughly what ten beats awake costs. Sleeping does not pause the game and does not hide you from the tax collector.
+
+SCHEDULING (every tool call takes these):
+- wake_after: beats to sleep before you act again (0.5-25). Small = you act often and stay responsive, but you spend more effort. Large = you conserve, but the world moves without you and you starve on schedule anyway.
+- wake_if: events that should wake you EARLY. Pick from stolen_from, extorted, sabotaged, addressed, contract_due, contract_breached, trade_offered, slandered, office_vacant, ally_eliminated. If you are robbed and did not ask to be woken, you find out whenever you happen to wake.
+
+OUTPUT: Call 1-2 tools. First = major action (required). Second = optional free action. Use "reasoning" for your private strategy. Use "public_message" to say something publicly (lies welcome). Set wake_after and wake_if deliberately -- they are strategy, not bookkeeping.
 """
 
 

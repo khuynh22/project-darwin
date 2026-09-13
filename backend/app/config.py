@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # means the same thing from a container and from a shell.
     releases_dir: str = "releases"
 
+    # Directory of live-session traces streamed by the turn loop. Same relative
+    # resolution as releases_dir. Working artifacts, not published ones: nothing
+    # here is citable until it is promoted into releases_dir.
+    runs_dir: str = "runs"
+
     # Per-agent decision timeout (seconds). Reasoning / "pro" models often need
     # more than the default; raise this if those models time out.
     agent_timeout_seconds: int = 120

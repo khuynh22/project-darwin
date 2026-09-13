@@ -37,7 +37,7 @@ jobs:
         run: pytest -q
 
   frontend:
-    name: Frontend (lint + typecheck + build)
+    name: Frontend (lint + typecheck + test + build + e2e)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -61,8 +61,20 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Unit tests
+        run: npm test
+
       - name: Build
         env:
           NEXT_PUBLIC_ORACLE_HTTP: http://localhost:8000
           NEXT_PUBLIC_ORACLE_WS: ws://localhost:8000/ws
         run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser gate (the triple stays legible)
+        env:
+          NEXT_PUBLIC_ORACLE_HTTP: http://localhost:8000
+          NEXT_PUBLIC_ORACLE_WS: ws://localhost:8000/ws
+        run: npm run test:e2e

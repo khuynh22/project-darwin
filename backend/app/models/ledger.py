@@ -79,6 +79,7 @@ class TurnSnapshot(Base):
     # fabricates a different situation: steal_count alone moves steal success
     # from ~20% back to 60%.
     steal_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    food_buffer: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     allies: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     enemies: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     skip_next_turn: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

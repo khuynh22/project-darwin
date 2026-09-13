@@ -2,7 +2,7 @@
 
 import { Heart, Mountain, Cpu, Skull, Wheat } from 'lucide-react';
 import type { AgentSnap, WorldSnapshot } from '@/lib/ws';
-import { CritterAvatar } from './Critter';
+import { CritterAvatar } from './Avatar';
 import { COLOR_HEX } from '@/lib/town';
 
 interface SidebarProps {
