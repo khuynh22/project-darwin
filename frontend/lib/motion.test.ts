@@ -61,9 +61,17 @@ describe('walkDuration', () => {
 
 describe('facingAngle', () => {
   it('faces the way it is walking', () => {
-    // Three.js yaw: 0 faces -Z, and +X is a quarter turn from it.
-    expect(facingAngle(A, [0, 0, -5], 42)).toBeCloseTo(0);
+    // The body faces +Z, so yaw 0 is +Z and walking -Z is a half turn.
+    expect(facingAngle(A, [0, 0, 5], 42)).toBeCloseTo(0);
+    expect(facingAngle(A, [0, 0, -5], 42)).toBeCloseTo(Math.PI);
     expect(facingAngle(A, [5, 0, 0], 42)).toBeCloseTo(Math.PI / 2);
+    expect(facingAngle(A, [-5, 0, 0], 42)).toBeCloseTo(-Math.PI / 2);
+  });
+
+  it('faces the camera when it has never moved', () => {
+    // The overview camera sits at +Z, so a resting agent at yaw 0 shows its
+    // face rather than the back of its head.
+    expect(facingAngle(A, A, 0)).toBe(0);
   });
 
   it('keeps the current facing when standing still', () => {

@@ -68,6 +68,10 @@ function Limb({
 /**
  * An agent as a person: head, torso, two arms, two legs, walking.
  *
+ * The body faces **+Z**, deliberately against the three.js -Z convention: at
+ * rest that puts the face toward the overview camera instead of the back of the
+ * head. The toes, the forward lean and `motion.facingAngle` all follow it.
+ *
  * Identity is still colour — the shirt carries it, because it is the largest
  * surface and the thing you can pick out across the plaza. Skin and hair are
  * shared, so the colour is never ambiguous.
@@ -107,7 +111,7 @@ export default function AgentBody({
           <sphereGeometry args={[BODY.headRadius, 16, 16]} />
           <meshStandardMaterial color={SKIN} roughness={0.85} />
         </mesh>
-        {/* Hair as a cap, offset back, so the face reads as the front even
+        {/* Hair as a cap, offset back (-Z), so the face reads as the front even
             from behind — which is where you see an agent walking away. */}
         <mesh position={[0, BODY.headRadius * 0.28, -BODY.headRadius * 0.12]} castShadow>
           <sphereGeometry args={[BODY.headRadius * 1.03, 16, 16, 0, Math.PI * 2, 0, 1.15]} />
@@ -119,7 +123,7 @@ export default function AgentBody({
             position={[
               side * BODY.headRadius * 0.36,
               BODY.headRadius * 0.06,
-              -BODY.headRadius * 0.88,
+              BODY.headRadius * 0.88,
             ]}
           >
             <sphereGeometry args={[BODY.headRadius * 0.14, 8, 8]} />

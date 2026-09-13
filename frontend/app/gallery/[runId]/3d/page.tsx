@@ -6,12 +6,15 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TriplePanel from '@/components/three/TriplePanel';
 import TurnScrubber from '@/components/three/TurnScrubber';
 import type { ViewMode } from '@/components/three/WorldScene';
-import { buildFramesFromTurns } from '@/lib/frame';
+import { buildFramesFromTurns, eventFrames, toEventRows } from '@/lib/frame';
+import { BEAT, toBeats } from '@/lib/clock';
 import {
+  fetchEvents,
   fetchRelease,
   fetchTurns,
   fetchVerdicts,
   type ReleaseDetail,
+  type ReleaseEvent,
   type ReleaseTurn,
   type Verdict,
 } from '@/lib/releases';
@@ -20,9 +23,18 @@ import { hasWebGL } from '@/lib/world3d';
 const PAGE = 200;
 
 // Live auto-play waits 3700ms so a critter's walk lands before the next turn.
-// Nothing walks here -- pawns are positioned, not animated -- so playback runs
-// at reading speed instead.
+// A turn-shaped run does not walk -- pawns are positioned, not animated -- so
+// playback runs at reading speed instead.
 const PLAYBACK_DELAY_MS = 700;
+
+// Beats of simulation time per real second, for an event-shaped run. A 3-beat
+// shift at the mine takes 0.75s to watch, which is long enough to read as work
+// and short enough that a 300-beat run is not an afternoon.
+const PLAYBACK_BEATS_PER_SECOND = 4;
+
+// A tick-sampled run has a frame every SAMPLE_BEATS, so the transport steps in
+// even slices of world time rather than by however long an agent slept.
+const TICK_STEP_MS = 1000 / (PLAYBACK_BEATS_PER_SECOND / 0.5);
 
 // Fetch the next page while there is still this much loaded run ahead of the
 // cursor, so scrubbing forward does not stall on a request.
@@ -46,6 +58,7 @@ export default function World3DPage({
   const [detail, setDetail] = useState<ReleaseDetail | null>(null);
   const [webgl, setWebgl] = useState<boolean | null>(null);
   const [turns, setTurns] = useState<ReleaseTurn[]>([]);
+  const [events, setEvents] = useState<ReleaseEvent[]>([]);
   const [verdicts, setVerdicts] = useState<Verdict[]>([]);
   const [total, setTotal] = useState(0);
   const [cursor, setCursor] = useState(0);
@@ -59,10 +72,23 @@ export default function World3DPage({
   // the cursor can cross the margin several times while one is pending.
   const loading = useRef(false);
 
+  // Simulation time, as a ref: it advances every animation frame during
+  // playback so a walk is smooth, and a state update per frame would re-render
+  // every pawn. The pawns read it directly.
+  const tickRef = useRef(0);
+
   useEffect(() => {
     setWebgl(hasWebGL());
     fetchRelease(decoded).then(setDetail).catch(() => setDetail(null));
     fetchVerdicts(decoded).then(setVerdicts).catch(() => setVerdicts([]));
+    // A v6 run has events and no turns; a v4/v5 run has turns and no events.
+    // Ask for both and let whichever answers decide how the run is played.
+    fetchEvents(decoded, 0, 1000)
+      // Anything that is not an event list leaves the run turn-shaped: a
+      // backend without this endpoint answers with something else entirely,
+      // and a replay that renders nothing is worse than one on the old clock.
+      .then((page) => setEvents(Array.isArray(page?.events) ? page.events : []))
+      .catch(() => setEvents([]));
   }, [decoded]);
 
   const loadPage = useCallback(
@@ -90,16 +116,22 @@ export default function World3DPage({
     loadPage(0);
   }, [loadPage]);
 
+  const onClock = events.length > 0;
+
   const frames = useMemo(
-    () => buildFramesFromTurns(turns, verdicts),
-    [turns, verdicts],
+    () =>
+      onClock
+        ? eventFrames(toEventRows(events), verdicts)
+        : buildFramesFromTurns(turns, verdicts),
+    [onClock, events, turns, verdicts],
   );
 
   useEffect(() => {
+    if (onClock) return;
     if (turns.length >= total) return;
     if (cursor < frames.length - PREFETCH_MARGIN) return;
     loadPage(turns.length);
-  }, [cursor, frames.length, turns.length, total, loadPage]);
+  }, [onClock, cursor, frames.length, turns.length, total, loadPage]);
 
   useEffect(() => {
     if (!playing || frames.length === 0) return;
@@ -111,9 +143,32 @@ export default function World3DPage({
         }
         return c + 1;
       });
-    }, PLAYBACK_DELAY_MS);
+    }, onClock ? TICK_STEP_MS : PLAYBACK_DELAY_MS);
     return () => clearInterval(id);
-  }, [playing, frames.length]);
+  }, [playing, frames.length, onClock]);
+
+  // Simulation time runs continuously between sampled frames, so an agent
+  // crossing the plaza is drawn partway across it rather than stepping from one
+  // sample to the next. Paused, it pins to the frame you scrubbed to.
+  useEffect(() => {
+    if (!onClock) return;
+    const target = frames[Math.min(cursor, frames.length - 1)]?.tick ?? 0;
+    if (!playing) {
+      tickRef.current = target;
+      return;
+    }
+    let raf = 0;
+    let last = performance.now();
+    tickRef.current = target;
+    const advance = (now: number) => {
+      const seconds = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      tickRef.current += seconds * PLAYBACK_BEATS_PER_SECOND * BEAT;
+      raf = requestAnimationFrame(advance);
+    };
+    raf = requestAnimationFrame(advance);
+    return () => cancelAnimationFrame(raf);
+  }, [onClock, playing, cursor, frames]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -178,6 +233,7 @@ export default function World3DPage({
               selectedId={selected?.agentId ?? null}
               onSelect={setSelectedId}
               onLockChange={setLocked}
+              tick={onClock ? tickRef : undefined}
             />
           </div>
 
@@ -265,8 +321,9 @@ export default function World3DPage({
                 <TurnScrubber
                   index={cursor}
                   loaded={frames.length}
-                  total={detail?.horizon ?? frames.length}
+                  total={onClock ? frames.length : (detail?.horizon ?? frames.length)}
                   turn={frame?.turn ?? 0}
+                  beat={onClock ? toBeats(frame?.tick ?? 0) : null}
                   playing={playing}
                   onSeek={seek}
                   onTogglePlay={() => setPlaying((p) => !p)}

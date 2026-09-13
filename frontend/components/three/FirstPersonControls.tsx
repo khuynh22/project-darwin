@@ -7,12 +7,16 @@ import { Vector3 } from 'three';
 import {
   EYE_HEIGHT,
   RUN_SPEED,
+  STOPPED,
   WALK_SPEED,
   clampToWorld,
   resolveMove,
+  smoothVelocity,
+  step,
   venueBlockers,
-  walkVector,
+  walkVelocity,
   type Keys,
+  type Velocity,
 } from '@/lib/firstPerson';
 
 const KEY_MAP: Record<string, keyof Keys> = {
@@ -39,9 +43,11 @@ export const SPAWN: [number, number] = [10, 19];
 /**
  * You, standing in the town.
  *
- * Pointer lock for looking, WASD for walking, shift to run. The camera never
- * leaves eye height — there is no flying, because the point is to be a person
- * down among the agents rather than a drone above them.
+ * Pointer lock for looking, WASD for walking, shift to run. Velocity ramps in
+ * and coasts out rather than switching on and off, because an instant start and
+ * a dead stop are what make keyboard movement feel jerky however high the frame
+ * rate is. The camera never leaves eye height — there is no flying, because the
+ * point is to be a person down among the agents rather than a drone above them.
  *
  * Movement decisions live in `lib/firstPerson.ts`; this owns only the camera,
  * the clock and the keyboard.
@@ -57,6 +63,8 @@ export default function FirstPersonControls({
   // Reused across frames: a fresh Vector3 every frame is how a smooth walk
   // turns into a stutter once the garbage collector notices.
   const facing = useRef(new Vector3());
+  // Carried between frames so a key press ramps up and a release coasts down.
+  const velocity = useRef<Velocity>(STOPPED);
   const blockers = useMemo(() => venueBlockers(), []);
 
   useEffect(() => {
@@ -85,6 +93,8 @@ export default function FirstPersonControls({
     const clear = () => {
       keys.current = { forward: false, back: false, left: false, right: false };
       running.current = false;
+      // Coasting into a hidden tab and back would resume mid-stride.
+      velocity.current = STOPPED;
     };
 
     window.addEventListener('keydown', down);
@@ -105,7 +115,12 @@ export default function FirstPersonControls({
     const direction = camera.getWorldDirection(facing.current);
     const yaw = Math.atan2(-direction.x, -direction.z);
     const speed = running.current ? RUN_SPEED : WALK_SPEED;
-    const { dx, dz } = walkVector(keys.current, yaw, speed, delta);
+
+    const target = walkVelocity(keys.current, yaw, speed);
+    velocity.current = smoothVelocity(velocity.current, target, delta);
+    const { dx, dz } = step(velocity.current, delta);
+    // Checked after smoothing, not before, or the deceleration never runs and
+    // releasing a key stops you dead.
     if (dx === 0 && dz === 0) return;
 
     const from = clampToWorld([camera.position.x, camera.position.z]);

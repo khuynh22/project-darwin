@@ -78,6 +78,11 @@ async function stubOracle(page: Page) {
       });
     }
     if (url.pathname.endsWith('/verdicts')) return json({ verdicts: VERDICTS });
+    // This fixture is a turn-shaped run, so it has no events. The page must
+    // fall back to the turn clock rather than render an empty world.
+    if (url.pathname.endsWith('/events')) {
+      return json({ events: [], total: 0, offset: 0, limit: 200 });
+    }
     if (url.pathname.endsWith('/scores')) {
       return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
     }

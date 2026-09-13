@@ -1,4 +1,5 @@
-import type { ReleaseTurn, Verdict } from '@/lib/releases';
+import { BEAT } from '@/lib/clock';
+import type { ReleaseEvent, ReleaseTurn, Verdict } from '@/lib/releases';
 import { COLOR_HEX, HOME_VENUES, VENUES, actionDef, type Venue } from '@/lib/town';
 import { agentSlot, type Vec3 } from '@/lib/world3d';
 import type { AgentSnap, WorldSnapshot } from '@/lib/ws';
@@ -23,14 +24,46 @@ export type FrameAgent = {
   outcome: string;
   /** Null in a live frame: the judge runs offline, after the run. */
   verdict: Verdict | null;
+  /**
+   * The walk that brought it here, in simulation ticks.
+   *
+   * `arrivesAt === departsAt` means standing still — either it did not move or
+   * the frame came from a live snapshot, which carries no clock. The renderer
+   * falls back to its own easing in that case; when the window is real it
+   * animates on it, so the journey takes as long as the world says it took.
+   */
+  from: Vec3;
+  departsAt: number;
+  arrivesAt: number;
 };
 
 export type WorldFrame = {
+  /** Agent moves, for a turn-based frame. Zero for a tick-sampled one. */
   turn: number;
+  /** Simulation time. Zero for a live snapshot, which has no clock. */
+  tick: number;
   agents: FrameAgent[];
 };
 
-const EMPTY_FRAME: WorldFrame = { turn: 0, agents: [] };
+/** One agent acting, read off a v6 trace. */
+export type EventRow = {
+  eventId: number;
+  tick: number;
+  agentSeq: number;
+  agentId: string;
+  action: string;
+  venue: string;
+  travelTicks: number;
+  deliberationTicks: number;
+  monologue: string;
+  publicMessage: string;
+  outcome: string;
+  balance: number | null;
+  trustScore: number | null;
+  spouseId: string | null;
+};
+
+const EMPTY_FRAME: WorldFrame = { turn: 0, tick: 0, agents: [] };
 const PALETTE = Object.values(COLOR_HEX);
 
 /** What placement needs to know about an agent, from either source. */
@@ -38,6 +71,8 @@ type Placeable = {
   agentId: string;
   action: string;
   spouseId: string | null;
+  /** Authoritative venue from a v6 trace. Falls back to the action mapping. */
+  venueId?: string;
 };
 
 /**
@@ -52,7 +87,7 @@ function place(rows: Placeable[]): Map<string, { venue: Venue; position: Vec3 }>
   const sorted = [...rows].sort((a, b) => a.agentId.localeCompare(b.agentId));
 
   const venueIdFor = (row: Placeable, index: number): string =>
-    actionDef(row.action)?.venue ?? HOME_VENUES[index % HOME_VENUES.length];
+    row.venueId ?? actionDef(row.action)?.venue ?? HOME_VENUES[index % HOME_VENUES.length];
 
   const groups: Record<string, string[]> = {};
   for (const venue of VENUES) groups[venue.id] = [];
@@ -114,6 +149,7 @@ export function buildFrameFromSnapshot(snap: WorldSnapshot | null): WorldFrame {
 
   return {
     turn: snap.turn,
+    tick: 0,
     agents: alive.map((a) => {
       const spot = placed.get(a.agent_id)!;
       const thought = latest.get(a.agent_id);
@@ -129,6 +165,9 @@ export function buildFrameFromSnapshot(snap: WorldSnapshot | null): WorldFrame {
         publicMessage: thought?.public_message ?? '',
         outcome: thought?.outcome ?? '',
         verdict: null,
+        from: spot.position,
+        departsAt: 0,
+        arrivesAt: 0,
       };
     }),
   };
@@ -163,6 +202,7 @@ export function buildFramesFromTurns(
       );
       return {
         turn,
+        tick: 0,
         agents: rows.map((t) => {
           const spot = placed.get(t.agent_id)!;
           return {
@@ -177,8 +217,165 @@ export function buildFramesFromTurns(
             publicMessage: t.public_message,
             outcome: t.outcome,
             verdict: verdictAt.get(`${turn}:${t.agent_id}`) ?? null,
+            from: spot.position,
+            departsAt: 0,
+            arrivesAt: 0,
           };
         }),
       };
     });
+}
+
+/**
+ * The world at one instant of simulation time.
+ *
+ * This is what the continuous clock buys the renderer. A turn-based frame could
+ * only ask "who acted on turn N", and once agents wake at their own pace that
+ * question has no single answer — the agents in a turn bucket acted at
+ * unrelated moments. A tick has one: every agent is somewhere at tick T, either
+ * standing at a venue or partway along a walk to it.
+ *
+ * Each agent's state comes from its own latest event at or before `tick`, so
+ * agents that have not moved for a long time simply stay where they were.
+ */
+export function sampleFrameAtTick(
+  events: EventRow[],
+  tick: number,
+  verdicts: Verdict[] = [],
+): WorldFrame {
+  if (events.length === 0) return { ...EMPTY_FRAME, tick };
+
+  const colors = paletteColors(events.map((e) => e.agentId));
+  const verdictAt = new Map(verdicts.map((v) => [`${v.turn}:${v.agent_id}`, v]));
+
+  const history = new Map<string, EventRow[]>();
+  for (const e of events) {
+    const list = history.get(e.agentId);
+    if (list) list.push(e);
+    else history.set(e.agentId, [e]);
+  }
+  for (const list of history.values()) list.sort((a, b) => a.tick - b.tick);
+
+  const current = new Map<string, { now: EventRow; before: EventRow | null }>();
+  for (const [agentId, list] of history) {
+    let index = -1;
+    for (let i = 0; i < list.length && list[i].tick <= tick; i += 1) index = i;
+    // Before its first event an agent has not entered the world yet.
+    if (index < 0) continue;
+    current.set(agentId, { now: list[index], before: index > 0 ? list[index - 1] : null });
+  }
+
+  const rows = [...current.entries()].map(([agentId, { now }]) => ({
+    agentId,
+    action: now.action,
+    spouseId: now.spouseId,
+    venueId: now.venue,
+  }));
+  const toPlaced = place(rows);
+  // Where each agent came from, placed under the same law, so a walk starts at
+  // the slot the agent actually occupied rather than the centre of a venue.
+  const fromPlaced = place(
+    [...current.entries()].map(([agentId, { now, before }]) => ({
+      agentId,
+      action: before?.action ?? now.action,
+      spouseId: before?.spouseId ?? now.spouseId,
+      venueId: before?.venue ?? now.venue,
+    })),
+  );
+
+  return {
+    turn: 0,
+    tick,
+    agents: [...current.entries()].map(([agentId, { now }]) => {
+      const spot = toPlaced.get(agentId)!;
+      const departsAt = now.tick + now.deliberationTicks;
+      return {
+        agentId,
+        color: colors.get(agentId) ?? PALETTE[0],
+        venueId: spot.venue.id,
+        position: spot.position,
+        action: now.action,
+        balance: now.balance,
+        trustScore: now.trustScore,
+        monologue: now.monologue,
+        publicMessage: now.publicMessage,
+        outcome: now.outcome,
+        verdict: verdictAt.get(`${now.agentSeq}:${agentId}`) ?? null,
+        from: fromPlaced.get(agentId)?.position ?? spot.position,
+        departsAt,
+        arrivesAt: departsAt + now.travelTicks,
+      };
+    }),
+  };
+}
+
+/** Simulation time spanned by a trace, for a scrubber to range over. */
+export function tickRange(events: EventRow[]): { first: number; last: number } {
+  if (events.length === 0) return { first: 0, last: 0 };
+  let first = events[0].tick;
+  let last = events[0].tick;
+  for (const e of events) {
+    if (e.tick < first) first = e.tick;
+    // The walk and the action both outlast the event that started them.
+    const end = e.tick + e.deliberationTicks + e.travelTicks;
+    if (end > last) last = end;
+  }
+  return { first, last };
+}
+
+/**
+ * How finely a run is sampled for the scrubber.
+ *
+ * Every sample is a frame the transport can land on, so this trades scrub
+ * resolution against how many frames a long run builds. It does not affect how
+ * smooth a walk looks: the pawn interpolates from the live tick between
+ * samples, not from one sample to the next.
+ */
+export const SAMPLE_BEATS = 0.5;
+
+/**
+ * A whole event-shaped run as evenly spaced frames.
+ *
+ * Sampling on a fixed grid rather than one frame per event is what keeps the
+ * transport meaningful. One frame per event would advance the clock by however
+ * long the next agent happened to sleep, so playback would lurch, and a scrub
+ * bar would give more room to a busy stretch than to a quiet one.
+ */
+export function eventFrames(
+  events: EventRow[],
+  verdicts: Verdict[] = [],
+  sampleBeats: number = SAMPLE_BEATS,
+): WorldFrame[] {
+  if (events.length === 0) return [];
+  const { first, last } = tickRange(events);
+  const stepTicks = Math.max(1, Math.round(sampleBeats * BEAT));
+  const out: WorldFrame[] = [];
+  for (let t = first; t <= last; t += stepTicks) {
+    out.push(sampleFrameAtTick(events, t, verdicts));
+  }
+  // The closing instant, so the last action is not cut off by the step size.
+  if (out.length === 0 || out[out.length - 1].tick < last) {
+    out.push(sampleFrameAtTick(events, last, verdicts));
+  }
+  return out;
+}
+
+/** The wire shape of a v6 event, narrowed to what the renderer needs. */
+export function toEventRows(rows: ReleaseEvent[]): EventRow[] {
+  return rows.map((r) => ({
+    eventId: r.event_id,
+    tick: r.tick,
+    agentSeq: r.agent_seq,
+    agentId: r.agent_id,
+    action: r.action,
+    venue: r.venue,
+    travelTicks: r.travel_ticks,
+    deliberationTicks: r.deliberation_ticks,
+    monologue: r.monologue,
+    publicMessage: r.public_message,
+    outcome: r.outcome,
+    balance: r.state?.balance ?? null,
+    trustScore: r.state?.trust_score ?? null,
+    spouseId: r.state?.spouse_id ?? null,
+  }));
 }

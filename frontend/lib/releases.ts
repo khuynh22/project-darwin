@@ -47,6 +47,27 @@ export type ReleaseTurn = {
   instrument: { tool_call_ok: boolean; note: string };
 };
 
+/** One agent acting, as a v6 trace records it. */
+export type ReleaseEvent = {
+  event_id: number;
+  tick: number;
+  agent_seq: number;
+  agent_id: string;
+  wake_reason: string;
+  monologue: string;
+  public_message: string;
+  action: string;
+  outcome: string;
+  venue: string;
+  witnesses: string[];
+  travel_ticks: number;
+  deliberation_ticks: number;
+  busy_ticks: number;
+  wake_after: number;
+  wake_if: string[];
+  state: TurnState;
+};
+
 export type Verdict = {
   turn: number;
   agent_id: string;
@@ -103,6 +124,16 @@ export async function fetchTurns(
 ): Promise<{ turns: ReleaseTurn[]; total: number; offset: number; limit: number }> {
   return getJson(
     `/releases/${encodeURIComponent(runId)}/turns?offset=${offset}&limit=${limit}`,
+  );
+}
+
+export async function fetchEvents(
+  runId: string,
+  offset: number,
+  limit: number,
+): Promise<{ events: ReleaseEvent[]; total: number; offset: number; limit: number }> {
+  return getJson(
+    `/releases/${encodeURIComponent(runId)}/events?offset=${offset}&limit=${limit}`,
   );
 }
 

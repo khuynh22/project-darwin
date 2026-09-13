@@ -31,21 +31,34 @@ export type Keys = {
   right: boolean;
 };
 
+export type Velocity = { dx: number; dz: number };
+
+export const STOPPED: Velocity = { dx: 0, dz: 0 };
+
+/**
+ * How sharply velocity converges on what the keys are asking for, in e-folds
+ * per second. Higher is more responsive and more abrupt.
+ *
+ * Chosen so a tap still moves you and a release coasts for a few frames rather
+ * than stopping dead: instant velocity is what makes keyboard movement feel
+ * like a slideshow even at a high frame rate, because every key event is a
+ * discontinuity in a signal the eye is tracking.
+ */
+export const ACCELERATION = 16;
+
 /**
  * Ground-plane velocity for the keys held, in the direction the head faces.
+ *
+ * Metres per second, not per frame -- smoothing has to happen in velocity space
+ * or the ramp changes shape with the frame rate.
  *
  * Normalised before scaling, or holding two keys walks you diagonally at 1.41x
  * — the oldest bug in first-person movement.
  */
-export function walkVector(
-  keys: Keys,
-  yaw: number,
-  speed: number,
-  delta: number,
-): { dx: number; dz: number } {
+export function walkVelocity(keys: Keys, yaw: number, speed: number): Velocity {
   const ahead = (keys.forward ? 1 : 0) - (keys.back ? 1 : 0);
   const side = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-  if (ahead === 0 && side === 0) return { dx: 0, dz: 0 };
+  if (ahead === 0 && side === 0) return STOPPED;
 
   const sin = Math.sin(yaw);
   const cos = Math.cos(yaw);
@@ -55,9 +68,45 @@ export function walkVector(
   let dz = ahead * -cos + side * sin;
 
   const length = Math.hypot(dx, dz);
-  dx = (dx / length) * speed * delta;
-  dz = (dz / length) * speed * delta;
-  return { dx, dz };
+  return { dx: (dx / length) * speed, dz: (dz / length) * speed };
+}
+
+/**
+ * Move ``current`` toward ``target`` by an exponential approach.
+ *
+ * Exponential rather than a fixed step per frame, because the fraction covered
+ * has to depend on how long the frame actually took. A per-frame step ramps up
+ * twice as fast at 120fps as at 60, so the same key press moves you a different
+ * distance on a different machine.
+ */
+export function smoothVelocity(
+  current: Velocity,
+  target: Velocity,
+  delta: number,
+  rate: number = ACCELERATION,
+): Velocity {
+  const k = 1 - Math.exp(-rate * delta);
+  const dx = current.dx + (target.dx - current.dx) * k;
+  const dz = current.dz + (target.dz - current.dz) * k;
+  // Otherwise the tail of the decay creeps forever and the camera never quite
+  // settles, which shows up as a jittering proximity readout when you stop.
+  const settled = Math.hypot(dx, dz) < 0.01 && target.dx === 0 && target.dz === 0;
+  return settled ? STOPPED : { dx, dz };
+}
+
+/** Displacement over one frame, kept separate so the caller can smooth first. */
+export function step(velocity: Velocity, delta: number): Velocity {
+  return { dx: velocity.dx * delta, dz: velocity.dz * delta };
+}
+
+/** Keys straight to displacement, unsmoothed. Retained for the pure movement tests. */
+export function walkVector(
+  keys: Keys,
+  yaw: number,
+  speed: number,
+  delta: number,
+): Velocity {
+  return step(walkVelocity(keys, yaw, speed), delta);
 }
 
 /** The venue blocks, grown by the walker's radius so a wall stops the body. */

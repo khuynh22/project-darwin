@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildFrameFromSnapshot,
   buildFramesFromTurns,
+  eventFrames,
+  sampleFrameAtTick,
+  tickRange,
+  type EventRow,
   type WorldFrame,
 } from '@/lib/frame';
 import type { ReleaseTurn, Verdict } from '@/lib/releases';
@@ -142,7 +146,7 @@ describe('buildFrameFromSnapshot', () => {
   });
 
   it('is an empty frame, not a crash, without a snapshot', () => {
-    expect(buildFrameFromSnapshot(null)).toEqual({ turn: 0, agents: [] });
+    expect(buildFrameFromSnapshot(null)).toEqual({ turn: 0, tick: 0, agents: [] });
   });
 
   it('drops eliminated agents', () => {
@@ -213,5 +217,131 @@ describe('buildFramesFromTurns', () => {
 
   it('is empty for an empty trace', () => {
     expect(buildFramesFromTurns([])).toEqual([]);
+  });
+});
+
+describe('sampleFrameAtTick', () => {
+  const ev = (over: Partial<EventRow> & { agentId: string; tick: number }): EventRow => ({
+    eventId: 0,
+    agentSeq: 1,
+    action: 'work',
+    venue: 'work',
+    travelTicks: 0,
+    deliberationTicks: 0,
+    monologue: '',
+    publicMessage: '',
+    outcome: '',
+    balance: 10,
+    trustScore: 50,
+    spouseId: null,
+    ...over,
+  });
+
+  const WALK: EventRow[] = [
+    ev({ agentId: 'red', tick: 0, venue: 'lounge', action: 'rest' }),
+    ev({ agentId: 'red', tick: 1000, venue: 'market', action: 'trade', travelTicks: 2000, agentSeq: 2 }),
+    ev({ agentId: 'blue', tick: 0, venue: 'bank', action: 'invest' }),
+  ];
+
+  it('places an agent at its latest event, not at a shared turn', () => {
+    const frame = sampleFrameAtTick(WALK, 500);
+    expect(frame.tick).toBe(500);
+    expect(frame.agents.find((a) => a.agentId === 'red')?.venueId).toBe('lounge');
+    expect(frame.agents.find((a) => a.agentId === 'blue')?.venueId).toBe('bank');
+  });
+
+  it('carries a walk window the renderer can animate on', () => {
+    const red = sampleFrameAtTick(WALK, 1500).agents.find((a) => a.agentId === 'red')!;
+    expect(red.departsAt).toBe(1000);
+    expect(red.arrivesAt).toBe(3000);
+    expect(red.from).not.toEqual(red.position);
+  });
+
+  it('reports no walk when the agent stayed put', () => {
+    const blue = sampleFrameAtTick(WALK, 1500).agents.find((a) => a.agentId === 'blue')!;
+    expect(blue.arrivesAt).toBe(blue.departsAt);
+    expect(blue.from).toEqual(blue.position);
+  });
+
+  it('leaves out an agent that has not acted yet', () => {
+    const late = [...WALK, ev({ agentId: 'green', tick: 9000, venue: 'alley' })];
+    expect(sampleFrameAtTick(late, 500).agents.map((a) => a.agentId)).toEqual(['red', 'blue']);
+    expect(sampleFrameAtTick(late, 9000).agents.map((a) => a.agentId).sort()).toEqual([
+      'blue',
+      'green',
+      'red',
+    ]);
+  });
+
+  it('keeps an agent where it was rather than dropping it between events', () => {
+    // A sleeping agent has no event for a long stretch; it is still standing there.
+    const frame = sampleFrameAtTick(WALK, 500_000);
+    expect(frame.agents.find((a) => a.agentId === 'blue')?.venueId).toBe('bank');
+  });
+
+  it('is a pure function of the tick', () => {
+    expect(sampleFrameAtTick(WALK, 1500)).toEqual(sampleFrameAtTick(WALK, 1500));
+  });
+
+  it('ranges over the whole run including the tail of the last walk', () => {
+    expect(tickRange(WALK)).toEqual({ first: 0, last: 3000 });
+    expect(tickRange([])).toEqual({ first: 0, last: 0 });
+  });
+});
+
+describe('eventFrames', () => {
+  const ev = (agentId: string, tick: number, venue: string, travelTicks = 0): EventRow => ({
+    eventId: tick,
+    tick,
+    agentSeq: 1,
+    agentId,
+    action: 'work',
+    venue,
+    travelTicks,
+    deliberationTicks: 0,
+    monologue: '',
+    publicMessage: '',
+    outcome: '',
+    balance: 10,
+    trustScore: 50,
+    spouseId: null,
+  });
+
+  const RUN: EventRow[] = [
+    ev('red', 0, 'lounge'),
+    ev('blue', 0, 'bank'),
+    ev('red', 4000, 'market', 2000),
+  ];
+
+  it('samples on an even grid of world time, not once per event', () => {
+    // One frame per event would advance the clock by however long the next
+    // agent slept, so playback would lurch and a scrub bar would give a busy
+    // stretch more room than a quiet one.
+    const frames = eventFrames(RUN, [], 1);
+    const ticks = frames.map((f) => f.tick);
+    const gaps = ticks.slice(1).map((t, i) => t - ticks[i]);
+    expect(new Set(gaps).size).toBe(1);
+  });
+
+  it('covers the run through the end of the final walk', () => {
+    const frames = eventFrames(RUN, [], 1);
+    expect(frames[0].tick).toBe(0);
+    expect(frames[frames.length - 1].tick).toBe(tickRange(RUN).last);
+  });
+
+  it('finer sampling gives more frames over the same span', () => {
+    expect(eventFrames(RUN, [], 0.5).length).toBeGreaterThan(
+      eventFrames(RUN, [], 2).length,
+    );
+  });
+
+  it('is empty for a run with no events', () => {
+    expect(eventFrames([])).toEqual([]);
+  });
+
+  it('every frame carries the whole living roster', () => {
+    for (const f of eventFrames(RUN, [], 1)) {
+      expect(f.agents.map((a) => a.agentId).sort()).toEqual(['blue', 'red']);
+    }
   });
 });

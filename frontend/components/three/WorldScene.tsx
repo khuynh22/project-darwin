@@ -2,7 +2,7 @@
 
 import { Bounds, OrbitControls } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type MutableRefObject, type ReactNode } from 'react';
 import type { PerspectiveCamera } from 'three';
 import type { WorldFrame } from '@/lib/frame';
 import { VENUES } from '@/lib/town';
@@ -55,6 +55,7 @@ export default function WorldScene({
   selectedId,
   onSelect,
   onLockChange,
+  tick,
   children,
 }: {
   frame?: WorldFrame | null;
@@ -62,6 +63,12 @@ export default function WorldScene({
   selectedId?: string | null;
   onSelect?: (agentId: string) => void;
   onLockChange?: (locked: boolean) => void;
+  /**
+   * Current simulation tick, for a frame that carries a clock. A ref rather
+   * than a value: it changes every rendered frame during playback, and a state
+   * update per frame re-renders every pawn.
+   */
+  tick?: MutableRefObject<number>;
   children?: ReactNode;
 }) {
   const walking = mode === 'walk';
@@ -126,6 +133,7 @@ export default function WorldScene({
           // pick whoever happens to be under the crosshair. On foot you
           // choose someone by walking up to them.
           onSelect={walking ? undefined : onSelect}
+          tick={tick}
         />
       ))}
 

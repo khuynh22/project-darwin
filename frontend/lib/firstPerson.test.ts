@@ -6,6 +6,9 @@ import {
   resolveMove,
   venueBlockers,
   walkVector,
+  smoothVelocity,
+  step,
+  STOPPED,
   type Box,
 } from '@/lib/firstPerson';
 import { VENUES } from '@/lib/town';
@@ -118,5 +121,51 @@ describe('resolveMove', () => {
       ),
     );
     expect(overlapping).toBe(false);
+  });
+});
+
+describe('smoothVelocity', () => {
+  const FULL = { dx: WALK_SPEED, dz: 0 };
+
+  it('ramps toward the target instead of jumping to it', () => {
+    const first = smoothVelocity(STOPPED, FULL, 1 / 60);
+    expect(first.dx).toBeGreaterThan(0);
+    expect(first.dx).toBeLessThan(FULL.dx);
+  });
+
+  it('coasts to a stop rather than stopping dead', () => {
+    const coasting = smoothVelocity(FULL, STOPPED, 1 / 60);
+    expect(coasting.dx).toBeGreaterThan(0);
+    expect(coasting.dx).toBeLessThan(FULL.dx);
+  });
+
+  it('settles exactly, so a stopped camera does not creep', () => {
+    let v = FULL;
+    for (let i = 0; i < 600; i += 1) v = smoothVelocity(v, STOPPED, 1 / 60);
+    expect(v).toEqual(STOPPED);
+  });
+
+  it('covers the same ground per second at any frame rate', () => {
+    // A fixed per-frame fraction would ramp twice as fast at 120fps, so the
+    // same key press would move you further on a faster machine.
+    const travel = (fps: number) => {
+      let v = STOPPED;
+      let distance = 0;
+      for (let i = 0; i < fps; i += 1) {
+        v = smoothVelocity(v, FULL, 1 / fps);
+        distance += step(v, 1 / fps).dx;
+      }
+      return distance;
+    };
+    // Not exact: summing a continuous ramp at different step sizes leaves a
+    // discretisation residue. Within a couple of percent is the real claim.
+    const slow = travel(30);
+    expect(Math.abs(travel(120) - slow) / slow).toBeLessThan(0.02);
+  });
+
+  it('reaches practically full speed within a few frames', () => {
+    let v = STOPPED;
+    for (let i = 0; i < 12; i += 1) v = smoothVelocity(v, FULL, 1 / 60);
+    expect(v.dx).toBeGreaterThan(WALK_SPEED * 0.9);
   });
 });

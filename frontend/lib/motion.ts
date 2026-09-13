@@ -47,6 +47,10 @@ export function walkDuration(from: Vec3, to: Vec3): number {
 /**
  * Which way to face while walking, keeping the current facing when still.
  *
+ * The body is modelled facing **+Z**, not the three.js -Z convention: the toes,
+ * and the forward lean in AgentBody, both point that way, and it puts a resting
+ * agent's face toward the overview camera at (0, 34, 40) rather than its back.
+ *
  * Without the standstill case an agent snaps to face north the moment it stops,
  * which is the one frame you are most likely to be looking at it.
  */
@@ -54,5 +58,5 @@ export function facingAngle(from: Vec3, to: Vec3, current: number): number {
   const dx = to[0] - from[0];
   const dz = to[2] - from[2];
   if (Math.hypot(dx, dz) < 1e-4) return current;
-  return Math.atan2(dx, -dz);
+  return Math.atan2(dx, dz);
 }
