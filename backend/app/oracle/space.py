@@ -16,8 +16,8 @@ about the world. It also makes an alibi decidable: "I was at the farm" is now a
 claim the trace can contradict, which is a deception the judge does not have to
 adjudicate.
 
-Coordinates mirror the 780x560 stage in ``frontend/lib/town.ts`` so the backend
-and the renderer cannot disagree about where a venue is.
+Coordinates come from ``shared/venues.json``, which the renderer reads too, so
+the backend and the renderer cannot disagree about where a venue is.
 """
 
 from __future__ import annotations
@@ -27,52 +27,14 @@ from dataclasses import dataclass
 from typing import Final
 
 from app.oracle.clock import beats
-
-VENUE_POS: Final[dict[str, tuple[float, float]]] = {
-    "work": (390.0, 72.0),
-    "market": (660.0, 180.0),
-    "bank": (660.0, 320.0),
-    "casino": (390.0, 416.0),
-    "lounge": (120.0, 320.0),
-    "alley": (120.0, 180.0),
-    "plaza": (390.0, 244.0),
-}
-
-ACTION_VENUE: Final[dict[str, str]] = {
-    "work": "work",
-    "strike": "work",
-    "trade": "market",
-    "sign_contract": "market",
-    "fulfil_contract": "market",
-    "charity": "market",
-    "gift": "market",
-    "bribe": "market",
-    "invest": "bank",
-    "lend": "bank",
-    "audit": "bank",
-    "will": "bank",
-    "bet": "casino",
-    "bluff": "casino",
-    "socialize": "lounge",
-    "propose_deal": "lounge",
-    "rest": "lounge",
-    "vouch": "lounge",
-    "slander": "lounge",
-    "gaslight": "lounge",
-    "declare": "lounge",
-    "stand_for_office": "lounge",
-    "steal": "alley",
-    "sabotage": "alley",
-    "extort": "alley",
-}
+from app.oracle.world_data import ACTION_VENUE, ECONOMY, VENUE_POS
 
 DEFAULT_VENUE: Final[str] = "plaza"
 
-#: Stage units covered per beat of walking. The longest crossing in the town is
-#: about 620 units, so at 260 the far side costs a little under 2.4 beats --
-#: comparable to a short action, which is what makes distance worth thinking
-#: about without making the map tedious to cross.
-WALK_UNITS_PER_BEAT: Final[float] = 260.0
+#: Stage units covered per beat of walking. Derived from the generated layout
+#: by ``scripts/layout_venues.py`` so the longest crossing keeps costing three
+#: beats however many buildings the town grows.
+WALK_UNITS_PER_BEAT: Final[float] = ECONOMY.walk_units_per_beat
 
 #: Venues where a conversation cannot be overheard by agents elsewhere. Every
 #: venue is private in that sense; the plaza is the one public space, so a claim

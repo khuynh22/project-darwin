@@ -47,3 +47,17 @@ def test_goods_match_the_engine_defaults():
         "food": 0.25,
         "tech": 0.50,
     }
+
+
+def test_space_reads_the_shared_table():
+    from app.oracle import space
+
+    assert space.ACTION_VENUE is wd.ACTION_VENUE
+    assert space.VENUE_POS is wd.VENUE_POS
+    assert space.WALK_UNITS_PER_BEAT == wd.ECONOMY.walk_units_per_beat
+
+
+def test_the_alley_is_further_from_the_bank_than_the_plaza_is():
+    from app.oracle.space import travel_ticks
+
+    assert travel_ticks("alley", "bank") > travel_ticks("plaza", "bank")
