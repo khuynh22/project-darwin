@@ -213,151 +213,6 @@ class FulfilContractArgs(_BaseArgs):
     contract_id: str = Field(..., description="id of your open contract, e.g. k1")
 
 
-TOOL_DEFINITIONS: list[dict] = [
-    {
-        "name": "work",
-        "description": "Labor for $0.05-$0.20 + 1 random good (ore/food/tech). +10% bonus if married.",
-        "parameters": WorkArgs.model_json_schema(),
-    },
-    {
-        "name": "sign_contract",
-        "description": (
-            "Publicly commit to deliver goods to another agent by a deadline, for "
-            "payment on delivery. Binding the moment you sign: missing the deadline "
-            "is recorded as a breach and costs you trust."
-        ),
-        "parameters": SignContractArgs.model_json_schema(),
-    },
-    {
-        "name": "stand_for_office",
-        "description": (
-            "Take a vacant public office for a fixed term. The registry records who "
-            "holds it, so claiming an office you do not hold is checkable."
-        ),
-        "parameters": StandForOfficeArgs.model_json_schema(),
-    },
-    {
-        "name": "declare",
-        "description": (
-            "Publicly assert a registry fact -- who holds an office, or the status "
-            "of a contract. The registry records what you asserted alongside what "
-            "is actually true."
-        ),
-        "parameters": DeclareArgs.model_json_schema(),
-    },
-    {
-        "name": "audit",
-        "description": (
-            "Inspect an agent's exact balance. Requires holding the auditor office; "
-            "rejected otherwise."
-        ),
-        "parameters": AuditArgs.model_json_schema(),
-    },
-    {
-        "name": "fulfil_contract",
-        "description": (
-            "Deliver the goods you owe on one of your open contracts and collect "
-            "the agreed payment."
-        ),
-        "parameters": FulfilContractArgs.model_json_schema(),
-    },
-    {
-        "name": "trade",
-        "description": "Trade money and/or goods with another agent. Offer cash, a good, or both. Target may decline.",
-        "parameters": TradeArgs.model_json_schema(),
-    },
-    {
-        "name": "bet",
-        "description": "Gamble money. coin_flip (50%, 1x), pixel_horse (20%, 4x), lottery (5%, 18x).",
-        "parameters": BetArgs.model_json_schema(),
-    },
-    {
-        "name": "socialize",
-        "description": "Propose a social bond: marriage (pools balances, requires mutual consent, +10% work bonus), divorce (split 50/50), alliance, truce, or rivalry.",
-        "parameters": SocializeArgs.model_json_schema(),
-    },
-    {
-        "name": "sabotage",
-        "description": "Pay >=$1 to force target to skip next turn. Creates enemies.",
-        "parameters": SabotageArgs.model_json_schema(),
-    },
-    {
-        "name": "invest",
-        "description": "Invest cash for deferred return (5 turns). 70% chance of 1.2-2x profit; 30% total loss. Invested money is tax-exempt.",
-        "parameters": InvestArgs.model_json_schema(),
-    },
-    {
-        "name": "steal",
-        "description": "Attempt theft. Success rate drops with each steal (60% base, -8% per attempt, min 15%). Failure penalty: $2+ escalating. Creates enemies.",
-        "parameters": StealArgs.model_json_schema(),
-    },
-    {
-        "name": "lend",
-        "description": "Lend money; Oracle enforces 1.1x repayment in 5 turns. Debtor defaults if bankrupt.",
-        "parameters": LendArgs.model_json_schema(),
-    },
-    {
-        "name": "charity",
-        "description": "Donate to a specific agent or the poorest. Builds alliance + trust.",
-        "parameters": CharityArgs.model_json_schema(),
-    },
-    {
-        "name": "propose_deal",
-        "description": "Propose a custom deal. No immediate effect; target sees it next turn.",
-        "parameters": ProposeDealArgs.model_json_schema(),
-    },
-    {
-        "name": "slander",
-        "description": "Pay $0.20 to spread a rumor, lowering target's Trust Score by 5-10. Public event.",
-        "parameters": SlanderArgs.model_json_schema(),
-    },
-    {
-        "name": "vouch",
-        "description": "Free. Publicly endorse an agent, raising their Trust Score by 5.",
-        "parameters": VouchArgs.model_json_schema(),
-    },
-    {
-        "name": "gift",
-        "description": "Transfer money with no contract. Raises trust for both parties.",
-        "parameters": GiftArgs.model_json_schema(),
-    },
-    {
-        "name": "bluff",
-        "description": "Pay $0.10 to broadcast a fake action to the public log. Others see it as real.",
-        "parameters": BluffArgs.model_json_schema(),
-    },
-    {
-        "name": "extort",
-        "description": "Demand money privately. If target doesn't pay by next turn, auto-sabotage or slander triggers.",
-        "parameters": ExtortArgs.model_json_schema(),
-    },
-    {
-        "name": "strike",
-        "description": "Propose work stoppage. If 3+ agents strike in the same tax cycle, survival tax is waived (but no work income).",
-        "parameters": StrikeArgs.model_json_schema(),
-    },
-    {
-        "name": "rest",
-        "description": "Skip all activity. Grants +20% success to your next steal or invest.",
-        "parameters": RestArgs.model_json_schema(),
-    },
-    {
-        "name": "will",
-        "description": "Designate a beneficiary. If you die, 50% of your balance goes to them.",
-        "parameters": WillArgs.model_json_schema(),
-    },
-    {
-        "name": "gaslight",
-        "description": "Pay $0.15 to send a fake private notification to target (e.g., 'Agent Y slandered you'). Only they see it.",
-        "parameters": GaslightArgs.model_json_schema(),
-    },
-    {
-        "name": "bribe",
-        "description": "Pay target to perform a specific action next turn. Oracle monitors compliance.",
-        "parameters": BribeArgs.model_json_schema(),
-    },
-]
-
 ARG_MODELS = {
     "work": WorkArgs,
     "sign_contract": SignContractArgs,
@@ -385,3 +240,15 @@ ARG_MODELS = {
     "gaslight": GaslightArgs,
     "bribe": BribeArgs,
 }
+
+# Descriptions come from shared/actions.json -- the same sentence the prompt
+# prints under the building the agent is standing at, so the tool schema and
+# the venue block cannot describe the action differently.
+TOOL_DEFINITIONS: list[dict] = [
+    {
+        "name": action_id,
+        "description": row.summary,
+        "parameters": ARG_MODELS[action_id].model_json_schema(),
+    }
+    for action_id, row in _world.ACTIONS.items()
+]
