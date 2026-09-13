@@ -25,6 +25,7 @@ import ConfigPanel from '@/components/ConfigPanel';
 import TriplePanel from '@/components/three/TriplePanel';
 import type { ViewMode } from '@/components/three/WorldScene';
 import { buildFrameFromSnapshot } from '@/lib/frame';
+import { ACTIONS, VENUES_BY_ID } from '@/lib/town';
 import { hasWebGL } from '@/lib/world3d';
 import { Button } from '@/components/ui/button';
 import {
@@ -91,6 +92,8 @@ export default function SessionPage() {
   const [locked, setLocked] = useState(false);
   const [hud, setHud] = useState(true);
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [venueId, setVenueId] = useState<string | null>(null);
+  const venue = venueId ? VENUES_BY_ID[venueId] : undefined;
   const focused = useMemo(
     () => frame.agents.find((a) => a.agentId === focusedId) ?? null,
     [frame, focusedId],
@@ -369,6 +372,7 @@ export default function SessionPage() {
               selectedId={focusedId}
               onSelect={(id) => setFocusedId(id || null)}
               onLockChange={setLocked}
+              onVenueFocus={setVenueId}
             />
           )
         )}
@@ -430,7 +434,30 @@ export default function SessionPage() {
         <div className="flex-1 min-h-0 flex gap-2 justify-between items-start">
           {/* Only while you are standing in front of someone: a caption on what
               you are looking at, not a panel permanently covering the world. */}
-          <div className="w-[340px] max-w-[45vw] self-end pointer-events-auto">
+          <div className="w-[340px] max-w-[45vw] self-end pointer-events-auto space-y-2">
+            {/* The building you are standing at, listing exactly what the
+                agents standing here are offered. Same strings, one table. */}
+            {hud && webgl && mode === 'walk' && venue && !focused && (
+              <div className="max-h-[46vh] overflow-y-auto rounded-cozy bg-cozy-card/95 border-[1.5px] border-cozy-card-edge shadow-cozy p-3">
+                <h3 className="font-display text-[15px] text-cozy-ink">
+                  {venue.icon} {venue.label}
+                </h3>
+                {venue.actions.length === 0 ? (
+                  <p className="mt-1 text-[12px] text-cozy-ink/70">
+                    Open ground. Anything said here is heard across the town.
+                  </p>
+                ) : (
+                  <ul className="mt-2 space-y-1.5">
+                    {venue.actions.map((id) => (
+                      <li key={id} className="text-[12px] leading-snug text-cozy-ink/80">
+                        <span className="font-mono text-cozy-ink">{id}</span>{' '}
+                        {ACTIONS[id]?.summary}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             {hud && webgl && mode === 'walk' && focused && (
               <div className="max-h-[46vh] overflow-y-auto">
                 <TriplePanel agent={focused} turn={frame.turn} />
