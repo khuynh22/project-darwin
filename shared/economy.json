@@ -1,8 +1,29 @@
 {
-  "tax_brackets": [[2.0, 0.0], [5.0, 0.05], [10.0, 0.1], [20.0, 0.15], [null, 0.2]],
+  "tax_brackets": [
+    [
+      2.0,
+      0.0
+    ],
+    [
+      5.0,
+      0.05
+    ],
+    [
+      10.0,
+      0.1
+    ],
+    [
+      20.0,
+      0.15
+    ],
+    [
+      null,
+      0.2
+    ]
+  ],
   "tax_cycle_beats": 10.0,
   "hunger_penalty_per_beat": 0.1,
-  "walk_units_per_beat": 260.0,
-  "stage_w": 780.0,
-  "stage_h": 560.0
+  "walk_units_per_beat": 194.5,
+  "stage_w": 701.4874,
+  "stage_h": 701.4874
 }

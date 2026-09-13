@@ -4,8 +4,8 @@
     "label": "Plaza",
     "district": "plaza",
     "status": "built",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 350.744,
+    "y": 350.744,
     "actions": []
   },
   {
@@ -13,26 +13,38 @@
     "label": "Market",
     "district": "civic",
     "status": "built",
-    "x": 0.0,
-    "y": 0.0,
-    "actions": ["trade", "sign_contract", "fulfil_contract", "bribe", "gift", "charity"]
+    "x": 350.744,
+    "y": 197.0,
+    "actions": [
+      "trade",
+      "sign_contract",
+      "fulfil_contract",
+      "bribe",
+      "gift",
+      "charity"
+    ]
   },
   {
     "id": "bank",
     "label": "Bank",
     "district": "civic",
     "status": "built",
-    "x": 0.0,
-    "y": 0.0,
-    "actions": ["invest", "lend", "audit", "will"]
+    "x": 470.945,
+    "y": 254.886,
+    "actions": [
+      "invest",
+      "lend",
+      "audit",
+      "will"
+    ]
   },
   {
     "id": "lounge",
     "label": "Lounge",
     "district": "civic",
     "status": "built",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 500.633,
+    "y": 384.955,
     "actions": [
       "socialize",
       "propose_deal",
@@ -49,8 +61,8 @@
     "label": "Registry",
     "district": "civic",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 417.451,
+    "y": 489.262,
     "actions": []
   },
   {
@@ -58,8 +70,8 @@
     "label": "Courthouse",
     "district": "civic",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 284.037,
+    "y": 489.262,
     "actions": []
   },
   {
@@ -67,8 +79,8 @@
     "label": "Press",
     "district": "civic",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 200.855,
+    "y": 384.955,
     "actions": []
   },
   {
@@ -76,8 +88,8 @@
     "label": "Tavern",
     "district": "civic",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 230.542,
+    "y": 254.886,
     "actions": []
   },
   {
@@ -85,17 +97,20 @@
     "label": "Work Site",
     "district": "industry",
     "status": "built",
-    "x": 0.0,
-    "y": 0.0,
-    "actions": ["work", "strike"]
+    "x": 350.744,
+    "y": 59.0,
+    "actions": [
+      "work",
+      "strike"
+    ]
   },
   {
     "id": "farm",
     "label": "Farm",
     "district": "industry",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 486.324,
+    "y": 92.417,
     "actions": []
   },
   {
@@ -103,8 +118,8 @@
     "label": "Mine",
     "district": "industry",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 590.844,
+    "y": 185.014,
     "actions": []
   },
   {
@@ -112,8 +127,8 @@
     "label": "Workshop",
     "district": "industry",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 640.36,
+    "y": 315.578,
     "actions": []
   },
   {
@@ -121,8 +136,8 @@
     "label": "Warehouse",
     "district": "industry",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 623.529,
+    "y": 454.197,
     "actions": []
   },
   {
@@ -130,8 +145,8 @@
     "label": "Academy",
     "district": "industry",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 544.206,
+    "y": 569.117,
     "actions": []
   },
   {
@@ -139,8 +154,8 @@
     "label": "Guild Hall",
     "district": "industry",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 420.563,
+    "y": 634.01,
     "actions": []
   },
   {
@@ -148,26 +163,33 @@
     "label": "Alley",
     "district": "vice",
     "status": "built",
-    "x": 0.0,
-    "y": 0.0,
-    "actions": ["steal", "sabotage", "extort"]
+    "x": 280.925,
+    "y": 634.01,
+    "actions": [
+      "steal",
+      "sabotage",
+      "extort"
+    ]
   },
   {
     "id": "casino",
     "label": "Casino",
     "district": "vice",
     "status": "built",
-    "x": 0.0,
-    "y": 0.0,
-    "actions": ["bet", "bluff"]
+    "x": 157.282,
+    "y": 569.117,
+    "actions": [
+      "bet",
+      "bluff"
+    ]
   },
   {
     "id": "pawnshop",
     "label": "Pawnshop",
     "district": "vice",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 77.959,
+    "y": 454.197,
     "actions": []
   },
   {
@@ -175,8 +197,8 @@
     "label": "Insurance",
     "district": "vice",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 61.127,
+    "y": 315.578,
     "actions": []
   },
   {
@@ -184,8 +206,8 @@
     "label": "Estate",
     "district": "vice",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 110.643,
+    "y": 185.014,
     "actions": []
   },
   {
@@ -193,8 +215,8 @@
     "label": "Temple",
     "district": "vice",
     "status": "planned",
-    "x": 0.0,
-    "y": 0.0,
+    "x": 215.164,
+    "y": 92.417,
     "actions": []
   }
 ]
