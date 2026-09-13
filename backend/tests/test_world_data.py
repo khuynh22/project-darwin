@@ -61,3 +61,29 @@ def test_the_alley_is_further_from_the_bank_than_the_plaza_is():
     from app.oracle.space import travel_ticks
 
     assert travel_ticks("alley", "bank") > travel_ticks("plaza", "bank")
+
+
+def test_downstream_modules_read_one_table():
+    from app.oracle import accrual, durations, schemas
+
+    assert durations.ACTION_BEATS is wd.ACTION_BEATS
+    assert schemas.MAJOR_ACTIONS == wd.MAJOR_ACTIONS
+    assert schemas.FREE_ACTIONS == wd.FREE_ACTIONS
+    assert schemas.GOODS == tuple(wd.GOODS)
+    assert schemas.GOOD_VALUES == {g: r.base_price for g, r in wd.GOODS.items()}
+    assert accrual.TAX_BRACKETS == tuple(wd.ECONOMY.tax_brackets)
+    assert accrual.TAX_CYCLE_BEATS == wd.ECONOMY.tax_cycle_beats
+    assert accrual.HUNGER_PENALTY_PER_BEAT == wd.ECONOMY.hunger_penalty_per_beat
+
+
+def test_every_action_is_wired_end_to_end():
+    from app.agents.stub import DEFAULT_BIAS
+    from app.oracle.actions import ACTION_TABLE
+    from app.oracle.schemas import ARG_MODELS
+
+    for action_id in wd.ACTIONS:
+        assert action_id in ARG_MODELS, f"{action_id} has no argument model"
+        assert action_id in ACTION_TABLE, f"{action_id} has no handler"
+        assert action_id in DEFAULT_BIAS, f"{action_id} is unreachable from the stub"
+    assert set(ARG_MODELS) == set(wd.ACTIONS)
+    assert set(DEFAULT_BIAS) == set(wd.ACTIONS)

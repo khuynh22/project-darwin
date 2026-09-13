@@ -10,49 +10,19 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.oracle import world_data as _world
 from app.oracle.scheduler import DEFAULT_WAKE_BEATS, WAKE_TRIGGERS
 
 _REASON = "Your private reasoning for choosing this action (1-3 sentences)."
 _PUBLIC = "Optional public message visible to all agents (e.g., threats, announcements, lies)."
 
-GOODS = ("ore", "food", "tech")
-GOOD_VALUES = {"ore": 0.30, "food": 0.25, "tech": 0.50}
+GOODS = tuple(_world.GOODS)
+GOOD_VALUES = {good: row.base_price for good, row in _world.GOODS.items()}
 
-# Free actions can be used as a second action per turn (or as the major action).
-# Major actions can ONLY be used as the primary action.
-FREE_ACTIONS = frozenset(
-    {
-        "vouch",
-        "stand_for_office",
-        "declare",
-        "will",
-        "rest",
-        "strike",
-        "bluff",
-        "propose_deal",
-        "slander",
-        "gaslight",
-        "gift",
-        "charity",
-    }
-)
-MAJOR_ACTIONS = frozenset(
-    {
-        "work",
-        "sign_contract",
-        "fulfil_contract",
-        "audit",
-        "trade",
-        "bet",
-        "invest",
-        "steal",
-        "lend",
-        "sabotage",
-        "extort",
-        "bribe",
-        "socialize",
-    }
-)
+# Free actions can be taken as a second action alongside a major one, or as the
+# major action; major actions can only be primary.
+FREE_ACTIONS = _world.FREE_ACTIONS
+MAJOR_ACTIONS = _world.MAJOR_ACTIONS
 
 
 _WAKE_AFTER = (
