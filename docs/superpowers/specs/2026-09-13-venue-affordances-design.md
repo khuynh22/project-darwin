@@ -50,16 +50,22 @@ renderer must agree on. Logic only the engine evaluates stays in Python.
 
 ```
 shared/
-  venues.json     # id, label, district, status, x, y, facade, actions[]
+  venues.json     # id, label, district, status, x, y, actions[]
   actions.json    # id, tier, family, venue, beats, emoji, intent, summary
   goods.json      # id, base_price
   economy.json    # tax brackets, tax cycle beats, walk units per beat
-  schema/*.json   # JSON Schema for each of the above
 ```
 
 Python reads them through a new `app/oracle/world_data.py`; TypeScript imports
-them directly. Both sides validate against the JSON Schema in their own test
-suite, so a malformed row fails in whichever language you happen to run first.
+them through `lib/worldData.ts` under a `@shared` path alias, registered in
+`tsconfig.json`, `next.config.js` and `vitest.config.mts`.
+
+The Pydantic models in `world_data.py` are the authoritative schema — a
+malformed row raises at import, so the Oracle refuses to start rather than
+serving a half-loaded world. TypeScript mirrors them as interfaces and a vitest
+test asserts every row satisfies them. No JSON Schema files and no new
+dependency on either side; Pydantic is already there and a second schema
+language would be a third place for the truth to live.
 
 ### What moves
 
@@ -78,10 +84,10 @@ suite, so a malformed row fails in whichever language you happen to run first.
 ### What does not move
 
 Pydantic arg models, `do_*` handlers, the tax and trust and steal formulas,
-`capacity_beats_per_unit`, and every colour, emoji and intent verb. Cosmetics
-stay in `town.ts`, keyed by venue id with a default so an unstyled new venue
-renders plainly rather than crashing — the same tolerance `actionDef` already
-gives an unmapped action.
+`capacity_beats_per_unit`, and every colour, emoji, intent verb and facade.
+Cosmetics stay in `town.ts` and `architecture.ts`, keyed by venue id with a
+default so an unstyled new venue renders plainly rather than crashing — the
+same tolerance `actionDef` already gives an unmapped action.
 
 ### The `summary` column
 
@@ -99,8 +105,8 @@ duplicate it.
   `actions.json`, and every built action appears in exactly one venue.
 - Every venue id in `venues.json` has cosmetics in `town.ts` or resolves to
   the default.
-- Both JSON files validate against their schema, checked from pytest and from
-  vitest.
+- Every row loads cleanly into its Pydantic model, and the mirrored vitest
+  shape check passes over the same file.
 
 Adding an action therefore becomes two steps — add the row, write the handler
 — with CI proving the rest landed. The five-step checklist in `CLAUDE.md`
