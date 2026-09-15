@@ -31,12 +31,7 @@
     "status": "built",
     "x": 470.945,
     "y": 254.886,
-    "actions": [
-      "invest",
-      "lend",
-      "audit",
-      "will"
-    ]
+    "actions": ["invest", "lend", "audit", "will"]
   },
   {
     "id": "lounge",
@@ -99,10 +94,7 @@
     "status": "built",
     "x": 350.744,
     "y": 59.0,
-    "actions": [
-      "work",
-      "strike"
-    ]
+    "actions": ["work", "strike"]
   },
   {
     "id": "farm",
@@ -165,11 +157,7 @@
     "status": "built",
     "x": 280.925,
     "y": 634.01,
-    "actions": [
-      "steal",
-      "sabotage",
-      "extort"
-    ]
+    "actions": ["steal", "sabotage", "extort"]
   },
   {
     "id": "casino",
@@ -178,10 +166,7 @@
     "status": "built",
     "x": 157.282,
     "y": 569.117,
-    "actions": [
-      "bet",
-      "bluff"
-    ]
+    "actions": ["bet", "bluff"]
   },
   {
     "id": "pawnshop",
