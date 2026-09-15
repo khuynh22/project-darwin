@@ -27,6 +27,12 @@ reload lazily after a restart. See `docs/superpowers/specs/2026-06-01-multi-tena
 ## Repo layout
 
 ```
+shared/                   # SSOT read by BOTH the engine and the renderer
+  venues.json             # 21 venues: district, status, generated x/y, actions[]
+  actions.json            # every action: tier, family, venue, beats, summary
+  goods.json              # goods and base prices
+  economy.json            # tax brackets, tax cycle, walk speed, stage size
+
 backend/
   app/
     config.py             # Settings (no hardcoded roster)
@@ -46,6 +52,7 @@ backend/
       clock.py            # Fixed-point simulation time. BEAT = 1000 ticks
       scheduler.py        # The event queue: wakes, interrupts, agent_seq, lockstep policy
       durations.py        # How long an action occupies you; deliberation charged from tokens
+      world_data.py       # Loads shared/; the Pydantic models are the schema
       space.py            # Venues, travel time, who witnessed what
       accrual.py          # Tax and hunger as continuous rates, settled on beat boundaries
       event_engine.py     # run_events: the continuous loop that replaced the turn
@@ -74,6 +81,7 @@ frontend/
     ThoughtLog.tsx          # Private reasoning (observer only)
     ConfigPanel.tsx         # Agent setup modal: model, color, API key, personality
     Avatar.tsx              # The roster head shown beside an agent's name
+  lib/worldData.ts        # Reads shared/ through the @shared alias; types + lookups
   lib/frame.ts            # WorldFrame: one view-model built from a live snapshot or a trace
   lib/firstPerson.ts      # Eye height, walk speed, collision against the venue blocks
   lib/motion.ts           # Walking an agent from last turn's venue to this one's
@@ -119,6 +127,11 @@ own pace. See `docs/adr/2026-08-30-continuous-event-clock.md`.
 ## Game mechanics
 
 - **25 actions** in 2 tiers: major (required, 1/turn) + free (optional, 1/turn alongside major)
+- **Buildings own actions**: every action belongs to a venue, and the prompt describes
+  the building the agent is standing at in full plus every other building in one line
+  with its walk cost. Any action is still callable from anywhere -- you pay the walk.
+  `shared/venues.json` is the table; 7 venues are built and 14 more are placed but
+  `planned`, awaiting their content pack.
 - **Contracts and offices**: `sign_contract` binds on proposal; missing the deadline is recorded as a breach. Offices (bank/auditor/arbiter/collector) are takeable while vacant for 20 turns. `declare` asserts a registry fact and the engine records asserted beside actual.
 - **Goods economy**: 3 goods (ore $0.30, food $0.25, tech $0.50). Each agent has a random specialty (produces 2-3x). Food consumed every tax cycle or $1 penalty.
 - **Progressive tax**: 0% on $0-2, 5% on $2-5, 10% on $5-10, 15% on $10-20, 20% on $20+. Invested capital exempt. 3+ agents striking waives tax. Charged as a per-beat rate; a continuous drain compounds within the cycle, so effective take is ~1/3 below the old ten-turn cliff at $10.
@@ -133,11 +146,15 @@ own pace. See `docs/adr/2026-08-30-continuous-event-clock.md`.
 
 ## Adding a new action
 
-1. `oracle/schemas.py` -- Pydantic model inheriting `_BaseArgs` + add to `TOOL_DEFINITIONS` + `ARG_MODELS` + `FREE_ACTIONS` or `MAJOR_ACTIONS`
-2. `oracle/actions.py` -- `do_<name>()` handler + add to `ACTION_TABLE`
-3. `agents/stub.py` -- add to `DEFAULT_BIAS` + argument generation in `_pick_major()`
-4. `agents/base.py` -- add to system prompt
-5. `frontend/lib/town.ts::ACTIONS` -- map the action id to `{family, emoji, venue, intent}`
+1. `shared/actions.json` -- one row: id, tier, family, venue, beats, emoji, intent, summary
+2. `shared/venues.json` -- add the id to that venue's `actions` list
+3. `oracle/schemas.py` -- Pydantic model inheriting `_BaseArgs`, registered in `ARG_MODELS`
+4. `oracle/actions.py` -- `do_<name>()` handler + `ACTION_TABLE` entry
+5. `agents/stub.py` -- `DEFAULT_BIAS` weight + argument generation in `_pick_major()`
+
+`tests/test_world_data.py` fails if any of these are missing. The prompt, the tool
+schema, the duration, the venue and the building's sign all follow from step 1 --
+there is nothing to update in the frontend or the system prompt.
 
 ## Key conventions
 

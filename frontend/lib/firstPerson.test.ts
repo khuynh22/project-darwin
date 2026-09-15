@@ -6,6 +6,7 @@ import {
   resolveMove,
   venueBlockers,
   walkVector,
+  walkVelocity,
   smoothVelocity,
   step,
   STOPPED,
@@ -167,5 +168,27 @@ describe('smoothVelocity', () => {
     let v = STOPPED;
     for (let i = 0; i < 12; i += 1) v = smoothVelocity(v, FULL, 1 / 60);
     expect(v.dx).toBeGreaterThan(WALK_SPEED * 0.9);
+  });
+});
+
+describe('strafing at any heading', () => {
+  const headings = [0.3, Math.PI / 4, Math.PI / 2, 2.2, Math.PI, -1.1];
+
+  it('stays at a right angle to where you are looking', () => {
+    for (const yaw of headings) {
+      const ahead = walkVelocity({ ...NONE, forward: true }, yaw, WALK_SPEED);
+      const side = walkVelocity({ ...NONE, right: true }, yaw, WALK_SPEED);
+      expect(ahead.dx * side.dx + ahead.dz * side.dz, `yaw ${yaw}`).toBeCloseTo(0, 6);
+    }
+  });
+
+  it('puts right on the right: forward turned clockwise seen from above', () => {
+    for (const yaw of headings) {
+      const ahead = walkVelocity({ ...NONE, forward: true }, yaw, WALK_SPEED);
+      const side = walkVelocity({ ...NONE, right: true }, yaw, WALK_SPEED);
+      // right = forward x up, so forward x right = -up: its y component,
+      // fz*rx - fx*rz, is negative whenever right is on the right.
+      expect(ahead.dz * side.dx - ahead.dx * side.dz, `yaw ${yaw}`).toBeLessThan(0);
+    }
   });
 });

@@ -217,6 +217,7 @@ def _state(
         spouse_id=snap.spouse_id,
         steal_count=snap.steal_count,
         food_buffer=snap.food_buffer,
+        venue=snap.venue,
         allies=list(snap.allies or []),
         enemies=list(snap.enemies or []),
         skip_next_turn=snap.skip_next_turn,

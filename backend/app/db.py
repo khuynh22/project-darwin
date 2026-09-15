@@ -53,6 +53,8 @@ async def init_db() -> None:
         # (table, column, pg_type, default)
         ("agents", "food_buffer", "DOUBLE PRECISION", "1.0"),
         ("turn_snapshots", "food_buffer", "DOUBLE PRECISION", "1.0"),
+        ("agents", "venue", "VARCHAR(32)", "'plaza'"),
+        ("turn_snapshots", "venue", "VARCHAR(32)", "'plaza'"),
         # NOTE: session_id columns are backfilled, but the Agent composite-PK
         # change can't be ALTERed in place -- upgrading needs a one-time DB reset.
         ("agents", "session_id", "VARCHAR(32)", "'cli'"),

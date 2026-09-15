@@ -55,6 +55,7 @@ export default function WorldScene({
   selectedId,
   onSelect,
   onLockChange,
+  onVenueFocus,
   tick,
   children,
 }: {
@@ -63,6 +64,8 @@ export default function WorldScene({
   selectedId?: string | null;
   onSelect?: (agentId: string) => void;
   onLockChange?: (locked: boolean) => void;
+  /** Which building you are standing at, or null when you are in the open. */
+  onVenueFocus?: (venueId: string | null) => void;
   /**
    * Current simulation tick, for a frame that carries a clock. A ref rather
    * than a value: it changes every rendered frame during playback, and a state
@@ -144,6 +147,8 @@ export default function WorldScene({
           agents={frame.agents}
           focusedId={selectedId ?? null}
           onFocus={(id) => onSelect?.(id ?? '')}
+          venues={VENUES}
+          onVenueFocus={onVenueFocus}
         />
       )}
 

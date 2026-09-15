@@ -127,6 +127,8 @@ async def restore_world(
             row.steal_count = state.steal_count
         if state.food_buffer is not None:
             row.food_buffer = state.food_buffer
+        if state.venue is not None:
+            row.venue = state.venue
         if state.allies is not None:
             row.allies = list(state.allies)
         if state.enemies is not None:

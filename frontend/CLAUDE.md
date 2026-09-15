@@ -2,6 +2,8 @@
 
 Next.js 15 (App Router) + React 19 + Tailwind 3. The frontend is a viewer only; all game logic lives in the backend Oracle. The look is a cozy "tiny town of LLM critters" (cream palette, Fredoka/Nunito/JetBrains Mono).
 
+**Buildings own the action space.** Each venue's action list lives in `shared/venues.json`, which the Oracle reads too; the sign on a building and the prompt an agent standing there received are the same strings. Walk up to one and the panel lists what it is for.
+
 **The world is 3-D everywhere, you are in it, and there is exactly one renderer.** `components/three/` (React Three Fiber) draws both the live session at `/session/[sessionId]` and the replay at `/gallery/[runId]/3d`. It is a playback renderer with no game logic: it reads a `WorldFrame` from `lib/frame.ts` and nothing else, which is what stops the live view and a replayed run from disagreeing about where an agent stood.
 
 Both views open **on foot**: pointer lock to look, WASD to walk, shift to run, and an `overview` toggle for the old orbiting camera. World units are metres — a 52m plaza, 3.6m venue blocks, 1.7m agents, a 1.7m eye height — and that scale is load-bearing, not decoration: it is what makes a building read as a building from the ground. On foot there is no clicking; you read an agent by **walking up to it**, and the panel shows whoever you are standing in front of and nobody when you are alone.
@@ -30,8 +32,9 @@ Talks to `http://localhost:8000` (REST) and `ws://localhost:8000/ws` (WS). Overr
 - **`app/session/[sessionId]/page.tsx`** -- The simulation view. Outer shell, header (brand + stat pills + Step/+10/Auto/Share/Export/Config/Reset), main grid `1fr 340px` (3-D world | Roster), logs grid `1fr 1fr` (PublicLog | ThoughtLog), footer keyboard hint, ConfigPanel + pause Dialog. Reads `sessionId` via `useParams`; all fetches hit `/sessions/{id}/...`. Owns the WS connection (`connectOracle(sessionId, ...)`) and auto-play loop. "Share" copies the URL.
 - **`app/layout.tsx`** -- Loads Fredoka / Nunito / JetBrains Mono via `next/font/google` and exposes them as CSS variables.
 - **`app/globals.css`** -- Design tokens, body dot texture, log-in animation, trust-bar fill, button styles, cozy inputs. The stage critter's anatomy, bubble and dust keyframes went with the 2-D town.
-- **`lib/world3d.ts`** -- 3-D geometry: stage-pixel to world-unit mapping (the world reuses the old 780x560 venue layout), `VENUE_FOOTPRINT`, `agentSlot()` (slots sit *outside* the venue block, or the pawn is drawn behind it), and `hasWebGL()`.
+- **`lib/world3d.ts`** -- 3-D geometry: stage-pixel to world-unit mapping at a fixed `WORLD_UNITS_PER_STAGE_PX`, so `GROUND` grows with the generated stage while a building stays 5.2 units across. Also `VENUE_FOOTPRINT`, `agentSlot()` (slots sit *outside* the venue block, or the pawn is drawn behind it), and `hasWebGL()`.
 - **`lib/firstPerson.ts`** -- being a body in the town: eye height, walk and run speeds, the keys-and-yaw to displacement rule, and collision against the venue blocks. Pure; the controller owns the camera and the clock, nothing else.
+- **`lib/pointerLock.ts`** -- `requestRawPointerLock()`: pointer lock with `unadjustedMovement`, so mouse look is not bent by the OS acceleration curve. Falls back to a plain lock only on a capability error. drei's own click-to-lock is switched off in `FirstPersonControls`; this is the only lock request.
 - **`lib/clock.ts`** -- simulation time, mirroring `backend/app/oracle/clock.py`. `BEAT = 1000` ticks. The two must agree or walks render at the wrong speed while every number in the trace still looks right.
 - **`lib/motion.ts`** -- easing, walk duration bounds, and which way to face. The body faces **+Z**, deliberately against the three.js -Z convention: the toes and the forward lean point that way, and it puts a resting agent's face toward the overview camera instead of the back of its head.
 - **`lib/gait.ts`** -- body proportions in metres, and the walk cycle. The pose is a pure function of ground covered, never of elapsed time; legs swing in opposition and each arm swings with the leg on the other side.
@@ -41,7 +44,8 @@ Talks to `http://localhost:8000` (REST) and `ws://localhost:8000/ws` (WS). Overr
 - **`components/three/`** -- `WorldScene` (canvas, lights, ground, fog on foot, and `CameraRig`, which repositions the camera on a mode change because the Canvas `camera` prop is read once at mount), `FirstPersonControls`, `ProximityFocus`, `VenueBlock` (a building with a door, windows, roof and sign, turned to face the plaza), `AgentPawn` (walks to its new position each turn), `AgentBody` (the person: head, torso, swinging limbs), `TriplePanel`, `TurnScrubber`. Pawns and `<Bounds>` do not mix: `Bounds` re-aims the camera to frame its children, so it wraps only the venues, and only in the overview.
 - **`components/Triple.tsx`** -- `Channel` and `VerdictRow`, shared by `TurnCard` (2-D turn list) and `TriplePanel` (3-D). Two presentations of the triple would be two instruments.
 - **`components/Avatar.tsx`** -- `CritterAvatar`, the roster head beside an agent's name.
-- **`lib/town.ts`** -- Single source for town data: 6 `VENUES` (work, market, bank, casino, lounge, alley) at fixed `(x,y)` in a 780×560 stage, 5 `FAMILIES` (economy/prosocial/aggression/deception/social) with color + emoji, `ACTIONS` mapping every backend action id → `{family, emoji, venue, intent}`, and the `COLOR_HEX` agent palette. 3-D slot geometry is `agentSlot()` in `lib/world3d.ts`, not `venueSlot()` here.
+- **`lib/worldData.ts`** -- the shared tables, imported from `../shared/*.json` through the `@shared` alias (registered in `tsconfig.json`, `next.config.js` and `vitest.config.mts`). Venue identity, coordinates and per-venue action lists live there, not here.
+- **`lib/town.ts`** -- how the town *looks*: 5 `FAMILIES` with color + emoji, per-venue `COSMETICS` (icon, body, roof) with a default for an unstyled venue, and the `COLOR_HEX` agent palette. `VENUES` and `ACTIONS` are derived from `worldData`. 3-D slot geometry is `agentSlot()` in `lib/world3d.ts`, not `venueSlot()` here.
 - **`lib/ws.ts`** -- Types (`AgentSnap`, `ThoughtSnap`, `PausedEvent`), `ORACLE_HTTP`, `createSession()`, and `connectOracle(sessionId, onSnapshot, onPaused)` (fetches `/sessions/{id}/state`, opens `/ws/{id}`).
 - **`components/Sidebar.tsx`** -- Roster cards: avatar, name + specialty sub-label, balance, **model-id chip** (the OpenRouter model each critter runs — the research variable), gradient trust bar, inventory pills, mood / invested badge, social tags. Dead state grays the card and pins an "OUT" ribbon.
 - **`components/PublicLog.tsx`** -- "Town Square" public feed: agent-color dot, bolded name, family-tinted action intent, outcome, optional public_message in italic quote.
@@ -95,15 +99,17 @@ and the triple panel docked at `380px` on the right.
 - `'use client'` on all components (WS + state requires client rendering).
 - **Snapshot is the single source of truth.** Never cache derived state.
 - **Agent identity = color** (red, blue, green, etc.). No legacy sprite names. The shirt *and* the sleeves carry it — on the torso alone it is a sliver you cannot pick out across the plaza.
-- **`ACTIONS`** in `lib/town.ts` maps all 20 backend actions to venues + family + intent label.
+- **`ACTIONS`** in `lib/town.ts` is derived from `shared/actions.json`; the venue, tier and summary come from the backend's own table.
 - **Auto-play** runs 1 turn every `AUTO_PLAY_DELAY_MS` (3700ms). Replay playback is faster (700ms): nothing walks, so the only thing to wait for is reading.
 - **Config modal auto-opens** when no agents exist (first load or after reset).
-- Stage is fixed 780×560 px logical; venue (x, y) coordinates live in `VENUES`.
+- Stage size and venue (x, y) are generated into `shared/`; `STAGE_W`/`STAGE_H` and `GROUND` are derived from them, so a building stays 5.2 world units as the town grows.
 
 ## Adding a new action (frontend)
 
-1. `lib/town.ts::ACTIONS` -- add `{family, emoji, venue, intent}` for the new action id.
-2. That's it. The town, roster, and public log all read from this table.
+Nothing. `lib/worldData.ts` reads `shared/actions.json`, the same file the Oracle
+reads, and `lib/town.ts` derives `ACTIONS` from it. Adding a venue costs an optional
+entry in `town.ts::COSMETICS` and `architecture.ts::BY_VENUE` -- both default rather
+than crash.
 
 ## Styling
 

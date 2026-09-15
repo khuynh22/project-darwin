@@ -32,6 +32,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.oracle.clock import BEAT
+from app.oracle.world_data import ECONOMY
 
 #: Beats that one unit of food sustains an agent for. Matches the old ten-turn
 #: hunger cycle: one food per ten turns, or the penalty.
@@ -39,19 +40,13 @@ FOOD_BEATS_PER_UNIT: float = 10.0
 
 #: Charged per beat spent with an empty stomach. Ten beats of starvation costs
 #: $1.00, the old cycle's hunger penalty.
-HUNGER_PENALTY_PER_BEAT: float = 0.10
+HUNGER_PENALTY_PER_BEAT: float = ECONOMY.hunger_penalty_per_beat
 
 #: Beats the old tax cycle spanned. Bracket rates are divided by this to become
 #: per-beat rates.
-TAX_CYCLE_BEATS: float = 10.0
+TAX_CYCLE_BEATS: float = ECONOMY.tax_cycle_beats
 
-TAX_BRACKETS: tuple[tuple[float, float], ...] = (
-    (2.0, 0.00),
-    (5.0, 0.05),
-    (10.0, 0.10),
-    (20.0, 0.15),
-    (float("inf"), 0.20),
-)
+TAX_BRACKETS: tuple[tuple[float, float], ...] = tuple(ECONOMY.tax_brackets)
 
 
 def tax_rate(balance: float) -> float:
