@@ -49,3 +49,22 @@ def test_the_world_brief_carries_the_block():
 
     assert "YOU ARE AT: Alley" in brief
     assert "steal(" in brief
+
+
+async def test_the_turn_loop_tells_each_agent_where_it_stands():
+    from app.agents.base import AgentDecision, BaseAgent
+    from app.models.agent import Agent
+    from app.oracle.engine import _decide_one
+
+    class Spy(BaseAgent):
+        seen: str | None = None
+
+        async def decide(self, state, agent):
+            Spy.seen = state.get("_venue")
+            return AgentDecision(action="work", arguments={})
+
+    row = Agent(session_id="s", agent_id="red", display_name="Red", provider="stub",
+                personality="x", sprite="red", venue="alley")
+    await _decide_one(Spy("red", "spy"), {"turn": 1, "agents": []}, row, [], [])
+
+    assert Spy.seen == "alley"

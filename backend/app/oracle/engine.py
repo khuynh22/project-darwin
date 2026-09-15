@@ -723,7 +723,12 @@ async def _decide_one(
     gaslights: list[str] | None = None,
 ) -> AgentDecision:
     """Call decide() for one agent with its own history + gaslight injections."""
-    agent_state = {**state, "_history": history, "_gaslights": gaslights or []}
+    agent_state = {
+        "_venue": db_agent.venue,
+        **state,
+        "_history": history,
+        "_gaslights": gaslights or [],
+    }
     return await asyncio.wait_for(
         client.decide(agent_state, db_agent),
         timeout=get_settings().agent_timeout_seconds,
