@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { VENUE_ROWS } from '@/lib/worldData';
 import {
   DOOR,
   WALL,
@@ -93,5 +94,13 @@ describe('windowGrid', () => {
 
   it('has no windows when the facade asks for none', () => {
     expect(windowGrid({ ...facade, windowCols: 0, windowRows: 0 })).toEqual([]);
+  });
+});
+
+describe('every venue is built like something', () => {
+  it('gives every venue in the shared table a facade', () => {
+    for (const venue of VENUE_ROWS) {
+      expect(facadeFor(venue.id).storeys).toBeGreaterThanOrEqual(1);
+    }
   });
 });

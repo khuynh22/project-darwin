@@ -46,34 +46,10 @@ GOODS & SURVIVAL:
 - CRITICAL: Every 10 turns you MUST have 1 food or pay $1 HUNGER PENALTY. No food = slow death.
 - You can't produce everything efficiently. Trade is essential. Control food = control the game.
 
-MAJOR ACTIONS (pick 1, required):
-- work(): earn $0.05-$0.20 + goods. Safe but slow. Marriage gives +10%.
-- trade(target, amount, good?, want_good?): exchange money/goods. Trust affects acceptance.
-- sign_contract(target, good, qty, pay, deadline_turn): publicly commit to deliver goods by a deadline for payment on delivery. BINDING the moment you sign -- missing the deadline is recorded as a breach and costs 10 trust.
-- fulfil_contract(contract_id): deliver what you owe on an open contract and collect the payment.
-- audit(target): read an agent's exact balance. Requires holding the auditor office.
-- bet(amount, bet_type): coin_flip 50%/1x, pixel_horse 20%/4x, lottery 5%/18x. High risk.
-- invest(amount): lock money for 5 turns. 70% chance of 1.2-2x return. Tax-exempt while locked.
-- steal(target): take up to 30% of target's cash. Success drops 8% each attempt (60% base, min 15%). Fail = $2+ penalty. USE SPARINGLY.
-- lend(target, amount): they get cash now, you get 1.1x back in 5 turns. They default if bankrupt.
-- sabotage(target, cost): pay >=$1 to skip their next turn. Devastating but expensive.
-- extort(target, amount, threat): demand money. If they don't pay, auto-sabotage/slander next turn.
-- bribe(target, amount, desired_action): pay them to do what you want.
-- socialize(target, type): marriage (mutual consent, pool balances), divorce, alliance, truce, rivalry.
-
-FREE ACTIONS (pick 0-1, alongside your major action):
-- vouch(target): +5 trust for them. Use to reward allies.
-- stand_for_office(office): take a vacant office (bank/auditor/arbiter/collector) for 20 turns. The registry records the holder.
-- declare(claim_type, subject, asserted_value): publicly assert a registry fact -- who holds an office, or a contract's status. The registry records what you asserted next to what is actually true.
-- slander(target, rumor): $0.20, drop their trust 5-10 pts. Destroy competitors' ability to trade.
-- bluff(fake_action): $0.10, fake public announcement. Misdirect competitors.
-- gaslight(target, fake_event): $0.15, send false private info. Make them paranoid.
-- propose_deal(target, offer, ask): non-binding deal proposal.
-- gift(target, amount): transfer cash freely. Soft bribery.
-- charity(amount, target?): donate to poorest agent. Builds alliance.
-- will(target): set heir. If you die, they get 50% (spouse gets 100%).
-- rest(): +20% success on next steal/invest.
-- strike(): if 3+ agents strike, tax is waived that cycle.
+ACTIONS:
+- Every action belongs to a building. The world brief tells you what the building you are standing at offers, and what every other building offers with the walk cost to reach it.
+- You may call any action from anywhere; you simply pay the walk first. Distance is the only thing stopping you.
+- Pick 1 major action (required) and optionally 1 free action alongside it.
 
 STRATEGY TIPS:
 - Early game: work + trade food. Build a food reserve.
@@ -86,7 +62,7 @@ STRATEGY TIPS:
 TIME:
 - The world runs on a continuous clock measured in BEATS. Agents do NOT take turns. You act, then you sleep for as long as you asked, while everyone else keeps acting.
 - Actions take time. work() occupies you for 3 beats, socialize 2, trade 1, a free action 0. While occupied you cannot respond to anything.
-- Walking between venues costs time too. The market, bank, casino, lounge, alley and work site are spread around the town.
+- Walking between venues costs time too. Buildings are spread around the town, and the world brief prints the walk cost to each one from wherever you are standing.
 - Thinking costs time. The longer you deliberate, the later your action lands -- you can be beaten to a scarce good by someone who decided faster.
 - Tax and hunger drain CONTINUOUSLY, not in cycles. Ten beats asleep costs you roughly what ten beats awake costs. Sleeping does not pause the game and does not hide you from the tax collector.
 
@@ -158,6 +134,42 @@ _VISIBILITY_PREAMBLES = {
 }
 
 
+def render_venue_block(current_venue: str) -> str:
+    """What this agent can do here, and what everywhere else is for.
+
+    The building an agent is standing at is described in full and every other
+    building in one line, so the action space stays legible without pasting
+    fifty descriptions into every prompt. Every tool remains callable from
+    anywhere -- distance is the only gate -- so the walk cost is printed rather
+    than the action being hidden.
+    """
+    from app.oracle.clock import BEAT
+    from app.oracle.space import DEFAULT_VENUE, travel_ticks
+    from app.oracle.world_data import ACTIONS, BUILT_VENUES
+
+    here = current_venue if current_venue in BUILT_VENUES else DEFAULT_VENUE
+    venue = BUILT_VENUES[here]
+
+    lines = [f"YOU ARE AT: {venue.label} ({venue.district} district)"]
+    if venue.actions:
+        pad = max(len(a) for a in venue.actions) + 4
+        for action_id in venue.actions:
+            lines.append(
+                f"  {(action_id + '()').ljust(pad)} {ACTIONS[action_id].summary}"
+            )
+    else:
+        lines.append("  Nothing to do here. It is a place to be seen, and to be heard.")
+
+    lines.append("")
+    lines.append("ELSEWHERE (walk cost in beats from here):")
+    others = [v for v in BUILT_VENUES.values() if v.id != here and v.actions]
+    for other in sorted(others, key=lambda v: travel_ticks(here, v.id)):
+        cost = travel_ticks(here, other.id) / BEAT
+        lines.append(f"  {other.label:<10} {cost:>4.1f}  {' '.join(other.actions)}")
+
+    return "\n".join(lines)
+
+
 def render_world_brief(state: dict, self_id: str) -> str:
     history = state.get("_history")
     gaslight_events = state.get("_gaslights", [])
@@ -174,7 +186,13 @@ def render_world_brief(state: dict, self_id: str) -> str:
     my_allies = set(self_agent.get("allies", [])) if self_agent else set()
     my_spouse = self_agent.get("spouse") if self_agent else None
 
-    lines = [_VISIBILITY_PREAMBLES[visibility], f"Turn {state['turn']}. World snapshot:"]
+    lines = [
+        _VISIBILITY_PREAMBLES[visibility],
+        "",
+        render_venue_block(state.get("_venue", "plaza")),
+        "",
+        f"Turn {state['turn']}. World snapshot:",
+    ]
     for a in state["agents"]:
         aid = a["agent_id"]
         is_self = aid == self_id

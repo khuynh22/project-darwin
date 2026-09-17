@@ -255,6 +255,7 @@ async def _state(session_id: str) -> dict:
                 "steal_count": a.steal_count,
                 "inventory": a.inventory or {},
                 "specialty": a.specialty,
+                "venue": a.venue,
                 "invested": invested_map.get(a.agent_id, 0),
                 "rest_bonus": a.rest_bonus,
                 "will_target": a.will_target,

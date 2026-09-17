@@ -144,6 +144,10 @@ export function buildFrameFromSnapshot(snap: WorldSnapshot | null): WorldFrame {
       agentId: a.agent_id,
       action: latest.get(a.agent_id)?.action ?? '',
       spouseId: a.spouse,
+      // The Oracle knows where the agent stands; inferring it from the last
+      // action would put anyone whose free action came second in the wrong
+      // building.
+      venueId: a.venue,
     })),
   );
 

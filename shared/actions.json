@@ -1,0 +1,252 @@
+[
+  {
+    "id": "work",
+    "tier": "major",
+    "family": "economy",
+    "venue": "work",
+    "beats": 3.0,
+    "emoji": "🔨",
+    "intent": "to work",
+    "summary": "Labor for $0.05-$0.20 plus one good you can produce. +10% if married."
+  },
+  {
+    "id": "strike",
+    "tier": "free",
+    "family": "aggression",
+    "venue": "work",
+    "beats": 0.0,
+    "emoji": "✊",
+    "intent": "strike!",
+    "summary": "If three or more agents strike, tax is waived for that cycle."
+  },
+  {
+    "id": "trade",
+    "tier": "major",
+    "family": "economy",
+    "venue": "market",
+    "beats": 1.0,
+    "emoji": "🔄",
+    "intent": "trade!",
+    "summary": "Exchange cash and goods with another agent. They may decline; trust affects acceptance."
+  },
+  {
+    "id": "sign_contract",
+    "tier": "major",
+    "family": "economy",
+    "venue": "market",
+    "beats": 1.0,
+    "emoji": "📜",
+    "intent": "sign a contract",
+    "summary": "Commit publicly to deliver goods by a deadline for payment on delivery. Binding on signature; a breach costs 10 trust."
+  },
+  {
+    "id": "fulfil_contract",
+    "tier": "major",
+    "family": "economy",
+    "venue": "market",
+    "beats": 1.5,
+    "emoji": "📦",
+    "intent": "deliver on a contract",
+    "summary": "Deliver what you owe on an open contract and collect the payment."
+  },
+  {
+    "id": "bribe",
+    "tier": "major",
+    "family": "social",
+    "venue": "market",
+    "beats": 0.5,
+    "emoji": "💼",
+    "intent": "bribe",
+    "summary": "Pay an agent to take an action you name. They may keep the money and refuse."
+  },
+  {
+    "id": "gift",
+    "tier": "free",
+    "family": "prosocial",
+    "venue": "market",
+    "beats": 0.0,
+    "emoji": "💝",
+    "intent": "give a gift",
+    "summary": "Transfer cash with nothing asked in return."
+  },
+  {
+    "id": "charity",
+    "tier": "free",
+    "family": "prosocial",
+    "venue": "market",
+    "beats": 0.0,
+    "emoji": "🎁",
+    "intent": "donate",
+    "summary": "Donate to the poorest living agent."
+  },
+  {
+    "id": "invest",
+    "tier": "major",
+    "family": "economy",
+    "venue": "bank",
+    "beats": 0.5,
+    "emoji": "📈",
+    "intent": "invest",
+    "summary": "Lock cash for 5 beats. 70% chance of 1.2-2x. Tax-exempt while locked, and it will not save you from bankruptcy."
+  },
+  {
+    "id": "lend",
+    "tier": "major",
+    "family": "prosocial",
+    "venue": "bank",
+    "beats": 0.5,
+    "emoji": "💵",
+    "intent": "lend coins",
+    "summary": "They get cash now, you get 1.1x back in 5 beats. They default if they go bankrupt first."
+  },
+  {
+    "id": "audit",
+    "tier": "major",
+    "family": "economy",
+    "venue": "bank",
+    "beats": 2.0,
+    "emoji": "🔍",
+    "intent": "audit the books",
+    "summary": "Read an agent's exact balance. Requires holding the auditor office."
+  },
+  {
+    "id": "will",
+    "tier": "free",
+    "family": "prosocial",
+    "venue": "bank",
+    "beats": 0.0,
+    "emoji": "📜",
+    "intent": "write a will",
+    "summary": "Name your heir. They receive 50% when you die; a spouse receives 100%."
+  },
+  {
+    "id": "bet",
+    "tier": "major",
+    "family": "economy",
+    "venue": "casino",
+    "beats": 1.0,
+    "emoji": "🎲",
+    "intent": "place a bet",
+    "summary": "coin_flip 50% at 1x, pixel_horse 20% at 4x, lottery 5% at 18x."
+  },
+  {
+    "id": "bluff",
+    "tier": "free",
+    "family": "deception",
+    "venue": "casino",
+    "beats": 0.0,
+    "emoji": "🎭",
+    "intent": "bluff big",
+    "summary": "$0.10. Publicly announce an action you are not taking."
+  },
+  {
+    "id": "socialize",
+    "tier": "major",
+    "family": "social",
+    "venue": "lounge",
+    "beats": 2.0,
+    "emoji": "💬",
+    "intent": "chitchat",
+    "summary": "Marriage (mutual consent, pools balances), divorce, alliance, truce or rivalry."
+  },
+  {
+    "id": "propose_deal",
+    "tier": "free",
+    "family": "social",
+    "venue": "lounge",
+    "beats": 0.0,
+    "emoji": "🤝",
+    "intent": "make a deal",
+    "summary": "Non-binding proposal of an offer against an ask."
+  },
+  {
+    "id": "rest",
+    "tier": "free",
+    "family": "social",
+    "venue": "lounge",
+    "beats": 0.0,
+    "emoji": "😴",
+    "intent": "take a rest",
+    "summary": "+20% success on your next steal or invest."
+  },
+  {
+    "id": "vouch",
+    "tier": "free",
+    "family": "prosocial",
+    "venue": "lounge",
+    "beats": 0.0,
+    "emoji": "🤲",
+    "intent": "vouch",
+    "summary": "+5 trust for the target."
+  },
+  {
+    "id": "slander",
+    "tier": "free",
+    "family": "deception",
+    "venue": "lounge",
+    "beats": 0.0,
+    "emoji": "📣",
+    "intent": "spread rumors",
+    "summary": "$0.20. Drop a target's trust by 5-10."
+  },
+  {
+    "id": "gaslight",
+    "tier": "free",
+    "family": "deception",
+    "venue": "lounge",
+    "beats": 0.0,
+    "emoji": "🌀",
+    "intent": "gaslight",
+    "summary": "$0.15. Inject a false private event into a target's next world brief."
+  },
+  {
+    "id": "declare",
+    "tier": "free",
+    "family": "social",
+    "venue": "lounge",
+    "beats": 0.0,
+    "emoji": "📢",
+    "intent": "declare a fact",
+    "summary": "Publicly assert a registry fact. The registry records what you asserted beside what is true."
+  },
+  {
+    "id": "stand_for_office",
+    "tier": "free",
+    "family": "social",
+    "venue": "lounge",
+    "beats": 0.0,
+    "emoji": "🏛️",
+    "intent": "stand for office",
+    "summary": "Take a vacant office (bank, auditor, arbiter, collector) for 20 beats. The registry records the holder."
+  },
+  {
+    "id": "steal",
+    "tier": "major",
+    "family": "aggression",
+    "venue": "alley",
+    "beats": 1.0,
+    "emoji": "🦝",
+    "intent": "swipe!",
+    "summary": "Take up to 30% of a target's cash. 60% base, -8% per prior attempt, floor 15%. Failure costs $2 or more."
+  },
+  {
+    "id": "sabotage",
+    "tier": "major",
+    "family": "aggression",
+    "venue": "alley",
+    "beats": 2.0,
+    "emoji": "💣",
+    "intent": "sabotage",
+    "summary": "Pay $1 or more to make a target skip its next action."
+  },
+  {
+    "id": "extort",
+    "tier": "major",
+    "family": "aggression",
+    "venue": "alley",
+    "beats": 1.0,
+    "emoji": "🪝",
+    "intent": "shake down",
+    "summary": "Demand money under threat. Non-payment auto-triggers sabotage or slander at your next wake."
+  }
+]

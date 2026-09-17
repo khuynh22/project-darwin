@@ -93,6 +93,7 @@ class TurnState(BaseModel):
     spouse_id: str | None = None
     steal_count: int | None = None
     food_buffer: float | None = None
+    venue: str | None = None
     allies: list[str] | None = None
     enemies: list[str] | None = None
     skip_next_turn: bool | None = None

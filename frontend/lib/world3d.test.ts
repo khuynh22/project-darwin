@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { VENUES } from '@/lib/town';
-import { VENUE_FOOTPRINT, agentSlot, venuePosition } from '@/lib/world3d';
+import { STAGE_W, VENUES } from '@/lib/town';
+import {
+  GROUND,
+  VENUE_FOOTPRINT,
+  WORLD_UNITS_PER_STAGE_PX,
+  agentSlot,
+  stageToWorld,
+  venuePosition,
+} from '@/lib/world3d';
 
 describe('agentSlot', () => {
   const venue = VENUES[0];
@@ -31,5 +38,23 @@ describe('agentSlot', () => {
     // Slots are indexed, not packed, so an agent keeps its spot as the crowd
     // grows. Otherwise everyone jumps across the plaza every turn.
     expect(agentSlot(venue, 0, 2)).toEqual(agentSlot(venue, 0, 5));
+  });
+});
+
+describe('the world scales with the town', () => {
+  it('keeps a building 5.2 world units wide however wide the stage is', () => {
+    expect(78 * WORLD_UNITS_PER_STAGE_PX).toBeCloseTo(VENUE_FOOTPRINT, 6);
+  });
+
+  it('derives the ground from the stage', () => {
+    expect(GROUND).toBeCloseTo((STAGE_W * WORLD_UNITS_PER_STAGE_PX) / 2, 6);
+  });
+
+  it('keeps every venue inside the ground plane', () => {
+    for (const venue of VENUES) {
+      const [x, , z] = stageToWorld(venue.x, venue.y);
+      expect(Math.abs(x)).toBeLessThanOrEqual(GROUND);
+      expect(Math.abs(z)).toBeLessThanOrEqual(GROUND);
+    }
   });
 });

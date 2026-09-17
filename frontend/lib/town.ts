@@ -1,9 +1,10 @@
-// Project Darwin — town & action design data.
+// Project Darwin — how the town looks.
 //
-// Mirrors the cozy-tiny-town design handoff (venue ring around a central
-// plaza), and maps the backend's 20 action ids onto venues + intent labels +
-// family color tints. The frontend is still a pure viewer; this file only
-// shapes how the snapshot is rendered.
+// Identity, position and the action list come from shared/, which the Oracle
+// reads too. What lives here is presentation: family tints, icons, intent
+// verbs and the agent palette. The frontend is still a pure viewer.
+
+import { ACTION_ROWS, BUILT_VENUE_ROWS, ECONOMY, type ActionRow } from '@/lib/worldData';
 
 export type FamilyId = 'economy' | 'prosocial' | 'aggression' | 'deception' | 'social';
 
@@ -15,24 +16,19 @@ export interface Family {
   emoji: string;
 }
 
+export type VenueId = string;
+
 export interface Venue {
   id: VenueId;
   label: string;
   sub: string;
   icon: string;
-  x: number; // logical px in 780×560 stage
+  x: number; // logical px in the generated stage
   y: number;
   body: string;
   roof: string;
+  actions: string[];
 }
-
-export type VenueId =
-  | 'work'
-  | 'market'
-  | 'bank'
-  | 'casino'
-  | 'lounge'
-  | 'alley';
 
 export interface ActionDef {
   id: string;
@@ -40,11 +36,11 @@ export interface ActionDef {
   emoji: string;
   venue: VenueId;
   intent: string;
+  summary: string;
 }
 
-// Stage logical size — matches the design's 780×560 town layer.
-export const STAGE_W = 780;
-export const STAGE_H = 560;
+export const STAGE_W = ECONOMY.stageW;
+export const STAGE_H = ECONOMY.stageH;
 
 export const FAMILIES: Record<FamilyId, Family> = {
   economy: { id: 'economy', label: 'economy', color: '#7DA7E1', soft: '#D9E5FF', emoji: '💰' },
@@ -54,57 +50,71 @@ export const FAMILIES: Record<FamilyId, Family> = {
   social: { id: 'social', label: 'social', color: '#B594D8', soft: '#EADDFF', emoji: '🤝' },
 };
 
-export const VENUES: Venue[] = [
-  { id: 'work', label: 'Work', sub: 'Labor', icon: '🔨', x: 390, y: 72, body: '#FFE0B5', roof: '#E8A766' },
-  { id: 'market', label: 'Market', sub: 'Trade · Gift', icon: '🏪', x: 660, y: 180, body: '#FFD1C2', roof: '#D87E66' },
-  { id: 'bank', label: 'Bank', sub: 'Invest', icon: '🏦', x: 660, y: 320, body: '#D9E5FF', roof: '#7AA0D4' },
-  { id: 'casino', label: 'Casino', sub: 'Bet', icon: '🎰', x: 390, y: 416, body: '#FFD9F0', roof: '#D88AB8' },
-  { id: 'lounge', label: 'Lounge', sub: 'Socialize', icon: '☕', x: 120, y: 320, body: '#E2DAFF', roof: '#9B7FCC' },
-  { id: 'alley', label: 'Alley', sub: 'Shady deeds', icon: '🌙', x: 120, y: 180, body: '#D2D2D2', roof: '#7E7E7E' },
-];
+type Cosmetics = { icon: string; body: string; roof: string };
+
+const COSMETICS: Record<string, Cosmetics> = {
+  plaza: { icon: '⛲', body: '#E8E4DA', roof: '#B9B2A4' },
+  work: { icon: '🔨', body: '#FFE0B5', roof: '#E8A766' },
+  market: { icon: '🏪', body: '#FFD1C2', roof: '#D87E66' },
+  bank: { icon: '🏦', body: '#D9E5FF', roof: '#7AA0D4' },
+  casino: { icon: '🎰', body: '#FFD9F0', roof: '#D88AB8' },
+  lounge: { icon: '☕', body: '#E2DAFF', roof: '#9B7FCC' },
+  alley: { icon: '🌙', body: '#D2D2D2', roof: '#7E7E7E' },
+  registry: { icon: '🗂️', body: '#E6E9F0', roof: '#8C93A8' },
+  courthouse: { icon: '⚖️', body: '#EFEAE0', roof: '#9A8F7A' },
+  press: { icon: '📰', body: '#F2EFE6', roof: '#A9A08C' },
+  tavern: { icon: '🍺', body: '#F0DCC0', roof: '#B98D5A' },
+  farm: { icon: '🌾', body: '#E5F0C8', roof: '#8FAE5C' },
+  mine: { icon: '⛏️', body: '#D8D2C8', roof: '#8A7F70' },
+  workshop: { icon: '🛠️', body: '#FFE3C9', roof: '#C98B54' },
+  warehouse: { icon: '📦', body: '#DCD9D2', roof: '#8E887C' },
+  academy: { icon: '📚', body: '#DCE8F5', roof: '#7590B0' },
+  guild_hall: { icon: '🛡️', body: '#E4DCEF', roof: '#8C7BA8' },
+  pawnshop: { icon: '💍', body: '#F2E2CE', roof: '#B08A5E' },
+  insurance: { icon: '☂️', body: '#DFEAEA', roof: '#7E9A9A' },
+  estate: { icon: '🏘️', body: '#F0E0DC', roof: '#B07E76' },
+  temple: { icon: '🕯️', body: '#F4EEE2', roof: '#A99270' },
+};
+
+// A venue nobody has styled yet must still render — the same tolerance
+// actionDef gives an action the table has not caught up with.
+const DEFAULT_COSMETICS: Cosmetics = { icon: '🏠', body: '#E4E4E4', roof: '#8E8E8E' };
+
+function subtitle(actions: string[]): string {
+  const verbs = actions.slice(0, 2).map((id) => ACTION_ROWS[id]?.intent ?? id);
+  return verbs.join(' · ') || 'Public ground';
+}
+
+export const VENUES: Venue[] = BUILT_VENUE_ROWS.map((row) => ({
+  id: row.id,
+  label: row.label,
+  sub: subtitle(row.actions),
+  x: row.x,
+  y: row.y,
+  actions: row.actions,
+  ...(COSMETICS[row.id] ?? DEFAULT_COSMETICS),
+}));
 
 export const VENUES_BY_ID: Record<string, Venue> = Object.fromEntries(VENUES.map((v) => [v.id, v]));
 
-// Every backend action id mapped to its venue + family + intent label.
-export const ACTIONS: Record<string, ActionDef> = {
-  // economy
-  work: { id: 'work', family: 'economy', emoji: '🔨', venue: 'work', intent: 'to work' },
-  trade: { id: 'trade', family: 'economy', emoji: '🔄', venue: 'market', intent: 'trade!' },
-  invest: { id: 'invest', family: 'economy', emoji: '📈', venue: 'bank', intent: 'invest' },
-  bet: { id: 'bet', family: 'economy', emoji: '🎲', venue: 'casino', intent: 'place a bet' },
-  // institutions (layer 2)
-  sign_contract: { id: 'sign_contract', family: 'economy', emoji: '📜', venue: 'market', intent: 'sign a contract' },
-  fulfil_contract: { id: 'fulfil_contract', family: 'economy', emoji: '📦', venue: 'market', intent: 'deliver on a contract' },
-  audit: { id: 'audit', family: 'economy', emoji: '🔍', venue: 'bank', intent: 'audit the books' },
-  stand_for_office: { id: 'stand_for_office', family: 'social', emoji: '🏛️', venue: 'lounge', intent: 'stand for office' },
-  // Public assertion, not a lie by itself -- a true declaration is honest, so
-  // this is deliberately not in the deception family.
-  declare: { id: 'declare', family: 'social', emoji: '📣', venue: 'lounge', intent: 'declare a fact' },
-  // prosocial
-  charity: { id: 'charity', family: 'prosocial', emoji: '🎁', venue: 'market', intent: 'donate' },
-  gift: { id: 'gift', family: 'prosocial', emoji: '💝', venue: 'market', intent: 'give a gift' },
-  vouch: { id: 'vouch', family: 'prosocial', emoji: '🤲', venue: 'lounge', intent: 'vouch' },
-  lend: { id: 'lend', family: 'prosocial', emoji: '💵', venue: 'bank', intent: 'lend coins' },
-  will: { id: 'will', family: 'prosocial', emoji: '📜', venue: 'bank', intent: 'write a will' },
-  // aggression
-  steal: { id: 'steal', family: 'aggression', emoji: '🦝', venue: 'alley', intent: 'swipe!' },
-  sabotage: { id: 'sabotage', family: 'aggression', emoji: '💣', venue: 'alley', intent: 'sabotage' },
-  extort: { id: 'extort', family: 'aggression', emoji: '🪝', venue: 'alley', intent: 'shake down' },
-  strike: { id: 'strike', family: 'aggression', emoji: '✊', venue: 'work', intent: 'strike!' },
-  // deception
-  slander: { id: 'slander', family: 'deception', emoji: '📣', venue: 'lounge', intent: 'spread rumors' },
-  gaslight: { id: 'gaslight', family: 'deception', emoji: '🌀', venue: 'lounge', intent: 'gaslight' },
-  bluff: { id: 'bluff', family: 'deception', emoji: '🎭', venue: 'casino', intent: 'bluff big' },
-  // social
-  socialize: { id: 'socialize', family: 'social', emoji: '💬', venue: 'lounge', intent: 'chitchat' },
-  propose_deal: { id: 'propose_deal', family: 'social', emoji: '🤝', venue: 'lounge', intent: 'make a deal' },
-  bribe: { id: 'bribe', family: 'social', emoji: '💼', venue: 'market', intent: 'bribe' },
-  rest: { id: 'rest', family: 'social', emoji: '😴', venue: 'lounge', intent: 'take a rest' },
-};
+function toDef(row: ActionRow): ActionDef {
+  const family = (row.family in FAMILIES ? row.family : 'social') as FamilyId;
+  return {
+    id: row.id,
+    family,
+    emoji: row.emoji,
+    venue: row.venue,
+    intent: row.intent,
+    summary: row.summary,
+  };
+}
 
-// Default home venue per agent color, so freshly-loaded agents
-// have somewhere to stand before they pick an action.
-export const HOME_VENUES: VenueId[] = ['work', 'market', 'bank', 'casino', 'lounge', 'alley'];
+export const ACTIONS: Record<string, ActionDef> = Object.fromEntries(
+  Object.values(ACTION_ROWS).map((row) => [row.id, toDef(row)]),
+);
+
+// Where a freshly-loaded agent stands before it has picked an action.
+export const HOME_VENUES: VenueId[] = VENUES.map((v) => v.id);
 
 export const COLOR_HEX: Record<string, string> = {
   red: '#F4A6A0',
@@ -126,8 +136,9 @@ const UNKNOWN_ACTION: ActionDef = {
   id: 'unknown',
   family: 'social',
   emoji: '❓',
-  venue: 'lounge',
+  venue: 'plaza',
   intent: 'do something new',
+  summary: 'An action the town has not been told about yet.',
 };
 
 export function actionDef(id: string | undefined): ActionDef | undefined {

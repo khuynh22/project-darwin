@@ -1,15 +1,15 @@
-import { VENUES, type Venue } from '@/lib/town';
-
-/** Half-extent of the ground plane in world units. */
-export const GROUND = 26;
+import { STAGE_H, STAGE_W, VENUES, type Venue } from '@/lib/town';
 
 /**
- * The 2-D town is laid out in a 780x560 pixel stage. The 3-D view reuses those
- * coordinates rather than inventing a second layout, so a venue sits in the
- * same relative place in both views and the two are recognisably one world.
+ * World units per stage pixel. Fixed, so a 78px building is always 5.2 units
+ * across: the town gets wider as buildings are added, it does not get smaller.
  */
-export const STAGE_W = 780;
-export const STAGE_H = 560;
+export const WORLD_UNITS_PER_STAGE_PX = 52 / 780;
+
+/** Half-extent of the ground plane in world units. */
+export const GROUND = (STAGE_W * WORLD_UNITS_PER_STAGE_PX) / 2;
+
+export { STAGE_H, STAGE_W };
 
 export type Vec3 = [number, number, number];
 
@@ -19,8 +19,11 @@ export const VENUE_FOOTPRINT = 5.2;
 
 /** Stage pixel coordinates -> world units, centred on the origin. */
 export function stageToWorld(x: number, y: number, height = 0): Vec3 {
-  const scale = (GROUND * 2) / STAGE_W;
-  return [(x - STAGE_W / 2) * scale, height, (y - STAGE_H / 2) * scale];
+  return [
+    (x - STAGE_W / 2) * WORLD_UNITS_PER_STAGE_PX,
+    height,
+    (y - STAGE_H / 2) * WORLD_UNITS_PER_STAGE_PX,
+  ];
 }
 
 export function venuePosition(venue: Venue): Vec3 {

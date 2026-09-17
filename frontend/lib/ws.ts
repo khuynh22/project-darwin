@@ -15,6 +15,7 @@ export type AgentSnap = {
   steal_count: number;
   inventory: Record<string, number>;
   specialty: string;
+  venue?: string;
   invested: number;
   rest_bonus: boolean;
   will_target: string | null;
