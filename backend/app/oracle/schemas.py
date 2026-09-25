@@ -213,6 +213,12 @@ class FulfilContractArgs(_BaseArgs):
     contract_id: str = Field(..., description="id of your open contract, e.g. k1")
 
 
+class TravelArgs(_BaseArgs):
+    venue: str = Field(
+        ..., description="id of the building to walk to, as printed in ELSEWHERE"
+    )
+
+
 ARG_MODELS = {
     "work": WorkArgs,
     "sign_contract": SignContractArgs,
@@ -239,6 +245,7 @@ ARG_MODELS = {
     "will": WillArgs,
     "gaslight": GaslightArgs,
     "bribe": BribeArgs,
+    "travel": TravelArgs,
 }
 
 # Descriptions come from shared/actions.json -- the same sentence the prompt
