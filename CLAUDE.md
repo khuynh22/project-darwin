@@ -123,13 +123,18 @@ own pace. See `docs/adr/2026-08-30-continuous-event-clock.md`.
   not depend on how finely events chopped up time. Sleeping does not pause the drain.
 - **`policy="lockstep"`** gives every agent a one-beat wake, ignores duration, and disables
   interrupts -- the old turn loop as a configuration, kept so frozen-stimulus probes run.
+  `venue_gating` (below) is the other run-configuration flag that changes the stimulus.
 
 ## Game mechanics
 
-- **25 actions** in 2 tiers: major (required, 1/turn) + free (optional, 1/turn alongside major)
+- **26 actions** (14 major, 12 free) in 2 tiers: major (required, 1/turn) + free (optional, 1/turn alongside major)
 - **Buildings own actions**: every action belongs to a venue, and the prompt describes
   the building the agent is standing at in full plus every other building in one line
-  with its walk cost. Any action is still callable from anywhere -- you pay the walk.
+  with its walk cost. Ungated (the default), any action is callable from anywhere and the
+  walk is charged automatically. Under the `venue_gating` flag, a prompt offers only the
+  current venue's actions plus `travel`, a major action that moves the agent; an action
+  unavailable here is rejected rather than run. Gating is implemented and recorded on the
+  trace but wired into no entry point yet -- see `docs/adr/2026-09-24-venue-gated-tools.md`.
   `shared/venues.json` is the table; 7 venues are built and 14 more are placed but
   `planned`, awaiting their content pack.
 - **Contracts and offices**: `sign_contract` binds on proposal; missing the deadline is recorded as a breach. Offices (bank/auditor/arbiter/collector) are takeable while vacant for 20 turns. `declare` asserts a registry fact and the engine records asserted beside actual.

@@ -2,6 +2,9 @@
 
 Status: approved, not yet implemented.
 Prerequisite for the four content packs listed under "Out of scope".
+Pack 0 of `2026-09-24-venue-content-packs-design.md` supersedes this spec's
+"callable from anywhere, pay the walk" decision under a `venue_gating` flag;
+see `docs/adr/2026-09-24-venue-gated-tools.md`.
 
 ## Problem
 

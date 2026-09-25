@@ -20,8 +20,8 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
 - **`config.py`** -- Settings (pydantic-settings). No hardcoded roster. `get_settings()` is `@lru_cache`d.
 - **`db.py`** -- Engine + SessionLocal + `init_db()` with auto-migration backfill for new columns.
 - **`oracle/world_data.py`** -- loads `shared/{venues,actions,goods,economy}.json`. Pydantic models are the schema; a bad row raises at import so the Oracle refuses to start. Exposes `VENUES`, `ACTIONS`, `BUILT_VENUES`, `ACTION_VENUE`, `VENUE_ACTIONS`, `MAJOR_ACTIONS`, `FREE_ACTIONS`, `ACTION_BEATS`, `VENUE_POS`, `ECONOMY`.
-- **`oracle/schemas.py`** -- 25 Pydantic arg models (all inherit `_BaseArgs` with `reasoning` + `public_message`) + `ARG_MODELS`. `TOOL_DEFINITIONS`, `FREE_ACTIONS`, `MAJOR_ACTIONS` and the goods table are derived from `world_data`.
-- **`oracle/actions.py`** -- 25 `do_*` handlers + `ACTION_TABLE`. All return `ActionResult`.
+- **`oracle/schemas.py`** -- 26 Pydantic arg models (all inherit `_BaseArgs` with `reasoning` + `public_message`) + `ARG_MODELS`. `TOOL_DEFINITIONS`, `FREE_ACTIONS`, `MAJOR_ACTIONS` and the goods table are derived from `world_data`.
+- **`oracle/actions.py`** -- 26 `do_*` handlers + `ACTION_TABLE`. All return `ActionResult`.
 - **`oracle/engine.py`** -- `run_turn()` (legacy lockstep loop, parallel decide, sequential apply), `_process_deferred()` (investments, loans, extortion), `_apply_survival_tax()` (progressive brackets, food consumption, strikes, inheritance).
 - **`oracle/event_engine.py`** -- `run_events()`, the continuous loop that replaced the turn. Pops the next scheduled agent, accrues the economy for the elapsed span, applies the decision, fires interrupts, sleeps the agent for as long as it asked.
 - **`oracle/clock.py`** -- fixed-point time. `BEAT = 1000` ticks; integers, not floats, because replay needs exact arithmetic.
@@ -29,8 +29,8 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
 - **`oracle/durations.py`** -- `ACTION_BEATS` per action, plus deliberation charged from tokens spent (never from measured latency).
 - **`oracle/space.py`** -- travel time and co-location witnesses. Positions and the action-to-venue map come from `world_data`; `scripts/layout_venues.py` generates the coordinates and derives `WALK_UNITS_PER_BEAT` so the longest crossing stays 3 beats.
 - **`oracle/accrual.py`** -- tax and hunger as rates, settled on whole-beat boundaries so the bill is independent of event granularity.
-- **`agents/base.py`** -- `AgentDecision` (major + free action fields), aggressive system prompt, `render_world_brief()` with info asymmetry (fuzzy balances, gaslight injection), and `render_venue_block()` -- the building you are standing at in full plus every other building in one line with its walk cost. The flat action catalogue is gone from the system prompt.
-- **`agents/stub.py`** -- `StubAgent` with `DEFAULT_BIAS` for 25 actions. `_pick_major()` + 40% chance free action. Settles a satisfiable contract before rolling, and sizes commitments to inventory -- otherwise every contract breaches and breach carries no information.
+- **`agents/base.py`** -- `AgentDecision` (major + free action fields), aggressive system prompt, `render_world_brief()` with info asymmetry (fuzzy balances, gaslight injection), and `render_venue_block()` -- the building you are standing at in full plus every other building in one line with its walk cost. Under `gated=True` (the `venue_gating` flag) it instead offers only the current venue's actions plus `travel`, with the rest listed as somewhere to walk to. The flat action catalogue is gone from the system prompt.
+- **`agents/stub.py`** -- `StubAgent` with `DEFAULT_BIAS` for 26 actions. `_pick_major()` + 40% chance free action. Settles a satisfiable contract before rolling, and sizes commitments to inventory -- otherwise every contract breaches and breach carries no information.
 - **`agents/openai_agent.py`** -- OpenAI-compatible client; extracts 1-2 tool calls. Every real model is reached through **OpenRouter** (`base_url`). `stub.py` is internal-only (tests/CLI). Providers other than OpenRouter were removed.
 - **`models/agent.py`** -- Agent ORM: balance, trust_score, steal_count, specialty, inventory, social state, will_target, extortion/bribe pending.
 - **`models/deferred.py`** -- DeferredAction for investments/loans maturing over turns.
@@ -55,7 +55,9 @@ DATABASE_URL=sqlite+aiosqlite:///./darwin.sqlite \
 
 ## Adding a new action
 
-1. `../shared/actions.json` -- one row: id, tier, family, venue, beats, emoji, intent, summary
+1. `../shared/actions.json` -- one row: id, tier, family, venue, beats, emoji, intent, summary.
+   `venue` is normally a real venue id; `world_data.ANYWHERE` (`"anywhere"`) is reserved for
+   `travel` and marks an action as ubiquitous rather than tied to one building.
 2. `../shared/venues.json` -- add the id to that venue's `actions` list
 3. `schemas.py` -- Pydantic model (inherit `_BaseArgs`) + `ARG_MODELS`
 4. `actions.py` -- `do_<name>()` handler + `ACTION_TABLE`
@@ -66,7 +68,7 @@ the tier sets, the duration, the venue and the prompt all derive from step 1.
 
 ## Action tiers
 
-- **Major** (1 required/turn): work, trade, bet, invest, steal, lend, sabotage, extort, bribe, socialize, sign_contract, fulfil_contract, audit
+- **Major** (1 required/turn): work, trade, bet, invest, steal, lend, sabotage, extort, bribe, socialize, sign_contract, fulfil_contract, audit, travel
 - **Free** (0-1 optional/turn): vouch, will, rest, strike, bluff, propose_deal, slander, gaslight, gift, charity, stand_for_office, declare
 - Free actions can be used as major. Major cannot be used as free.
 - Engine validates `free_action in FREE_ACTIONS` before applying.

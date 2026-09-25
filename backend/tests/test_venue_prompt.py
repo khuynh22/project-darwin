@@ -65,6 +65,16 @@ def test_the_ungated_block_is_unchanged():
     assert "travel(" not in render_venue_block("bank")
 
 
+def test_the_gated_plaza_block_renders_with_no_actions_of_its_own():
+    # The Plaza is the one built venue with an empty actions list, so this is
+    # the branch where render_venue_block's `pad if venue.actions else 18`
+    # would raise NameError if lazy evaluation ever stopped saving it.
+    block = render_venue_block("plaza", gated=True)
+
+    assert "travel(venue)" in block
+    assert block.startswith("YOU ARE AT: Plaza")
+
+
 async def test_the_turn_loop_tells_each_agent_where_it_stands():
     from app.agents.base import AgentDecision, BaseAgent
     from app.models.agent import Agent
