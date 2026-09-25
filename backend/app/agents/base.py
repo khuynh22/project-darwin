@@ -134,14 +134,15 @@ _VISIBILITY_PREAMBLES = {
 }
 
 
-def render_venue_block(current_venue: str) -> str:
+def render_venue_block(current_venue: str, *, gated: bool = False) -> str:
     """What this agent can do here, and what everywhere else is for.
 
     The building an agent is standing at is described in full and every other
     building in one line, so the action space stays legible without pasting
-    fifty descriptions into every prompt. Every tool remains callable from
-    anywhere -- distance is the only gate -- so the walk cost is printed rather
-    than the action being hidden.
+    fifty descriptions into every prompt. Ungated, every tool remains callable
+    from anywhere -- distance is the only gate -- so the walk cost is printed
+    rather than the action being hidden. Gated, only this venue's actions (plus
+    ``travel``) are offered, so the block spells out how to reach the rest.
     """
     from app.oracle.clock import BEAT
     from app.oracle.space import DEFAULT_VENUE, travel_ticks
@@ -160,8 +161,19 @@ def render_venue_block(current_venue: str) -> str:
     else:
         lines.append("  Nothing to do here. It is a place to be seen, and to be heard.")
 
+    if gated:
+        lines.append(
+            f"  {'travel(venue)'.ljust(pad if venue.actions else 18)} "
+            f"{ACTIONS['travel'].summary}"
+        )
+
     lines.append("")
-    lines.append("ELSEWHERE (walk cost in beats from here):")
+    if gated:
+        lines.append(
+            "ELSEWHERE (travel(venue) to walk there; cost in beats from here):"
+        )
+    else:
+        lines.append("ELSEWHERE (walk cost in beats from here):")
     others = [v for v in BUILT_VENUES.values() if v.id != here and v.actions]
     for other in sorted(others, key=lambda v: travel_ticks(here, v.id)):
         cost = travel_ticks(here, other.id) / BEAT
@@ -189,7 +201,7 @@ def render_world_brief(state: dict, self_id: str) -> str:
     lines = [
         _VISIBILITY_PREAMBLES[visibility],
         "",
-        render_venue_block(state.get("_venue", "plaza")),
+        render_venue_block(state.get("_venue", "plaza"), gated=bool(state.get("_venue_gating"))),
         "",
         f"Turn {state['turn']}. World snapshot:",
     ]

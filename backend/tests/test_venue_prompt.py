@@ -51,6 +51,20 @@ def test_the_world_brief_carries_the_block():
     assert "steal(" in brief
 
 
+def test_the_gated_block_says_how_to_leave():
+    block = render_venue_block("bank", gated=True)
+
+    assert "travel(" in block
+    assert "invest(" in block
+    # Other venues' actions are still named -- that is the reason to walk there.
+    assert "steal" in block.split("ELSEWHERE")[1]
+
+
+def test_the_ungated_block_is_unchanged():
+    assert render_venue_block("bank") == render_venue_block("bank", gated=False)
+    assert "travel(" not in render_venue_block("bank")
+
+
 async def test_the_turn_loop_tells_each_agent_where_it_stands():
     from app.agents.base import AgentDecision, BaseAgent
     from app.models.agent import Agent
