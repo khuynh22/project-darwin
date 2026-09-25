@@ -27,7 +27,12 @@ from dataclasses import dataclass
 from typing import Final
 
 from app.oracle.clock import beats
-from app.oracle.world_data import ACTION_VENUE, ECONOMY, VENUE_POS
+from app.oracle.world_data import (
+    ACTION_VENUE,
+    ECONOMY,
+    UBIQUITOUS_ACTIONS,
+    VENUE_POS,
+)
 
 DEFAULT_VENUE: Final[str] = "plaza"
 
@@ -43,6 +48,14 @@ PUBLIC_VENUE: Final[str] = "plaza"
 
 
 def venue_for(action: str) -> str:
+    """Where an agent stands after taking *action*. Always a built venue.
+
+    A ubiquitous action's ``ACTION_VENUE`` entry is the ``anywhere`` sentinel,
+    which is not a building: returning it would write a venue that is in neither
+    ``BUILT_VENUES`` nor ``VENUE_POS`` onto the agent row and into the trace.
+    """
+    if action in UBIQUITOUS_ACTIONS:
+        return DEFAULT_VENUE
     return ACTION_VENUE.get(action, DEFAULT_VENUE)
 
 

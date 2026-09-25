@@ -36,6 +36,16 @@ export const ACTION_ROWS: Record<string, ActionRow> = Object.fromEntries(
   (actionsJson as ActionRow[]).map((a) => [a.id, a]),
 );
 
+// Venue value for an action callable from every building. Mirrors
+// world_data.ANYWHERE so both sides of shared/ name the sentinel alike.
+export const ANYWHERE = 'anywhere';
+
+export const UBIQUITOUS_ACTIONS: ReadonlySet<string> = new Set(
+  Object.values(ACTION_ROWS)
+    .filter((a) => a.venue === ANYWHERE)
+    .map((a) => a.id),
+);
+
 export const GOOD_PRICES: Record<string, number> = Object.fromEntries(
   (goodsJson as { id: string; base_price: number }[]).map((g) => [g.id, g.base_price]),
 );

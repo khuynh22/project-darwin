@@ -142,13 +142,16 @@ async def test_the_exported_trace_says_where_each_agent_stood(tmp_path):
         )
     await engine.dispose()
 
-    from app.oracle.world_data import ACTION_VENUE
+    from app.oracle.world_data import ACTION_VENUE, UBIQUITOUS_ACTIONS
 
     turns = [r for r in records if r.kind == "turn"]
     assert turns
     for record in turns:
         assert record.state.venue in BUILT_VENUES, record.state.venue
-        if record.action not in ACTION_VENUE:
+        # A ubiquitous action has no home building, so there is nothing to
+        # compare against. It is still in ACTION_VENUE -- carrying the
+        # ``anywhere`` sentinel -- so membership cannot do the skipping.
+        if record.action in UBIQUITOUS_ACTIONS:
             continue
         assert record.state.venue == ACTION_VENUE[record.action]
 

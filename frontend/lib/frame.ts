@@ -1,6 +1,6 @@
 import { BEAT } from '@/lib/clock';
 import type { ReleaseEvent, ReleaseTurn, Verdict } from '@/lib/releases';
-import { COLOR_HEX, HOME_VENUES, VENUES, actionDef, type Venue } from '@/lib/town';
+import { COLOR_HEX, HOME_VENUES, VENUES, VENUES_BY_ID, actionDef, type Venue } from '@/lib/town';
 import { agentSlot, type Vec3 } from '@/lib/world3d';
 import type { AgentSnap, WorldSnapshot } from '@/lib/ws';
 
@@ -86,8 +86,15 @@ type Placeable = {
 function place(rows: Placeable[]): Map<string, { venue: Venue; position: Vec3 }> {
   const sorted = [...rows].sort((a, b) => a.agentId.localeCompare(b.agentId));
 
-  const venueIdFor = (row: Placeable, index: number): string =>
-    row.venueId ?? actionDef(row.action)?.venue ?? HOME_VENUES[index % HOME_VENUES.length];
+  // `groups` below is keyed by built venue ids only, so anything else -- a
+  // planned venue, a stale row, the `anywhere` sentinel an action table may
+  // carry -- has to degrade to a home venue rather than index a missing bucket.
+  const venueIdFor = (row: Placeable, index: number): string => {
+    const named = row.venueId ?? actionDef(row.action)?.venue;
+    return named && named in VENUES_BY_ID
+      ? named
+      : HOME_VENUES[index % HOME_VENUES.length];
+  };
 
   const groups: Record<string, string[]> = {};
   for (const venue of VENUES) groups[venue.id] = [];

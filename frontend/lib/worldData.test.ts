@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACTION_ROWS,
+  ANYWHERE,
   BUILT_VENUE_ROWS,
   ECONOMY,
   GOOD_PRICES,
+  UBIQUITOUS_ACTIONS,
   VENUE_ROWS,
   actionsAt,
 } from '@/lib/worldData';
@@ -34,7 +36,15 @@ describe('shared world data', () => {
   it('places every action at a venue that exists and is built', () => {
     const built = new Set(BUILT_VENUE_ROWS.map((v) => v.id));
     for (const action of Object.values(ACTION_ROWS)) {
+      if (UBIQUITOUS_ACTIONS.has(action.id)) continue;
       expect(built.has(action.venue), `${action.id} -> ${action.venue}`).toBe(true);
+    }
+  });
+
+  it('exempts only the ubiquitous actions, and they carry the sentinel', () => {
+    expect(UBIQUITOUS_ACTIONS.size).toBeGreaterThan(0);
+    for (const id of UBIQUITOUS_ACTIONS) {
+      expect(ACTION_ROWS[id].venue).toBe(ANYWHERE);
     }
   });
 
