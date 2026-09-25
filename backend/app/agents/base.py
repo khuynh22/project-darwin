@@ -152,20 +152,19 @@ def render_venue_block(current_venue: str, *, gated: bool = False) -> str:
     venue = BUILT_VENUES[here]
 
     lines = [f"YOU ARE AT: {venue.label} ({venue.district} district)"]
+    calls = [f"{action_id}()" for action_id in venue.actions]
+    if gated:
+        calls.append("travel(venue)")
+    pad = max((len(call) for call in calls), default=0) + 2
+
     if venue.actions:
-        pad = max(len(a) for a in venue.actions) + 4
         for action_id in venue.actions:
-            lines.append(
-                f"  {(action_id + '()').ljust(pad)} {ACTIONS[action_id].summary}"
-            )
+            lines.append(f"  {f'{action_id}()'.ljust(pad)} {ACTIONS[action_id].summary}")
     else:
         lines.append("  Nothing to do here. It is a place to be seen, and to be heard.")
 
     if gated:
-        lines.append(
-            f"  {'travel(venue)'.ljust(pad if venue.actions else 18)} "
-            f"{ACTIONS['travel'].summary}"
-        )
+        lines.append(f"  {'travel(venue)'.ljust(pad)} {ACTIONS['travel'].summary}")
 
     lines.append("")
     if gated:

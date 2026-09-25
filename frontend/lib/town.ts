@@ -6,7 +6,13 @@
 
 import { ACTION_ROWS, BUILT_VENUE_ROWS, ECONOMY, type ActionRow } from '@/lib/worldData';
 
-export type FamilyId = 'economy' | 'prosocial' | 'aggression' | 'deception' | 'social';
+export type FamilyId =
+  | 'economy'
+  | 'prosocial'
+  | 'aggression'
+  | 'deception'
+  | 'social'
+  | 'movement';
 
 export interface Family {
   id: FamilyId;
@@ -48,6 +54,7 @@ export const FAMILIES: Record<FamilyId, Family> = {
   aggression: { id: 'aggression', label: 'aggression', color: '#E68A8A', soft: '#FFDADA', emoji: '😈' },
   deception: { id: 'deception', label: 'deception', color: '#E6B570', soft: '#FFE9C9', emoji: '🤥' },
   social: { id: 'social', label: 'social', color: '#B594D8', soft: '#EADDFF', emoji: '🤝' },
+  movement: { id: 'movement', label: 'movement', color: '#9AA7B8', soft: '#E4E8EE', emoji: '🚶' },
 };
 
 type Cosmetics = { icon: string; body: string; roof: string };

@@ -9,7 +9,7 @@ The measurement half is the contribution: a portable trace schema, an intent-gro
 ```
 Next.js (React)  <-- WS/REST -->  FastAPI (Oracle)  --> Postgres
                                     turn loop + parallel decide()
-                                    25 action handlers
+                                    26 action handlers
                                     trust, goods, tax, deferred actions
                                   --> OpenRouter (one OpenAI-compatible gateway to every model)
 ```
@@ -46,8 +46,8 @@ backend/
       deferred.py         # DeferredAction (investments, loans)
       api_key.py          # Fernet-encrypted API key storage
     oracle/
-      schemas.py          # 25 tool schemas (Pydantic), MAJOR_ACTIONS/FREE_ACTIONS sets
-      actions.py          # 25 do_* handlers + ACTION_TABLE
+      schemas.py          # 26 tool schemas (Pydantic), MAJOR_ACTIONS/FREE_ACTIONS sets
+      actions.py          # 26 do_* handlers + ACTION_TABLE
       engine.py           # run_turn (legacy lockstep loop), progressive tax, deferred settlement, extortion enforcement, inheritance
       clock.py            # Fixed-point simulation time. BEAT = 1000 ticks
       scheduler.py        # The event queue: wakes, interrupts, agent_seq, lockstep policy

@@ -168,6 +168,33 @@ async def test_a_malformed_travel_argument_does_not_move_the_agent(session):
     )
 
 
+async def test_a_stale_venue_cannot_travel_to_where_the_engine_already_put_it(session):
+    """The handler and the engine must agree about where the agent is standing.
+
+    The engine normalises an unknown row to the plaza, so a walk to the plaza is
+    a walk to nowhere. Read off the raw row it looks like a move.
+    """
+    row = (
+        await session.execute(
+            select(Agent).where(Agent.session_id == SID, Agent.agent_id == "red")
+        )
+    ).scalar_one()
+    row.venue = "atlantis"
+    await session.commit()
+
+    agents = {
+        "red": Scripted("red", script=[("travel", {"venue": "plaza"})], wake_after=25.0),
+        "blue": Scripted("blue", script=[("rest", {})], wake_after=25.0),
+    }
+    await run_events(
+        session, session_id=SID, agents=agents, horizon_beats=4, venue_gating=True
+    )
+
+    red_outcomes = await _outcomes(session, "red")
+    assert any("already at plaza" in o for o in red_outcomes), red_outcomes
+    assert not any("walking to plaza" in o for o in red_outcomes)
+
+
 async def test_a_gate_rejected_action_does_not_wake_its_target(session):
     """No mutation happened, so the victim has nothing to be woken about.
 

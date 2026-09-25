@@ -968,7 +968,11 @@ async def do_travel(
         return ActionResult(False, "actor not alive")
     if venue not in BUILT_VENUES:
         return ActionResult(False, f"no such building: {venue!r}")
-    if venue == (actor.venue or DEFAULT_VENUE):
+    # Normalise the same way the engine does before it decides where the agent
+    # stands. Reading the row raw would accept a walk to the plaza from an agent
+    # the engine has already placed at the plaza, and then move it nowhere.
+    origin = actor.venue if actor.venue in BUILT_VENUES else DEFAULT_VENUE
+    if venue == origin:
         return ActionResult(False, f"already at {venue}")
     await _record(
         session,
@@ -978,8 +982,8 @@ async def do_travel(
         target_id=None,
         action="travel",
         delta=0,
-        payload={"from": actor.venue or DEFAULT_VENUE, "to": venue},
-        note=f"walking from {actor.venue or DEFAULT_VENUE} to {venue}",
+        payload={"from": origin, "to": venue},
+        note=f"walking from {origin} to {venue}",
     )
     return ActionResult(True, f"walking to {venue}")
 

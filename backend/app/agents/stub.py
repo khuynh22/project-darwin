@@ -6,6 +6,7 @@ import random
 
 from app.agents.base import AgentDecision, BaseAgent
 from app.models.agent import Agent
+from app.oracle.space import DEFAULT_VENUE
 from app.oracle.world_data import actions_at
 
 # Default bias used for all stub agents (no hardcoded agent IDs).
@@ -106,7 +107,7 @@ class StubAgent(BaseAgent):
             target = rng.choice(others)["agent_id"] if others else None
             available = set(
                 actions_at(
-                    state.get("_venue") or "plaza",
+                    state.get("_venue") or DEFAULT_VENUE,
                     gated=bool(state.get("_venue_gating")),
                 )
             )
@@ -173,7 +174,7 @@ class StubAgent(BaseAgent):
 
     def _pick_major(self, state: dict, agent: Agent, rng: random.Random) -> AgentDecision:
         gated = bool(state.get("_venue_gating"))
-        here = state.get("_venue") or "plaza"
+        here = state.get("_venue") or DEFAULT_VENUE
         available = set(actions_at(here, gated=gated))
 
         # Settle a commitment it can actually meet before rolling for anything
