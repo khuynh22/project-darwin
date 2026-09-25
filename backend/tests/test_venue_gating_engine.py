@@ -10,8 +10,10 @@ from app.agents.base import AgentDecision, BaseAgent
 from app.db import Base
 from app.models.agent import Agent
 from app.models.ledger import ThoughtLog
+from app.oracle.engine import run_turn
 from app.oracle.event_engine import run_events
 from app.oracle.space import travel_ticks
+from app.oracle.world_data import BUILT_VENUES
 
 SID = "gate"
 
@@ -19,14 +21,27 @@ SID = "gate"
 class Scripted(BaseAgent):
     provider = "scripted"
 
-    def __init__(self, agent_id: str, *, script: list[tuple[str, dict]], wake_after: float = 1.0):
+    def __init__(
+        self,
+        agent_id: str,
+        *,
+        script: list[tuple[str, dict]],
+        wake_after: float = 1.0,
+        wake_if: list[str] | None = None,
+    ):
         super().__init__(agent_id, "scripted")
         self.script = list(script)
         self.wake_after = wake_after
+        self.wake_if = list(wake_if or [])
 
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         action, arguments = self.script[0] if len(self.script) == 1 else self.script.pop(0)
-        return AgentDecision(action, dict(arguments), wake_after=self.wake_after)
+        return AgentDecision(
+            action,
+            dict(arguments),
+            wake_after=self.wake_after,
+            wake_if=list(self.wake_if),
+        )
 
 
 @pytest_asyncio.fixture
@@ -153,6 +168,62 @@ async def test_a_malformed_travel_argument_does_not_move_the_agent(session):
     )
 
 
+async def test_a_gate_rejected_action_does_not_wake_its_target(session):
+    """No mutation happened, so the victim has nothing to be woken about.
+
+    An interrupt here costs the target an unscheduled wake -- a real provider
+    call, a perturbed schedule, and a ``wake_reason`` in the trace asserting a
+    theft the engine refused to run.
+    """
+    agents = {
+        "red": Scripted("red", script=[("steal", {"target": "blue"})]),
+        "blue": Scripted(
+            "blue", script=[("rest", {})], wake_after=25.0, wake_if=["stolen_from"]
+        ),
+    }
+    result = await run_events(
+        session, session_id=SID, agents=agents, horizon_beats=8, venue_gating=True
+    )
+
+    red_events = [e for e in result.events if e.event.agent_id == "red"]
+    assert red_events
+    assert all("not available here" in e.outcome for e in red_events)
+    assert all(e.interrupted == [] for e in red_events)
+    assert not any(e.event.wake_reason == "interrupt:stolen_from" for e in result.events)
+
+
+async def test_a_handler_rejection_still_wakes_its_target(session):
+    """The gate is the exception, not the ``[rejected]`` suffix.
+
+    Red is standing where ``trade`` lives, so the gate lets it through; the
+    handler then refuses for want of funds. Blue asked to be woken by a trade
+    offer and one was genuinely made at it.
+    """
+    row = (
+        await session.execute(
+            select(Agent).where(Agent.session_id == SID, Agent.agent_id == "red")
+        )
+    ).scalar_one()
+    row.venue = "market"
+    await session.commit()
+
+    agents = {
+        "red": Scripted(
+            "red", script=[("trade", {"target": "blue", "amount": 999.0})]
+        ),
+        "blue": Scripted(
+            "blue", script=[("rest", {})], wake_after=25.0, wake_if=["trade_offered"]
+        ),
+    }
+    result = await run_events(
+        session, session_id=SID, agents=agents, horizon_beats=8, venue_gating=True
+    )
+
+    red_events = [e for e in result.events if e.event.agent_id == "red"]
+    assert any("insufficient funds" in e.outcome for e in red_events)
+    assert any("blue" in e.interrupted for e in red_events)
+
+
 async def test_ungated_runs_still_derive_the_venue_from_the_action(session):
     agents = {
         "red": Scripted("red", script=[("steal", {"target": "blue"})]),
@@ -166,3 +237,38 @@ async def test_ungated_runs_still_derive_the_venue_from_the_action(session):
         )
     ).scalar_one()
     assert red.venue == "alley"
+
+
+async def test_an_ungated_travel_call_leaves_the_agent_at_a_real_building(session):
+    """A model can emit a tool it was never offered, and weak ones do.
+
+    Ungated there is no ``travel`` in the catalogue, so the call is unasked for;
+    the row it writes must still name a building rather than the ``anywhere``
+    sentinel that ``travel`` carries in ``shared/actions.json``.
+    """
+    agents = {
+        "red": Scripted("red", script=[("travel", {"venue": "alley"})], wake_after=25.0),
+        "blue": Scripted("blue", script=[("rest", {})], wake_after=25.0),
+    }
+    await run_events(session, session_id=SID, agents=agents, horizon_beats=4)
+
+    red = (
+        await session.execute(
+            select(Agent).where(Agent.session_id == SID, Agent.agent_id == "red")
+        )
+    ).scalar_one()
+    assert red.venue in BUILT_VENUES
+
+
+async def test_run_turn_survives_an_unoffered_travel_call(session):
+    agents = {
+        "red": Scripted("red", script=[("travel", {"venue": "alley"})]),
+        "blue": Scripted("blue", script=[("rest", {})]),
+    }
+    await run_turn(session, session_id=SID, turn=1, agents=agents, seed=3)
+
+    rows = (
+        await session.execute(select(Agent).where(Agent.session_id == SID))
+    ).scalars().all()
+    for row in rows:
+        assert row.venue in BUILT_VENUES, row.venue

@@ -254,7 +254,10 @@ async def run_events(
 
         rng = random.Random(f"{seed}:{event.event_id}")
         here = at_venue.get(event.agent_id, DEFAULT_VENUE)
-        if venue_gating and decision.action not in actions_at(here, gated=True):
+        gate_rejected = venue_gating and decision.action not in actions_at(
+            here, gated=True
+        )
+        if gate_rejected:
             outcome = f"{decision.action} not available here [rejected]"
         else:
             outcome = await _apply_decision(
@@ -302,7 +305,11 @@ async def run_events(
         )
 
         interrupted: list[str] = []
-        trigger = INTERRUPT_FOR.get(decision.action)
+        # A handler that refuses still wakes the target on purpose: a caught
+        # thief is news to its victim. A gate refusal is different -- no handler
+        # ran, so waking the target would buy it an unscheduled LLM call and a
+        # wake_reason asserting a theft the engine never attempted.
+        trigger = None if gate_rejected else INTERRUPT_FOR.get(decision.action)
         target = _target_of(decision)
         if trigger and target and scheduler.fire(trigger, target=target, at_tick=event.tick):
             interrupted.append(target)
