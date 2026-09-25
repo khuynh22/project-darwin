@@ -60,6 +60,7 @@ class RunManifest(BaseModel):
     condition: str = "neutral"
     horizon: int
     state_fidelity: StateFidelity = "full"
+    venue_gating: bool = False
     agents: list[AgentManifest]
 
     def lifespans(self) -> dict[str, int]:

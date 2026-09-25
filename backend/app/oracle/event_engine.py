@@ -360,6 +360,7 @@ async def run_events(
             ),
             seed=seed,
             condition=condition,
+            venue_gating=venue_gating,
         )
 
         result.events.append(
