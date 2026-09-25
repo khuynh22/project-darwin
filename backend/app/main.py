@@ -237,6 +237,7 @@ async def _state(session_id: str) -> dict:
         "balance_visibility": sim.balance_visibility if sim else BALANCE_VISIBILITY_DEFAULT,
         "seed": sim.seed if sim else 0,
         "condition": sim.condition if sim else "neutral",
+        "venue_gating": bool(sim.venue_gating) if sim else False,
         "agents": [
             {
                 "agent_id": a.agent_id,
@@ -325,6 +326,12 @@ async def configure_simulation(session_id: str, body: dict):
             "error": f"condition must be one of {sorted(CONDITIONS)}, got {condition!r}"
         }
 
+    venue_gating = body.get("venue_gating", False)
+    if not isinstance(venue_gating, bool):
+        return {
+            "error": f"venue_gating must be a boolean, got {venue_gating!r}"
+        }
+
     # Reproducibility: caller may pin a seed; otherwise generate + record one so
     # every run is replayable (re-run with the same seed + roster + models).
     seed = body.get("seed")
@@ -393,6 +400,7 @@ async def configure_simulation(session_id: str, body: dict):
         sim.balance_visibility = visibility
         sim.seed = seed
         sim.condition = condition
+        sim.venue_gating = venue_gating
         sim.status = "ready"
         await session.commit()
 

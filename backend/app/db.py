@@ -79,6 +79,7 @@ async def init_db() -> None:
         ("thoughts", "public_message", "VARCHAR(1024)", "''"),
         ("sessions", "seed", "INTEGER", "0"),
         ("sessions", "condition", "VARCHAR(16)", "'neutral'"),
+        ("sessions", "venue_gating", "BOOLEAN", "FALSE"),
         ("turn_snapshots", "inventory", "JSON", "'{}'"),
         ("turn_snapshots", "spouse_id", "VARCHAR(64)", "NULL"),
         ("turn_snapshots", "steal_count", "INTEGER", "0"),
