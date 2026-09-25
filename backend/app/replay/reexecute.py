@@ -104,6 +104,18 @@ async def reexecute(
     manifest, records = read_trace(trace_path)
     report = ReexecuteReport(run_id=manifest.run_id)
 
+    if manifest.venue_gating:
+        # Re-executing this ungated does fail -- every prompt misses the cache --
+        # but it fails reading as a stale cache, which sends the next person
+        # rebuilding the cache instead of noticing that nothing here can honour
+        # gating. Say so before a single turn runs.
+        report.error = (
+            "VenueGatingUnsupported: trace was recorded with venue gating, and "
+            "reexecute drives run_turn, which offers every action regardless of "
+            "where an agent stands. No entry point can replay a gated run yet."
+        )
+        return report
+
     cache = ResponseCache(cache_root, env_version=manifest.env.version)
 
     recorded_version = cache.recorded_env_version()
