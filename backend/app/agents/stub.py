@@ -156,6 +156,21 @@ class StubAgent(BaseAgent):
         triggers = ["stolen_from", "extorted", "sabotaged", "contract_due", "addressed"]
         decision.wake_if = rng.sample(triggers, rng.randint(1, 3))
 
+    @staticmethod
+    def _travel_decision(
+        agent: Agent, here: str, rng: random.Random, note: str
+    ) -> AgentDecision:
+        from app.oracle.world_data import BUILT_VENUES
+
+        targets = [
+            vid for vid, v in BUILT_VENUES.items() if vid != here and v.actions
+        ]
+        return AgentDecision(
+            "travel",
+            {"venue": rng.choice(sorted(targets))},
+            monologue=f"({agent.display_name}) {note}",
+        )
+
     def _pick_major(self, state: dict, agent: Agent, rng: random.Random) -> AgentDecision:
         gated = bool(state.get("_venue_gating"))
         here = state.get("_venue") or "plaza"
@@ -206,15 +221,8 @@ class StubAgent(BaseAgent):
             )
 
         if action == "travel":
-            from app.oracle.world_data import BUILT_VENUES
-
-            targets = [
-                vid for vid, v in BUILT_VENUES.items() if vid != here and v.actions
-            ]
-            return AgentDecision(
-                "travel",
-                {"venue": rng.choice(sorted(targets))},
-                monologue=f"({agent.display_name}) Walking somewhere useful.",
+            return self._travel_decision(
+                agent, here, rng, "Walking somewhere useful."
             )
 
         target = rng.choice(others)["agent_id"] if others else ""
@@ -264,6 +272,10 @@ class StubAgent(BaseAgent):
             # path untested and makes breach carry no information.
             held = [g for g, n in (agent.inventory or {}).items() if n >= 1]
             if not held:
+                if fallback == "travel":
+                    return self._travel_decision(
+                        agent, here, rng, "Nothing to promise; walking on."
+                    )
                 return AgentDecision(
                     "work", {},
                     monologue=f"({agent.display_name}) Nothing to promise; working.",
@@ -284,6 +296,10 @@ class StubAgent(BaseAgent):
                 if c.get("proposer") == agent.agent_id
             ]
             if not mine:
+                if fallback == "travel":
+                    return self._travel_decision(
+                        agent, here, rng, "Nothing to settle; walking on."
+                    )
                 return AgentDecision(
                     "work", {},
                     monologue=f"({agent.display_name}) Nothing to settle; working.",
@@ -319,6 +335,10 @@ class StubAgent(BaseAgent):
                      "subject": chosen["contract_id"], "asserted_value": asserted},
                     monologue=f"({agent.display_name}) Speaking on "
                               f"{chosen['contract_id']}.",
+                )
+            if fallback == "travel":
+                return self._travel_decision(
+                    agent, here, rng, "Nothing to declare; walking on."
                 )
             return AgentDecision(
                 "work", {},
@@ -446,4 +466,6 @@ class StubAgent(BaseAgent):
                 monologue=f"({agent.display_name}) Bribing {target}.",
             )
 
+        if fallback == "travel":
+            return self._travel_decision(agent, here, rng, "(fallback) travel.")
         return AgentDecision("work", {}, monologue="(fallback) work.")

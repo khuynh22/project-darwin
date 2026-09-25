@@ -54,6 +54,17 @@ def test_a_gated_stub_in_the_bank_stays_inside_the_bank_menu():
         assert decision.action in allowed
 
 
+def test_a_gated_stub_at_the_market_with_nothing_to_settle_stays_on_menu():
+    """sign_contract/fulfil_contract's "nothing to do" branches must not fall
+    back to a literal "work" -- the Market does not offer it."""
+    stub = StubAgent(agent_id="red", model="stub")
+    allowed = set(actions_at("market", gated=True))
+    assert "work" not in allowed
+    for seed in range(50):
+        decision = stub._pick_major(_state("market"), _agent(), random.Random(seed))
+        assert decision.action in allowed
+
+
 def test_an_ungated_stub_is_unchanged():
     stub = StubAgent(agent_id="red", model="stub")
     state = {
