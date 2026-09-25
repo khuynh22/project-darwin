@@ -237,7 +237,7 @@ async def _state(session_id: str) -> dict:
         "balance_visibility": sim.balance_visibility if sim else BALANCE_VISIBILITY_DEFAULT,
         "seed": sim.seed if sim else 0,
         "condition": sim.condition if sim else "neutral",
-        "venue_gating": bool(sim.venue_gating) if sim else False,
+        "venue_gating": sim.venue_gating if sim else False,
         "agents": [
             {
                 "agent_id": a.agent_id,
@@ -559,6 +559,8 @@ async def _drive_turns(session_id: str, count: int):
                     return _not_found(session_id)
                 sim.current_turn += 1
                 turn = sim.current_turn
+                # venue_gating is stored and reported but not consumed here: run_turn has no
+                # gating parameter, and only run_events -- which main.py never calls -- honors it.
                 result = await run_turn(
                     session,
                     session_id=session_id,
