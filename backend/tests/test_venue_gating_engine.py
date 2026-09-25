@@ -105,6 +105,7 @@ async def test_travel_moves_the_agent_and_then_the_action_lands(session):
     # journey. Scope the "no unintended rejection" check to red.
     red_outcomes = await _outcomes(session, "red")
     assert not any("not available here" in o for o in red_outcomes)
+    assert any("not available here" in o for o in await _outcomes(session, "blue"))
 
     travel_event = next(
         e for e in result.events if e.event.agent_id == "red" and e.action == "travel"
@@ -130,6 +131,26 @@ async def test_a_stale_venue_degrades_to_the_plaza(session):
     )
 
     assert any("walking to market" in o for o in await _outcomes(session))
+
+
+async def test_a_malformed_travel_argument_does_not_move_the_agent(session):
+    agents = {
+        "red": Scripted("red", script=[("travel", {"venue": None})], wake_after=25.0),
+        "blue": Scripted("blue", script=[("rest", {})], wake_after=25.0),
+    }
+    await run_events(
+        session, session_id=SID, agents=agents, horizon_beats=4, venue_gating=True
+    )
+
+    red = (
+        await session.execute(
+            select(Agent).where(Agent.session_id == SID, Agent.agent_id == "red")
+        )
+    ).scalar_one()
+    assert red.venue == "plaza"
+    assert any(
+        "argument validation failed" in o for o in await _outcomes(session, "red")
+    )
 
 
 async def test_ungated_runs_still_derive_the_venue_from_the_action(session):

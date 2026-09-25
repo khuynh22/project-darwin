@@ -285,7 +285,7 @@ async def run_events(
 
         if venue_gating:
             from_venue = here
-            moved = decision.action == "travel" and "[rejected]" not in outcome
+            moved = decision.action == "travel" and outcome.endswith(" [ok]")
             venue = decision.arguments.get("venue", here) if moved else here
             travel = travel_ticks(from_venue, venue)
         else:
