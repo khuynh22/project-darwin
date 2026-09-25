@@ -1,6 +1,6 @@
 # CLAUDE.md -- Project Darwin
 
-LLM economic survival simulation **and deception-measurement harness**. 3-10 agents compete with 25 actions (work, trade, steal, deceive, socialize, contracts, offices) in a goods economy with trust scores, progressive taxation, information asymmetry, and public registries. Users configure agents from the UI -- no hardcoded roster.
+LLM economic survival simulation **and deception-measurement harness**. 3-10 agents compete with 26 actions (work, trade, steal, deceive, socialize, contracts, offices, travel) in a goods economy with trust scores, progressive taxation, information asymmetry, and public registries. Users configure agents from the UI -- no hardcoded roster.
 
 The measurement half is the contribution: a portable trace schema, an intent-grounded judge, coherence metrics with a permutation null, a frozen-stimulus probe benchmark, and deterministic offline replay. See `docs/HOW-TO-RUN.md` to operate it and `docs/superpowers/specs/` for the design.
 
@@ -58,7 +58,7 @@ backend/
       event_engine.py     # run_events: the continuous loop that replaced the turn
     agents/
       base.py             # BaseAgent, AgentDecision (major + free action), system prompt, info-asymmetric world brief
-      stub.py             # StubAgent with DEFAULT_BIAS for all 25 actions (internal: tests/CLI only)
+      stub.py             # StubAgent with DEFAULT_BIAS for all 26 actions (internal: tests/CLI only)
       openai_agent.py     # OpenAI-compatible client; every real model runs through OpenRouter via base_url
       factory.py          # build_agents(roster): provider="stub" -> StubAgent, else OpenRouter; per-session key
 
@@ -123,7 +123,8 @@ own pace. See `docs/adr/2026-08-30-continuous-event-clock.md`.
   not depend on how finely events chopped up time. Sleeping does not pause the drain.
 - **`policy="lockstep"`** gives every agent a one-beat wake, ignores duration, and disables
   interrupts -- the old turn loop as a configuration, kept so frozen-stimulus probes run.
-  `venue_gating` (below) is the other run-configuration flag that changes the stimulus.
+- **`venue_gating`** (below) is a separate run-configuration flag that also changes the
+  stimulus, by narrowing which actions a prompt offers.
 
 ## Game mechanics
 

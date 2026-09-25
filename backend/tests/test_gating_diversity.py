@@ -61,6 +61,6 @@ async def test_a_gated_stub_run_visits_more_than_one_building(session):
 
     assert len(rows) > 10, "the run did not produce enough events to judge"
     # Travel exists so agents can reach other buildings; it must not be all they do.
-    assert actions.count("travel") < len(actions) * 0.8
-    assert len(set(actions)) >= 4
+    assert actions.count("travel") < len(actions) * 0.65
+    assert len(set(actions)) >= 7
     assert sum("not available here" in (r.outcome or "") for r in rows) < len(rows) * 0.2
