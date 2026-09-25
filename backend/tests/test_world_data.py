@@ -11,11 +11,13 @@ def test_every_action_belongs_to_exactly_one_built_venue():
         for action_id in venue.actions:
             assert action_id not in seen, f"{action_id} is in {seen.get(action_id)} and {venue.id}"
             seen[action_id] = venue.id
-    assert set(seen) == set(wd.ACTIONS)
+    assert set(seen) == set(wd.ACTIONS) - wd.UBIQUITOUS_ACTIONS
 
 
 def test_action_venue_is_the_inverse_of_venue_actions():
     for action_id, venue_id in wd.ACTION_VENUE.items():
+        if action_id in wd.UBIQUITOUS_ACTIONS:
+            continue
         assert action_id in wd.VENUE_ACTIONS[venue_id]
 
 
@@ -87,3 +89,24 @@ def test_every_action_is_wired_end_to_end():
         assert action_id in DEFAULT_BIAS, f"{action_id} is unreachable from the stub"
     assert set(ARG_MODELS) == set(wd.ACTIONS)
     assert set(DEFAULT_BIAS) == set(wd.ACTIONS)
+
+
+def test_travel_is_owned_by_no_venue():
+    assert wd.ACTIONS["travel"].venue == wd.ANYWHERE
+    assert wd.UBIQUITOUS_ACTIONS == frozenset({"travel"})
+    for venue in wd.VENUES.values():
+        assert "travel" not in venue.actions
+
+
+def test_actions_at_a_venue_adds_the_ubiquitous_ones_only_when_gated():
+    gated = wd.actions_at("bank", gated=True)
+    assert "invest" in gated
+    assert "travel" in gated
+    assert "steal" not in gated
+
+    ungated = wd.actions_at("bank", gated=False)
+    assert set(ungated) == set(wd.ACTIONS) - {"travel"}
+
+
+def test_an_unknown_venue_offers_only_the_ubiquitous_actions():
+    assert wd.actions_at("atlantis", gated=True) == ["travel"]

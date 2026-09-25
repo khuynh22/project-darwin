@@ -248,5 +248,15 @@
     "emoji": "🪝",
     "intent": "shake down",
     "summary": "Demand money under threat. Non-payment auto-triggers sabotage or slander at your next wake."
+  },
+  {
+    "id": "travel",
+    "tier": "major",
+    "family": "movement",
+    "venue": "anywhere",
+    "beats": 0.0,
+    "emoji": "🚶",
+    "intent": "to walk",
+    "summary": "Walk to another building. The walk is the whole action -- you arrive and act next time you wake."
   }
 ]

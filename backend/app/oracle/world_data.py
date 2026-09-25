@@ -16,7 +16,7 @@ import json
 import math
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
 from pydantic import BaseModel
 
@@ -112,6 +112,11 @@ BUILT_VENUES: dict[str, VenueRow] = {
     vid: row for vid, row in VENUES.items() if row.status == "built"
 }
 
+#: Venue value for an action callable from every building. Exactly one action
+#: uses it (``travel``): gating has to leave a way out of a room, and giving
+#: that way out a fake home venue would make it gateable by accident.
+ANYWHERE: Final[str] = "anywhere"
+
 
 def _validate() -> None:
     owner: dict[str, str] = {}
@@ -126,16 +131,19 @@ def _validate() -> None:
                     f"action {action_id} is at {owner[action_id]} and {venue.id}"
                 )
             owner[action_id] = venue.id
-    missing = set(ACTIONS) - set(owner)
+    ubiquitous = {aid for aid, row in ACTIONS.items() if row.venue == ANYWHERE}
+    missing = set(ACTIONS) - set(owner) - ubiquitous
     if missing:
         raise ValueError(f"actions with no venue: {sorted(missing)}")
     for action in ACTIONS.values():
+        if action.tier == "free" and action.beats != 0.0:
+            raise ValueError(f"free action {action.id} must take zero beats")
+        if action.id in ubiquitous:
+            continue
         if action.venue != owner[action.id]:
             raise ValueError(
                 f"{action.id} claims {action.venue}, listed at {owner[action.id]}"
             )
-        if action.tier == "free" and action.beats != 0.0:
-            raise ValueError(f"free action {action.id} must take zero beats")
 
 
 _validate()
@@ -154,17 +162,36 @@ ACTION_BEATS: dict[str, float] = {aid: row.beats for aid, row in ACTIONS.items()
 VENUE_POS: dict[str, tuple[float, float]] = {
     vid: (row.x, row.y) for vid, row in VENUES.items()
 }
+UBIQUITOUS_ACTIONS: frozenset[str] = frozenset(
+    aid for aid, row in ACTIONS.items() if row.venue == ANYWHERE
+)
+
+
+def actions_at(venue: str, *, gated: bool) -> list[str]:
+    """Action ids an agent standing at *venue* may call.
+
+    Ungated, every action except the ubiquitous ones, which exist only to move
+    an agent that has nothing else available. Including ``travel`` in an ungated
+    run would change the 25-action baseline the frozen probes are measured
+    against.
+    """
+    if not gated:
+        return [aid for aid in ACTIONS if aid not in UBIQUITOUS_ACTIONS]
+    here = VENUE_ACTIONS.get(venue, [])
+    return [*here, *sorted(UBIQUITOUS_ACTIONS)]
 
 __all__ = [
     "ACTIONS",
     "ACTION_BEATS",
     "ACTION_VENUE",
+    "ANYWHERE",
     "BUILT_VENUES",
     "ECONOMY",
     "FREE_ACTIONS",
     "GOODS",
     "MAJOR_ACTIONS",
     "SHARED_DIR",
+    "UBIQUITOUS_ACTIONS",
     "VENUES",
     "VENUE_ACTIONS",
     "VENUE_POS",
@@ -172,6 +199,7 @@ __all__ = [
     "Economy",
     "GoodRow",
     "VenueRow",
+    "actions_at",
     "load_json",
     "write_json",
 ]
