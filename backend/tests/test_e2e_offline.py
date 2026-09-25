@@ -148,6 +148,8 @@ async def test_the_exported_trace_says_where_each_agent_stood(tmp_path):
     assert turns
     for record in turns:
         assert record.state.venue in BUILT_VENUES, record.state.venue
+        if record.action not in ACTION_VENUE:
+            continue
         assert record.state.venue == ACTION_VENUE[record.action]
 
 

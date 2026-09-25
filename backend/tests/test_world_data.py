@@ -89,9 +89,8 @@ def test_every_action_is_wired_end_to_end():
         if action_id not in wd.UBIQUITOUS_ACTIONS:
             assert action_id in DEFAULT_BIAS, f"{action_id} is unreachable from the stub"
     assert set(ARG_MODELS) == set(wd.ACTIONS)
-    # A later task adds the stub's bias entry together with the argument
-    # generation branch that can actually populate `venue`.
-    assert set(DEFAULT_BIAS) == set(wd.ACTIONS) - wd.UBIQUITOUS_ACTIONS
+    # The stub's bias now covers travel too, so this is the full action set.
+    assert set(DEFAULT_BIAS) == set(wd.ACTIONS)
 
 
 def test_travel_is_owned_by_no_venue():
