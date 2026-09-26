@@ -55,6 +55,21 @@ const BY_VENUE: Record<string, Facade> = {
   casino: { storeys: 2, windowCols: 2, windowRows: 2, roof: 'hip', awning: true, chimney: false, columns: false },
   lounge: { storeys: 1, windowCols: 2, windowRows: 1, roof: 'gable', awning: false, chimney: true, columns: false },
   alley: { storeys: 1, windowCols: 0, windowRows: 0, roof: 'flat', awning: false, chimney: false, columns: false },
+  plaza: { storeys: 1, windowCols: 0, windowRows: 0, roof: 'flat', awning: false, chimney: false, columns: true },
+  registry: { storeys: 2, windowCols: 3, windowRows: 2, roof: 'flat', awning: false, chimney: false, columns: true },
+  courthouse: { storeys: 2, windowCols: 2, windowRows: 2, roof: 'gable', awning: false, chimney: false, columns: true },
+  press: { storeys: 1, windowCols: 3, windowRows: 1, roof: 'gable', awning: true, chimney: true, columns: false },
+  tavern: { storeys: 2, windowCols: 2, windowRows: 2, roof: 'gable', awning: true, chimney: true, columns: false },
+  farm: { storeys: 1, windowCols: 2, windowRows: 1, roof: 'gable', awning: true, chimney: false, columns: false },
+  mine: { storeys: 1, windowCols: 0, windowRows: 0, roof: 'gable', awning: false, chimney: true, columns: false },
+  workshop: { storeys: 1, windowCols: 4, windowRows: 1, roof: 'gable', awning: true, chimney: true, columns: false },
+  warehouse: { storeys: 1, windowCols: 1, windowRows: 1, roof: 'flat', awning: false, chimney: false, columns: false },
+  academy: { storeys: 2, windowCols: 4, windowRows: 2, roof: 'hip', awning: false, chimney: true, columns: true },
+  guild_hall: { storeys: 2, windowCols: 3, windowRows: 2, roof: 'gable', awning: false, chimney: true, columns: true },
+  pawnshop: { storeys: 1, windowCols: 2, windowRows: 1, roof: 'flat', awning: true, chimney: false, columns: false },
+  insurance: { storeys: 2, windowCols: 3, windowRows: 2, roof: 'flat', awning: false, chimney: false, columns: false },
+  estate: { storeys: 2, windowCols: 2, windowRows: 2, roof: 'hip', awning: true, chimney: true, columns: false },
+  temple: { storeys: 1, windowCols: 2, windowRows: 1, roof: 'hip', awning: false, chimney: false, columns: true },
 };
 
 export function facadeFor(venueId: string): Facade {

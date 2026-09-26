@@ -63,9 +63,10 @@ export function walkVelocity(keys: Keys, yaw: number, speed: number): Velocity {
   const sin = Math.sin(yaw);
   const cos = Math.cos(yaw);
 
-  // Three.js convention: a camera at rest looks down -Z.
-  let dx = ahead * -sin + side * cos;
-  let dz = ahead * -cos + side * sin;
+  // Three.js convention: a camera at rest looks down -Z, so forward is
+  // (-sin, -cos) and right, forward x up, is (cos, -sin).
+  const dx = ahead * -sin + side * cos;
+  const dz = ahead * -cos - side * sin;
 
   const length = Math.hypot(dx, dz);
   return { dx: (dx / length) * speed, dz: (dz / length) * speed };

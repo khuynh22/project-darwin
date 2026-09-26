@@ -20,6 +20,7 @@ from app.models.agent import Agent
 from app.models.ledger import ThoughtLog, Transaction, TurnSnapshot, WorldEvent
 from app.oracle.actions import ACTION_TABLE
 from app.oracle.schemas import ARG_MODELS
+from app.oracle.space import venue_for
 from app.trace.recorder import record_turn
 
 log = logging.getLogger(__name__)
@@ -722,7 +723,12 @@ async def _decide_one(
     gaslights: list[str] | None = None,
 ) -> AgentDecision:
     """Call decide() for one agent with its own history + gaslight injections."""
-    agent_state = {**state, "_history": history, "_gaslights": gaslights or []}
+    agent_state = {
+        "_venue": db_agent.venue,
+        **state,
+        "_history": history,
+        "_gaslights": gaslights or [],
+    }
     return await asyncio.wait_for(
         client.decide(agent_state, db_agent),
         timeout=get_settings().agent_timeout_seconds,
@@ -916,6 +922,9 @@ async def run_turn(
             decision=decision,
             rng=rng,
         )
+        # The major action says where the agent is standing; the free action
+        # taken alongside it does not move anybody.
+        db_agent.venue = venue_for(decision.action)
         public_msg = (
             decision.arguments.pop("public_message", "")
             if isinstance(decision.arguments, dict)
@@ -1010,6 +1019,7 @@ async def run_turn(
                 spouse_id=a.spouse_id,
                 steal_count=a.steal_count,
                 food_buffer=a.food_buffer,
+                venue=a.venue,
                 allies=list(a.allies or []),
                 enemies=list(a.enemies or []),
                 skip_next_turn=a.skip_next_turn,

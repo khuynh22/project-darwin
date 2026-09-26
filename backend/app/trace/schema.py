@@ -60,6 +60,7 @@ class RunManifest(BaseModel):
     condition: str = "neutral"
     horizon: int
     state_fidelity: StateFidelity = "full"
+    venue_gating: bool = False
     agents: list[AgentManifest]
 
     def lifespans(self) -> dict[str, int]:
@@ -93,6 +94,7 @@ class TurnState(BaseModel):
     spouse_id: str | None = None
     steal_count: int | None = None
     food_buffer: float | None = None
+    venue: str | None = None
     allies: list[str] | None = None
     enemies: list[str] | None = None
     skip_next_turn: bool | None = None

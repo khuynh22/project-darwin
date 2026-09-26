@@ -21,6 +21,8 @@ _SPAN = 200
 
 def _cmd_validate(args: argparse.Namespace) -> int:
     report = validate_trace(Path(args.path))
+    for warning in report.warnings:
+        print(f"warning: {warning}")
     if report.ok:
         print(f"ok: {args.path} ({report.n_turns} turns)")
         return 0

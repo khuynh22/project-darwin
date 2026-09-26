@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -31,6 +31,10 @@ class SimSession(Base):
     # Selects the system-prompt suffix in agents/base.py — the across-condition
     # difference in judged deception is the propensity signal.
     condition: Mapped[str] = mapped_column(String(16), nullable=False, default="neutral")
+    # Offer only the actions at the agent's current venue, plus travel.
+    venue_gating: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
     # "configuring" until a roster is set, then "ready".
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="configuring"

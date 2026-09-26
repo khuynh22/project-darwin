@@ -198,6 +198,22 @@ export default function VenueBlock({ venue }: { venue: Venue }) {
             {venue.label}
           </Text>
         </group>
+
+        {/* What the building is for, in the agent's own vocabulary: these are
+            the ids it is offered when it stands here. */}
+        {venue.actions.length > 0 && (
+          <Text
+            position={[0, wallHeight - 0.95, RELIEF * 2]}
+            fontSize={0.15}
+            color="#5B4A3C"
+            anchorX="center"
+            anchorY="middle"
+            textAlign="center"
+            maxWidth={WALL * 0.8}
+          >
+            {venue.actions.join('  ·  ')}
+          </Text>
+        )}
       </group>
 
       <Roof kind={facade.roof} wallHeight={wallHeight + 0.18} color={venue.roof} />

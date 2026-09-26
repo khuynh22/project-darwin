@@ -12,11 +12,14 @@ from app.agents.base import (
 from app.models.agent import Agent
 from app.oracle.scheduler import DEFAULT_WAKE_BEATS, WAKE_TRIGGERS
 from app.oracle.schemas import TOOL_DEFINITIONS
+from app.oracle.space import DEFAULT_VENUE
+from app.oracle.world_data import actions_at
 
 log = logging.getLogger(__name__)
 
 
-def _tools_for_openai() -> list[dict]:
+def _tools_for_openai(venue: str | None = None, *, gated: bool = False) -> list[dict]:
+    available = set(actions_at(venue or DEFAULT_VENUE, gated=gated))
     return [
         {
             "type": "function",
@@ -27,7 +30,28 @@ def _tools_for_openai() -> list[dict]:
             },
         }
         for t in TOOL_DEFINITIONS
+        if t["name"] in available
     ]
+
+
+def _venue_fallback(wanted: str | None, *, venue: str) -> tuple[str, dict]:
+    """What to do when a gated model offers nothing usable.
+
+    Falling back to ``work`` is what the ungated client does, and under gating it
+    is illegal everywhere but the Work Site -- an agent in the Bank would be
+    rejected every wake forever. Walking toward whatever it asked for is both
+    legal and a reasonable reading of the intent; with no intent to read, walk
+    to the nearest other building rather than stand still.
+    """
+    from app.oracle.space import travel_ticks
+    from app.oracle.world_data import ACTIONS, BUILT_VENUES, UBIQUITOUS_ACTIONS
+
+    row = ACTIONS.get(wanted or "")
+    if row is not None and row.id not in UBIQUITOUS_ACTIONS and row.venue != venue:
+        return "travel", {"venue": row.venue}
+    others = [vid for vid, v in BUILT_VENUES.items() if vid != venue and v.actions]
+    nearest = min(others, key=lambda vid: travel_ticks(venue, vid))
+    return "travel", {"venue": nearest}
 
 
 class OpenAIAgent(BaseAgent):
@@ -61,13 +85,15 @@ class OpenAIAgent(BaseAgent):
     async def decide(self, state: dict, agent: Agent) -> AgentDecision:
         system = render_system_prompt(agent, condition=state.get("_condition", "neutral"))
         user = render_world_brief(state, agent.agent_id)
+        gated = bool(state.get("_venue_gating"))
+        venue = state.get("_venue") or DEFAULT_VENUE
         resp = await self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            tools=_tools_for_openai(),
+            tools=_tools_for_openai(venue, gated=gated),
             # "auto" (not "required"): not every OpenRouter model/provider supports
             # forcing a call. We fall back to "work" below if no tool is returned.
             tool_choice="auto",
@@ -77,6 +103,12 @@ class OpenAIAgent(BaseAgent):
         monologue = (choice.message.content or "").strip()
         tool_calls = choice.message.tool_calls or []
         if not tool_calls:
+            if gated:
+                action, arguments = _venue_fallback(None, venue=venue)
+                return AgentDecision(
+                    action, arguments,
+                    monologue=monologue or "(no tool -- walking on)",
+                )
             return AgentDecision("work", {}, monologue=monologue or "(no tool -- falling back to work)")
 
         # Parse all tool calls

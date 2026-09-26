@@ -6,6 +6,8 @@ import random
 
 from app.agents.base import AgentDecision, BaseAgent
 from app.models.agent import Agent
+from app.oracle.space import DEFAULT_VENUE
+from app.oracle.world_data import actions_at
 
 # Default bias used for all stub agents (no hardcoded agent IDs).
 DEFAULT_BIAS = {
@@ -34,6 +36,7 @@ DEFAULT_BIAS = {
     "will": 0,
     "gaslight": 1,
     "bribe": 1,
+    "travel": 3,
 }
 
 # Actions that require a target agent
@@ -102,23 +105,35 @@ class StubAgent(BaseAgent):
                 if a["agent_id"] != agent.agent_id and a["alive"]
             ]
             target = rng.choice(others)["agent_id"] if others else None
-            free = rng.choice(["vouch", "bluff", "propose_deal", "slander"])
-            if free == "vouch" and target:
-                decision.free_action = "vouch"
-                decision.free_arguments = {"target": target}
-            elif free == "bluff":
-                decision.free_action = "bluff"
-                decision.free_arguments = {"fake_action": "invested $5.00"}
-            elif free == "slander" and target and agent.balance >= 0.20:
-                decision.free_action = "slander"
-                decision.free_arguments = {"target": target, "rumor": "unreliable"}
-            elif free == "propose_deal" and target:
-                decision.free_action = "propose_deal"
-                decision.free_arguments = {
-                    "target": target,
-                    "offer": "$0.50",
-                    "ask": "alliance",
-                }
+            available = set(
+                actions_at(
+                    state.get("_venue") or DEFAULT_VENUE,
+                    gated=bool(state.get("_venue_gating")),
+                )
+            )
+            pool = [
+                a
+                for a in ("vouch", "bluff", "propose_deal", "slander")
+                if a in available
+            ]
+            if pool:
+                free = rng.choice(pool)
+                if free == "vouch" and target:
+                    decision.free_action = "vouch"
+                    decision.free_arguments = {"target": target}
+                elif free == "bluff":
+                    decision.free_action = "bluff"
+                    decision.free_arguments = {"fake_action": "invested $5.00"}
+                elif free == "slander" and target and agent.balance >= 0.20:
+                    decision.free_action = "slander"
+                    decision.free_arguments = {"target": target, "rumor": "unreliable"}
+                elif free == "propose_deal" and target:
+                    decision.free_action = "propose_deal"
+                    decision.free_arguments = {
+                        "target": target,
+                        "offer": "$0.50",
+                        "ask": "alliance",
+                    }
         self._plan_wake(decision, agent, rng)
         return decision
 
@@ -142,7 +157,26 @@ class StubAgent(BaseAgent):
         triggers = ["stolen_from", "extorted", "sabotaged", "contract_due", "addressed"]
         decision.wake_if = rng.sample(triggers, rng.randint(1, 3))
 
+    @staticmethod
+    def _travel_decision(
+        agent: Agent, here: str, rng: random.Random, note: str
+    ) -> AgentDecision:
+        from app.oracle.world_data import BUILT_VENUES
+
+        targets = [
+            vid for vid, v in BUILT_VENUES.items() if vid != here and v.actions
+        ]
+        return AgentDecision(
+            "travel",
+            {"venue": rng.choice(sorted(targets))},
+            monologue=f"({agent.display_name}) {note}",
+        )
+
     def _pick_major(self, state: dict, agent: Agent, rng: random.Random) -> AgentDecision:
+        gated = bool(state.get("_venue_gating"))
+        here = state.get("_venue") or DEFAULT_VENUE
+        available = set(actions_at(here, gated=gated))
+
         # Settle a commitment it can actually meet before rolling for anything
         # else. Left to the weighted roll, a ~4% action against contracts that
         # stay open a few turns almost never fires, and the fulfil path goes
@@ -152,7 +186,7 @@ class StubAgent(BaseAgent):
             if c.get("proposer") == agent.agent_id
             and (agent.inventory or {}).get(c.get("good"), 0) >= (c.get("qty") or 0)
         ]
-        if satisfiable and rng.random() < 0.7:
+        if satisfiable and rng.random() < 0.7 and "fulfil_contract" in available:
             chosen = rng.choice(satisfiable)
             return AgentDecision(
                 "fulfil_contract",
@@ -160,26 +194,36 @@ class StubAgent(BaseAgent):
                 monologue=f"({agent.display_name}) Delivering on {chosen['contract_id']}.",
             )
 
-        bias = DEFAULT_BIAS
+        bias = {a: w for a, w in DEFAULT_BIAS.items() if a in available}
         choices: list[str] = []
         for action, weight in bias.items():
             choices.extend([action] * max(0, weight))
-        action = rng.choice(choices) if choices else "work"
+        action = rng.choice(choices) if choices else "travel"
+
+        # "work" is the fallback when a roll turns out unaffordable or
+        # targetless, but under gating "work" may not be on offer here --
+        # fall back to "travel" instead so the fallback stays on the menu.
+        fallback = "work" if "work" in available else "travel"
 
         # Affordability check
         min_cost = _COSTLY_ACTIONS.get(action, 0)
         if min_cost > 0 and agent.balance < min_cost:
-            action = "work"
+            action = fallback
 
         others = [
             a for a in state["agents"] if a["agent_id"] != agent.agent_id and a["alive"]
         ]
         if not others and action in _TARGET_ACTIONS:
-            action = "work"
+            action = fallback
 
         if action == "work":
             return AgentDecision(
                 "work", {}, monologue=f"({agent.display_name}) Steady work."
+            )
+
+        if action == "travel":
+            return self._travel_decision(
+                agent, here, rng, "Walking somewhere useful."
             )
 
         target = rng.choice(others)["agent_id"] if others else ""
@@ -229,6 +273,10 @@ class StubAgent(BaseAgent):
             # path untested and makes breach carry no information.
             held = [g for g, n in (agent.inventory or {}).items() if n >= 1]
             if not held:
+                if fallback == "travel":
+                    return self._travel_decision(
+                        agent, here, rng, "Nothing to promise; walking on."
+                    )
                 return AgentDecision(
                     "work", {},
                     monologue=f"({agent.display_name}) Nothing to promise; working.",
@@ -249,6 +297,10 @@ class StubAgent(BaseAgent):
                 if c.get("proposer") == agent.agent_id
             ]
             if not mine:
+                if fallback == "travel":
+                    return self._travel_decision(
+                        agent, here, rng, "Nothing to settle; walking on."
+                    )
                 return AgentDecision(
                     "work", {},
                     monologue=f"({agent.display_name}) Nothing to settle; working.",
@@ -284,6 +336,10 @@ class StubAgent(BaseAgent):
                      "subject": chosen["contract_id"], "asserted_value": asserted},
                     monologue=f"({agent.display_name}) Speaking on "
                               f"{chosen['contract_id']}.",
+                )
+            if fallback == "travel":
+                return self._travel_decision(
+                    agent, here, rng, "Nothing to declare; walking on."
                 )
             return AgentDecision(
                 "work", {},
@@ -411,4 +467,6 @@ class StubAgent(BaseAgent):
                 monologue=f"({agent.display_name}) Bribing {target}.",
             )
 
+        if fallback == "travel":
+            return self._travel_decision(agent, here, rng, "(fallback) travel.")
         return AgentDecision("work", {}, monologue="(fallback) work.")

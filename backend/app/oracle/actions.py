@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import Agent
 from app.models.ledger import Transaction, WorldEvent
+from app.oracle.space import DEFAULT_VENUE
 
 
 @dataclass
@@ -950,6 +951,43 @@ async def do_rest(
     return ActionResult(True, "resting, +20% bonus next high-risk action")
 
 
+async def do_travel(
+    session: AsyncSession, *, session_id: str, turn: int, actor_id: str, venue: str
+) -> ActionResult:
+    """Accept or refuse a walk. The engine does the moving and charges the walk.
+
+    Planned venues are in ``VENUE_POS`` because their coordinates are reserved,
+    so ``travel_ticks`` would compute a perfectly good walk to a building that
+    has nothing in it. Built-only is therefore checked here rather than relying
+    on the distance lookup to fail.
+    """
+    from app.oracle.world_data import BUILT_VENUES
+
+    actor = await _get_agent(session, session_id, actor_id)
+    if actor is None or not actor.alive:
+        return ActionResult(False, "actor not alive")
+    if venue not in BUILT_VENUES:
+        return ActionResult(False, f"no such building: {venue!r}")
+    # Normalise the same way the engine does before it decides where the agent
+    # stands. Reading the row raw would accept a walk to the plaza from an agent
+    # the engine has already placed at the plaza, and then move it nowhere.
+    origin = actor.venue if actor.venue in BUILT_VENUES else DEFAULT_VENUE
+    if venue == origin:
+        return ActionResult(False, f"already at {venue}")
+    await _record(
+        session,
+        session_id=session_id,
+        turn=turn,
+        actor_id=actor_id,
+        target_id=None,
+        action="travel",
+        delta=0,
+        payload={"from": origin, "to": venue},
+        note=f"walking from {origin} to {venue}",
+    )
+    return ActionResult(True, f"walking to {venue}")
+
+
 async def do_will(
     session: AsyncSession, *, session_id: str, turn: int, actor_id: str, target: str
 ) -> ActionResult:
@@ -1437,4 +1475,5 @@ ACTION_TABLE = {
     "will": do_will,
     "gaslight": do_gaslight,
     "bribe": do_bribe,
+    "travel": do_travel,
 }

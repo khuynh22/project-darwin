@@ -80,6 +80,7 @@ class TurnSnapshot(Base):
     # from ~20% back to 60%.
     steal_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     food_buffer: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    venue: Mapped[str] = mapped_column(String(32), nullable=False, default="plaza")
     allies: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     enemies: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     skip_next_turn: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
