@@ -26,8 +26,8 @@ services:
 
   oracle:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,8 +64,8 @@ services:
 
   arena:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
       # NEXT_PUBLIC_* must be baked at build time. The browser is on the host,
       # so localhost:8000 (mapped from oracle) is the correct address.
       args:

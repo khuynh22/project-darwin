@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -12,17 +13,30 @@ from app.trace.schema import RunManifest, TurnRecord, WorldRecord, parse_record
 
 MAX_ERRORS = 50
 
+log = logging.getLogger(__name__)
+
 
 @dataclass
 class ValidationReport:
     ok: bool = True
     n_turns: int = 0
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def fail(self, message: str) -> None:
         self.ok = False
         if len(self.errors) < MAX_ERRORS:
             self.errors.append(message)
+
+    def warn(self, message: str) -> None:
+        """Structurally sound, but something downstream cannot honour it.
+
+        Kept off ``ok``: a gated trace is a valid trace, and failing validation
+        would block judging and measurement, which read the recorded triple and
+        do not care where the agent stood.
+        """
+        self.warnings.append(message)
+        log.warning("%s", message)
 
 
 def validate_trace(path: Path) -> ValidationReport:
@@ -44,6 +58,12 @@ def validate_trace(path: Path) -> ValidationReport:
                 if lineno != 1:
                     report.fail(f"line {lineno}: manifest must be the first line")
                 manifest = record
+                if manifest.venue_gating:
+                    report.warn(
+                        f"{path}: recorded with venue gating. No entry point can "
+                        "re-execute it yet -- replay and probe replay both drive "
+                        "run_turn ungated and refuse a gated manifest."
+                    )
                 continue
 
             if manifest is None:

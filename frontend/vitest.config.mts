@@ -3,7 +3,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
-    alias: { '@': fileURLToPath(new URL('.', import.meta.url)) },
+    alias: {
+      '@': fileURLToPath(new URL('.', import.meta.url)),
+      '@shared': fileURLToPath(new URL('../shared', import.meta.url)),
+    },
   },
   test: {
     // Only `*.test.ts` under the app itself. Playwright owns `e2e/*.spec.ts`,

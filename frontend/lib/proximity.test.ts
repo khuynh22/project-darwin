@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { FOCUS_RADIUS, focusTarget } from '@/lib/proximity';
-import type { Vec3 } from '@/lib/world3d';
+import { FOCUS_RADIUS, focusTarget, focusVenue } from '@/lib/proximity';
+import { VENUES } from '@/lib/town';
+import { venuePosition, type Vec3 } from '@/lib/world3d';
 
 const EYE: Vec3 = [0, 1.7, 0];
 const NORTH: Vec3 = [0, 0, -1]; // three.js rest facing
@@ -65,5 +66,24 @@ describe('focusTarget', () => {
     expect(focusTarget(EYE, NORTH, agents, null)).toBe(
       focusTarget(EYE, NORTH, [...agents].reverse(), null),
     );
+  });
+});
+
+describe('focusVenue', () => {
+  it('reports the building you are standing in front of', () => {
+    const market = VENUES.find((v) => v.id === 'market')!;
+    const [x, , z] = venuePosition(market);
+    // Stand a few metres to the south, looking north at it.
+    const eye: Vec3 = [x, 1.7, z + 6];
+    const look: Vec3 = [0, 0, -1];
+
+    expect(focusVenue(eye, look, VENUES, null)).toBe('market');
+  });
+
+  it('reports nothing when you are looking at the sky in an empty field', () => {
+    const eye: Vec3 = [0, 1.7, 0];
+    const look: Vec3 = [0, 1, 0];
+
+    expect(focusVenue(eye, look, VENUES, null)).toBeNull();
   });
 });

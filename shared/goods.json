@@ -1,0 +1,5 @@
+[
+  { "id": "ore", "base_price": 0.30 },
+  { "id": "food", "base_price": 0.25 },
+  { "id": "tech", "base_price": 0.50 }
+]

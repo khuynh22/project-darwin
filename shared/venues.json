@@ -1,0 +1,207 @@
+[
+  {
+    "id": "plaza",
+    "label": "Plaza",
+    "district": "plaza",
+    "status": "built",
+    "x": 350.744,
+    "y": 350.744,
+    "actions": []
+  },
+  {
+    "id": "market",
+    "label": "Market",
+    "district": "civic",
+    "status": "built",
+    "x": 350.744,
+    "y": 197.0,
+    "actions": [
+      "trade",
+      "sign_contract",
+      "fulfil_contract",
+      "bribe",
+      "gift",
+      "charity"
+    ]
+  },
+  {
+    "id": "bank",
+    "label": "Bank",
+    "district": "civic",
+    "status": "built",
+    "x": 470.945,
+    "y": 254.886,
+    "actions": ["invest", "lend", "audit", "will"]
+  },
+  {
+    "id": "lounge",
+    "label": "Lounge",
+    "district": "civic",
+    "status": "built",
+    "x": 500.633,
+    "y": 384.955,
+    "actions": [
+      "socialize",
+      "propose_deal",
+      "rest",
+      "vouch",
+      "slander",
+      "gaslight",
+      "declare",
+      "stand_for_office"
+    ]
+  },
+  {
+    "id": "registry",
+    "label": "Registry",
+    "district": "civic",
+    "status": "planned",
+    "x": 417.451,
+    "y": 489.262,
+    "actions": []
+  },
+  {
+    "id": "courthouse",
+    "label": "Courthouse",
+    "district": "civic",
+    "status": "planned",
+    "x": 284.037,
+    "y": 489.262,
+    "actions": []
+  },
+  {
+    "id": "press",
+    "label": "Press",
+    "district": "civic",
+    "status": "planned",
+    "x": 200.855,
+    "y": 384.955,
+    "actions": []
+  },
+  {
+    "id": "tavern",
+    "label": "Tavern",
+    "district": "civic",
+    "status": "planned",
+    "x": 230.542,
+    "y": 254.886,
+    "actions": []
+  },
+  {
+    "id": "work",
+    "label": "Work Site",
+    "district": "industry",
+    "status": "built",
+    "x": 350.744,
+    "y": 59.0,
+    "actions": ["work", "strike"]
+  },
+  {
+    "id": "farm",
+    "label": "Farm",
+    "district": "industry",
+    "status": "planned",
+    "x": 486.324,
+    "y": 92.417,
+    "actions": []
+  },
+  {
+    "id": "mine",
+    "label": "Mine",
+    "district": "industry",
+    "status": "planned",
+    "x": 590.844,
+    "y": 185.014,
+    "actions": []
+  },
+  {
+    "id": "workshop",
+    "label": "Workshop",
+    "district": "industry",
+    "status": "planned",
+    "x": 640.36,
+    "y": 315.578,
+    "actions": []
+  },
+  {
+    "id": "warehouse",
+    "label": "Warehouse",
+    "district": "industry",
+    "status": "planned",
+    "x": 623.529,
+    "y": 454.197,
+    "actions": []
+  },
+  {
+    "id": "academy",
+    "label": "Academy",
+    "district": "industry",
+    "status": "planned",
+    "x": 544.206,
+    "y": 569.117,
+    "actions": []
+  },
+  {
+    "id": "guild_hall",
+    "label": "Guild Hall",
+    "district": "industry",
+    "status": "planned",
+    "x": 420.563,
+    "y": 634.01,
+    "actions": []
+  },
+  {
+    "id": "alley",
+    "label": "Alley",
+    "district": "vice",
+    "status": "built",
+    "x": 280.925,
+    "y": 634.01,
+    "actions": ["steal", "sabotage", "extort"]
+  },
+  {
+    "id": "casino",
+    "label": "Casino",
+    "district": "vice",
+    "status": "built",
+    "x": 157.282,
+    "y": 569.117,
+    "actions": ["bet", "bluff"]
+  },
+  {
+    "id": "pawnshop",
+    "label": "Pawnshop",
+    "district": "vice",
+    "status": "planned",
+    "x": 77.959,
+    "y": 454.197,
+    "actions": []
+  },
+  {
+    "id": "insurance",
+    "label": "Insurance",
+    "district": "vice",
+    "status": "planned",
+    "x": 61.127,
+    "y": 315.578,
+    "actions": []
+  },
+  {
+    "id": "estate",
+    "label": "Estate",
+    "district": "vice",
+    "status": "planned",
+    "x": 110.643,
+    "y": 185.014,
+    "actions": []
+  },
+  {
+    "id": "temple",
+    "label": "Temple",
+    "district": "vice",
+    "status": "planned",
+    "x": 215.164,
+    "y": 92.417,
+    "actions": []
+  }
+]

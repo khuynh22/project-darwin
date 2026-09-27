@@ -9,6 +9,7 @@ import {
   type WorldFrame,
 } from '@/lib/frame';
 import type { ReleaseTurn, Verdict } from '@/lib/releases';
+import { VENUES_BY_ID } from '@/lib/town';
 import type { AgentSnap, WorldSnapshot } from '@/lib/ws';
 
 function agent(id: string, over: Partial<AgentSnap> = {}): AgentSnap {
@@ -110,6 +111,19 @@ describe('buildFrameFromSnapshot', () => {
     expect(venueOf(first, 'a0')).toBe(venueOf(again, 'a0'));
     expect(venueOf(first, 'a1')).toBe(venueOf(again, 'a1'));
     expect(venueOf(first, 'a0')).not.toBe(venueOf(first, 'a1'));
+  });
+
+  // The renderer used to index a venue-keyed map with whatever the Oracle sent,
+  // so one unknown id -- a planned venue, a stale row, the `anywhere` sentinel
+  // -- threw and took the whole scene down instead of one pawn.
+  it('degrades an unknown venue to a home venue rather than throwing', () => {
+    const frame = buildFrameFromSnapshot(
+      snapshot([agent('a0', { venue: 'anywhere' }), agent('a1', { venue: 'atlantis' })]),
+    );
+    expect(frame.agents).toHaveLength(2);
+    for (const a of frame.agents) {
+      expect(VENUES_BY_ID[a.venueId], `${a.agentId} -> ${a.venueId}`).toBeDefined();
+    }
   });
 
   it('sends a married pair to the same venue, chosen by the lower agent id', () => {

@@ -145,6 +145,17 @@ def mine_probes(
     families: Sequence[str] = ALL_FAMILIES,
 ) -> list[Probe]:
     manifest, records = read_trace(trace_path)
+    if manifest.venue_gating:
+        # ``probe/replay.py`` seats a live model against scripted opponents and
+        # drives ``run_turn``, which is ungated. A probe mined from a gated run
+        # would therefore offer the seat the full catalogue while the divergence
+        # accounting compares it against gated recorded behaviour -- corrupt
+        # measurement that nothing downstream would flag. Refuse at the source.
+        raise ValueError(
+            f"{trace_path}: recorded with venue gating, which probe replay "
+            "cannot reproduce -- it drives run_turn ungated, so the seat model "
+            "would face a different action set than the run being replayed."
+        )
     verdicts = _load_verdicts(verdicts_path)
 
     turns_by_key = {(r.turn, r.agent_id): r for r in records}

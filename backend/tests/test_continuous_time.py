@@ -23,6 +23,7 @@ from app.oracle.space import (
     venue_for,
     witnesses,
 )
+from app.oracle.world_data import UBIQUITOUS_ACTIONS
 
 
 def test_beats_and_ticks_round_trip():
@@ -46,7 +47,12 @@ def test_free_actions_occupy_no_time():
 
 
 def test_major_actions_all_occupy_time():
+    # travel's occupancy is dynamic -- the engine charges travel_ticks(from,
+    # to), not ACTION_BEATS -- so beats: 0.0 in the table is deliberate, not
+    # an oversight, and travel is exempt here.
     for action in MAJOR_ACTIONS:
+        if action in UBIQUITOUS_ACTIONS:
+            continue
         assert action_ticks(action) > 0, action
 
 

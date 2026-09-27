@@ -23,35 +23,10 @@ from __future__ import annotations
 
 from app.oracle.clock import BEAT, beats
 
-#: Beats an action occupies its actor. Free actions are 0 by definition -- they
-#: are taken alongside a major action and must not extend it.
-ACTION_BEATS: dict[str, float] = {
-    "work": 3.0,
-    "trade": 1.0,
-    "sign_contract": 1.0,
-    "fulfil_contract": 1.5,
-    "audit": 2.0,
-    "invest": 0.5,
-    "lend": 0.5,
-    "bet": 1.0,
-    "steal": 1.0,
-    "sabotage": 2.0,
-    "extort": 1.0,
-    "bribe": 0.5,
-    "socialize": 2.0,
-    "bluff": 0.0,
-    "charity": 0.0,
-    "declare": 0.0,
-    "gaslight": 0.0,
-    "gift": 0.0,
-    "propose_deal": 0.0,
-    "rest": 0.0,
-    "slander": 0.0,
-    "stand_for_office": 0.0,
-    "strike": 0.0,
-    "vouch": 0.0,
-    "will": 0.0,
-}
+# ACTION_BEATS is re-exported from shared/actions.json. Free actions are 0 by
+# definition -- taken alongside a major action, they must not extend it -- and
+# world_data refuses to load a table where that is not true.
+from app.oracle.world_data import ACTION_BEATS
 
 DEFAULT_ACTION_BEATS: float = 1.0
 

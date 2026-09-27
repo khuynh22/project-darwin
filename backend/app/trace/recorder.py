@@ -71,6 +71,7 @@ async def record_turn(
     *,
     seed: int = 0,
     condition: str = "neutral",
+    venue_gating: bool = False,
 ) -> None:
     """Append one turn's records. Never raises."""
     try:
@@ -80,7 +81,13 @@ async def record_turn(
             return
 
         await _ensure_manifest(
-            session, session_id, path, seed=seed, condition=condition, horizon=turn
+            session,
+            session_id,
+            path,
+            seed=seed,
+            condition=condition,
+            horizon=turn,
+            venue_gating=venue_gating,
         )
 
         records, world = build_turn(turn, **await _rows(session, session_id, turn))
@@ -98,6 +105,7 @@ async def record_event(
     *,
     seed: int = 0,
     condition: str = "neutral",
+    venue_gating: bool = False,
 ) -> None:
     """Append one event's record. Never raises.
 
@@ -118,6 +126,7 @@ async def record_event(
             seed=seed,
             condition=condition,
             horizon=record.agent_seq,
+            venue_gating=venue_gating,
         )
         _append(path, record.model_dump(mode="json"))
     except Exception:  # noqa: BLE001 -- the event already committed
@@ -134,6 +143,7 @@ async def _ensure_manifest(
     seed: int,
     condition: str,
     horizon: int,
+    venue_gating: bool = False,
 ) -> None:
     """Write the run manifest if this is the first record of the run.
 
@@ -149,7 +159,10 @@ async def _ensure_manifest(
         session, session_id, condition=condition, seed=seed
     )
     manifest = manifest.model_copy(
-        update={"horizon": max(get_settings().max_turns, horizon)}
+        update={
+            "horizon": max(get_settings().max_turns, horizon),
+            "venue_gating": venue_gating,
+        }
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     _append(path, manifest.model_dump(mode="json"), truncate=True)

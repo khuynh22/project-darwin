@@ -1,4 +1,5 @@
-import type { Vec3 } from '@/lib/world3d';
+import type { Venue } from '@/lib/town';
+import { VENUE_FOOTPRINT, venuePosition, type Vec3 } from '@/lib/world3d';
 
 /**
  * Who you are close enough to, and facing, to be reading.
@@ -51,22 +52,27 @@ function score(
   return distance / dot;
 }
 
-export function focusTarget(
+/** Metres. A building is read from outside it, so the radius clears its own
+ *  footprint before the six metres of approach. */
+export const VENUE_FOCUS_RADIUS = VENUE_FOOTPRINT / 2 + 6;
+
+function focusAmong(
   eye: Vec3,
   look: Vec3,
   agents: Locatable[],
   current: string | null,
+  radius: number,
 ): string | null {
   if (current) {
     const held = agents.find((a) => a.agentId === current);
-    if (held && score(eye, look, held, FOCUS_RADIUS * KEEP_MARGIN) !== null) {
+    if (held && score(eye, look, held, radius * KEEP_MARGIN) !== null) {
       return current;
     }
   }
 
   let best: { id: string; score: number } | null = null;
   for (const agent of agents) {
-    const value = score(eye, look, agent, FOCUS_RADIUS);
+    const value = score(eye, look, agent, radius);
     if (value === null) continue;
     // Ties broken by id so the same crowd always yields the same answer,
     // whatever order the frame happened to list them in.
@@ -79,4 +85,32 @@ export function focusTarget(
     }
   }
   return best?.id ?? null;
+}
+
+export function focusTarget(
+  eye: Vec3,
+  look: Vec3,
+  agents: Locatable[],
+  current: string | null,
+): string | null {
+  return focusAmong(eye, look, agents, current, FOCUS_RADIUS);
+}
+
+/**
+ * Which building you are standing at.
+ *
+ * Same rule as reading an agent -- walk over and look at it -- so the two share
+ * the scoring and differ only in how close counts as close.
+ */
+export function focusVenue(
+  eye: Vec3,
+  look: Vec3,
+  venues: Venue[],
+  current: string | null,
+): string | null {
+  const located = venues.map((venue) => ({
+    agentId: venue.id,
+    position: venuePosition(venue),
+  }));
+  return focusAmong(eye, look, located, current, VENUE_FOCUS_RADIUS);
 }

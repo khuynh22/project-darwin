@@ -4,6 +4,7 @@ import { PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import { Vector3 } from 'three';
+import { requestRawPointerLock } from '@/lib/pointerLock';
 import {
   EYE_HEIGHT,
   RUN_SPEED,
@@ -40,6 +41,11 @@ const KEY_MAP: Record<string, keyof Keys> = {
  */
 export const SPAWN: [number, number] = [10, 19];
 
+// drei locks on any document click with a plain requestPointerLock(), which
+// keeps OS mouse acceleration. Pointing its selector at nothing turns that off
+// so the only lock request is ours.
+const NO_ELEMENT = '[data-drei-lock-disabled]';
+
 /**
  * You, standing in the town.
  *
@@ -58,6 +64,9 @@ export default function FirstPersonControls({
   onLockChange?: (locked: boolean) => void;
 }) {
   const camera = useThree((state) => state.camera);
+  const gl = useThree((state) => state.gl);
+  const connected = useThree((state) => state.events.connected) as HTMLElement | undefined;
+  const lockTarget = connected ?? gl.domElement;
   const keys = useRef<Keys>({ forward: false, back: false, left: false, right: false });
   const running = useRef(false);
   // Reused across frames: a fresh Vector3 every frame is how a smooth walk
@@ -107,6 +116,15 @@ export default function FirstPersonControls({
     };
   }, []);
 
+  useEffect(() => {
+    const lock = () => {
+      if (document.pointerLockElement === lockTarget) return;
+      void requestRawPointerLock(lockTarget);
+    };
+    document.addEventListener('click', lock);
+    return () => document.removeEventListener('click', lock);
+  }, [lockTarget]);
+
   useFrame((_, rawDelta) => {
     // A backgrounded tab resumes with a huge delta and teleports you across
     // the plaza; one frame at 20fps is as far as anyone may travel at once.
@@ -130,6 +148,8 @@ export default function FirstPersonControls({
 
   return (
     <PointerLockControls
+      domElement={lockTarget}
+      selector={NO_ELEMENT}
       onLock={() => onLockChange?.(true)}
       onUnlock={() => onLockChange?.(false)}
     />

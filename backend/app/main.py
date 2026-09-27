@@ -237,6 +237,7 @@ async def _state(session_id: str) -> dict:
         "balance_visibility": sim.balance_visibility if sim else BALANCE_VISIBILITY_DEFAULT,
         "seed": sim.seed if sim else 0,
         "condition": sim.condition if sim else "neutral",
+        "venue_gating": sim.venue_gating if sim else False,
         "agents": [
             {
                 "agent_id": a.agent_id,
@@ -255,6 +256,7 @@ async def _state(session_id: str) -> dict:
                 "steal_count": a.steal_count,
                 "inventory": a.inventory or {},
                 "specialty": a.specialty,
+                "venue": a.venue,
                 "invested": invested_map.get(a.agent_id, 0),
                 "rest_bonus": a.rest_bonus,
                 "will_target": a.will_target,
@@ -322,6 +324,12 @@ async def configure_simulation(session_id: str, body: dict):
     if condition not in CONDITIONS:
         return {
             "error": f"condition must be one of {sorted(CONDITIONS)}, got {condition!r}"
+        }
+
+    venue_gating = body.get("venue_gating", False)
+    if not isinstance(venue_gating, bool):
+        return {
+            "error": f"venue_gating must be a boolean, got {venue_gating!r}"
         }
 
     # Reproducibility: caller may pin a seed; otherwise generate + record one so
@@ -392,6 +400,7 @@ async def configure_simulation(session_id: str, body: dict):
         sim.balance_visibility = visibility
         sim.seed = seed
         sim.condition = condition
+        sim.venue_gating = venue_gating
         sim.status = "ready"
         await session.commit()
 
@@ -550,6 +559,8 @@ async def _drive_turns(session_id: str, count: int):
                     return _not_found(session_id)
                 sim.current_turn += 1
                 turn = sim.current_turn
+                # venue_gating is stored and reported but not consumed here: run_turn has no
+                # gating parameter, and only run_events -- which main.py never calls -- honors it.
                 result = await run_turn(
                     session,
                     session_id=session_id,

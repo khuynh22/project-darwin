@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+from app.agents.base import render_venue_block
+
+
+def test_the_current_venue_is_described_in_full():
+    block = render_venue_block("bank")
+
+    assert block.startswith("YOU ARE AT: Bank (civic district)")
+    assert "invest(" in block
+    assert "Tax-exempt while locked" in block
+
+
+def test_other_venues_are_one_line_each_with_a_walk_cost():
+    block = render_venue_block("bank")
+    elsewhere = block.split("ELSEWHERE")[1]
+
+    assert "Market" in elsewhere
+    assert "trade" in elsewhere
+    # Costs are printed, and standing at the bank is not a cost.
+    assert "Bank" not in elsewhere
+    assert "beats" in block
+
+
+def test_planned_venues_are_invisible():
+    block = render_venue_block("bank")
+
+    for hidden in ("Courthouse", "Registry", "Press", "Tavern", "Farm", "Temple"):
+        assert hidden not in block
+
+
+def test_an_unknown_venue_falls_back_to_the_plaza():
+    block = render_venue_block("atlantis")
+
+    assert block.startswith("YOU ARE AT: Plaza")
+
+
+def test_the_world_brief_carries_the_block():
+    from app.agents.base import render_world_brief
+
+    state = {
+        "turn": 3,
+        "agents": [
+            {"agent_id": "red", "display_name": "Red", "balance": 10.0, "alive": True},
+        ],
+        "_venue": "alley",
+    }
+    brief = render_world_brief(state, "red")
+
+    assert "YOU ARE AT: Alley" in brief
+    assert "steal(" in brief
+
+
+def test_the_gated_block_says_how_to_leave():
+    block = render_venue_block("bank", gated=True)
+
+    assert "travel(" in block
+    assert "invest(" in block
+    # Other venues' actions are still named -- that is the reason to walk there.
+    assert "steal" in block.split("ELSEWHERE")[1]
+
+
+def test_the_ungated_block_is_unchanged():
+    assert render_venue_block("bank") == render_venue_block("bank", gated=False)
+    assert "travel(" not in render_venue_block("bank")
+
+
+def test_the_gated_plaza_block_renders_with_no_actions_of_its_own():
+    # The Plaza is the one built venue with an empty actions list, so this is
+    # the branch where render_venue_block's `pad if venue.actions else 18`
+    # would raise NameError if lazy evaluation ever stopped saving it.
+    block = render_venue_block("plaza", gated=True)
+
+    assert "travel(venue)" in block
+    assert block.startswith("YOU ARE AT: Plaza")
+
+
+async def test_the_turn_loop_tells_each_agent_where_it_stands():
+    from app.agents.base import AgentDecision, BaseAgent
+    from app.models.agent import Agent
+    from app.oracle.engine import _decide_one
+
+    class Spy(BaseAgent):
+        seen: str | None = None
+
+        async def decide(self, state, agent):
+            Spy.seen = state.get("_venue")
+            return AgentDecision(action="work", arguments={})
+
+    row = Agent(session_id="s", agent_id="red", display_name="Red", provider="stub",
+                personality="x", sprite="red", venue="alley")
+    await _decide_one(Spy("red", "spy"), {"turn": 1, "agents": []}, row, [], [])
+
+    assert Spy.seen == "alley"
