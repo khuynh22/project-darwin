@@ -98,7 +98,8 @@ def _cmd_probe_mine(args: argparse.Namespace) -> int:
     from app.probe.mine import mine_probes
     from app.probe.schema import save_probes
 
-    probes = mine_probes(Path(args.trace), Path(args.verdicts), k_turns=args.k_turns)
+    probes = mine_probes(Path(args.trace), Path(args.verdicts), k_turns=args.k_turns,
+                         exclude_seats=tuple(args.exclude_seat or ()))
     save_probes(Path(args.out), probes)
 
     tiers: dict[str, int] = {}
@@ -327,6 +328,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_mine.add_argument("--verdicts", required=True)
     p_mine.add_argument("--out", required=True)
     p_mine.add_argument("--k-turns", type=int, default=DEFAULT_K_TURNS)
+    p_mine.add_argument("--exclude-seat", action="append", metavar="AGENT",
+                        help="never seat a probe at this agent; it still plays "
+                             "as a scripted opponent. Repeatable.")
     p_mine.set_defaults(func=_cmd_probe_mine)
 
     p_prun = probe_sub.add_parser("run", help="run a probe suite against one model")

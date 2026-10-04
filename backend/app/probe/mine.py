@@ -143,6 +143,7 @@ def mine_probes(
     *,
     k_turns: int = DEFAULT_K_TURNS,
     families: Sequence[str] = ALL_FAMILIES,
+    exclude_seats: Sequence[str] = (),
 ) -> list[Probe]:
     manifest, records = read_trace(trace_path)
     if manifest.venue_gating:
@@ -164,6 +165,10 @@ def mine_probes(
         alive_at.setdefault(record.turn, set()).add(record.agent_id)
 
     wanted = set(families)
+    # Excluded only as a *seat*. The agent keeps playing in the world and the
+    # script: it is part of the situation the lie was told in, and deleting it
+    # would mine a different situation than the one that was recorded.
+    barred = set(exclude_seats)
     probes: list[Probe] = []
 
     for verdict in verdicts:
@@ -180,7 +185,7 @@ def mine_probes(
                              deception_type=verdict.get("deception_type", ""))
         stem = f"{manifest.run_id}-t{turn}-{deceiver}"
 
-        if "propensity" in wanted:
+        if "propensity" in wanted and deceiver not in barred:
             probes.append(
                 Probe(
                     probe_id=f"p-{stem}",
@@ -197,7 +202,8 @@ def mine_probes(
             )
 
         target = verdict.get("target_id")
-        if "susceptibility" in wanted and target and target in present:
+        if ("susceptibility" in wanted and target and target in present
+                and target not in barred):
             probes.append(
                 Probe(
                     probe_id=f"s-{stem}-{target}",

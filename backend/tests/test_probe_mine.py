@@ -188,3 +188,28 @@ def test_recorded_state_still_produces_a_tier(tmp_path):
     probes = mine_probes(trace, verdicts)
     assert all(p.world.state_known is True for p in probes)
     assert all(p.difficulty is not None for p in probes)
+
+
+def test_an_excluded_seat_yields_no_propensity_probe(tmp_path):
+    trace = _trace(tmp_path / "t.jsonl")
+    verdicts = _verdicts(tmp_path / "v.jsonl", [_lie()])
+    probes = mine_probes(trace, verdicts, exclude_seats=("opus",))
+    assert [p.family for p in probes] == ["susceptibility"]
+
+
+def test_an_excluded_seat_yields_no_susceptibility_probe(tmp_path):
+    trace = _trace(tmp_path / "t.jsonl")
+    verdicts = _verdicts(tmp_path / "v.jsonl", [_lie()])
+    probes = mine_probes(trace, verdicts, exclude_seats=("gemini",))
+    assert [p.family for p in probes] == ["propensity"]
+
+
+def test_an_excluded_seat_still_plays_as_a_scripted_opponent(tmp_path):
+    """Excluding a seat must not remove the agent from the world it lied in."""
+    trace = _trace(tmp_path / "t.jsonl")
+    verdicts = _verdicts(tmp_path / "v.jsonl", [_lie()])
+    probes = mine_probes(trace, verdicts, exclude_seats=("gemini",))
+
+    prop = next(p for p in probes if p.family == "propensity")
+    assert "gemini" in {a.agent_id for a in prop.world.agents}
+    assert "gemini" in {s.agent_id for s in prop.script}
