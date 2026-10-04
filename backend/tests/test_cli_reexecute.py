@@ -91,6 +91,37 @@ async def test_a_deleted_cache_entry_fails_loudly(tmp_path):
     assert report.ok is False
 
 
+async def test_leftover_registry_rows_do_not_leak_into_a_replay(tmp_path):
+    """An office from an earlier replay changes the brief, so every key would miss."""
+    from app.models.registry import Office
+
+    trace, cache_root = await _record(tmp_path)
+    factory, engine = await _factory()
+    async with factory() as session:
+        session.add(Office(session_id="reexec", office="bank", holder_id="a0", since_turn=1))
+        await session.commit()
+    report = await reexecute(trace, cache_root, factory, mode="strict")
+    await engine.dispose()
+
+    assert report.cache_misses == 0
+    assert report.ok is True
+
+
+async def test_a_replay_does_not_write_a_live_session_trace(tmp_path):
+    import shutil
+
+    from app.trace.recorder import runs_root
+
+    trace, cache_root = await _record(tmp_path)
+    shutil.rmtree(runs_root() / "reexec", ignore_errors=True)
+    factory, engine = await _factory()
+    report = await reexecute(trace, cache_root, factory, mode="strict")
+    await engine.dispose()
+
+    assert report.ok is True
+    assert not (runs_root() / "reexec").exists()
+
+
 async def test_a_mismatched_env_version_refuses_to_run(tmp_path):
     """A mechanic change alters every prompt; a stale hit would mix environments."""
     trace, cache_root = await _record(tmp_path)
