@@ -86,6 +86,7 @@ async def run_cell(
                     agents=agents,
                     seed=cell.seed,
                     condition=cell.condition,
+                    record_trace=False,
                 )
             turns_run = turn
             if result.eliminated:

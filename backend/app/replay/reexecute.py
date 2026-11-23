@@ -41,8 +41,10 @@ async def _purge(session: Any, session_id: str) -> None:
     from app.models.agent import Agent
     from app.models.deferred import DeferredAction
     from app.models.ledger import ThoughtLog, Transaction, TurnSnapshot, WorldEvent
+    from app.models.registry import Contract, Office
 
-    for model in (Agent, ThoughtLog, Transaction, TurnSnapshot, WorldEvent, DeferredAction):
+    for model in (Agent, ThoughtLog, Transaction, TurnSnapshot, WorldEvent, DeferredAction,
+                  Contract, Office):
         await session.execute(delete(model).where(model.session_id == session_id))
     await session.commit()
 
@@ -155,7 +157,7 @@ async def reexecute(
             async with session_factory() as session:
                 await run_turn(session, session_id=session_id, turn=turn,
                                agents=agents, seed=manifest.env.seed,
-                               condition=manifest.condition)
+                               condition=manifest.condition, record_trace=False)
             report.turns = turn
     except Exception as exc:  # noqa: BLE001 - reported, never swallowed
         report.error = repr(exc)

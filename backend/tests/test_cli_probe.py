@@ -104,3 +104,16 @@ def test_mine_warns_when_the_trace_has_no_state(tmp_path, capsys):
     printed = capsys.readouterr().out
     assert "no per-turn state" in printed
     assert "'None': 2" in printed
+
+
+def test_mine_can_exclude_a_seat(tmp_path, capsys):
+    trace = _trace(tmp_path / "t.jsonl")
+    verdicts = _verdicts(tmp_path / "v.jsonl")
+    probes = tmp_path / "probes.jsonl"
+
+    assert main(["probe", "mine", str(trace), "--verdicts", str(verdicts),
+                 "--out", str(probes), "--exclude-seat", "a1"]) == 0
+    assert "mined 1 probes" in capsys.readouterr().out
+
+    rows = [json.loads(x) for x in probes.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert [r["seat"] for r in rows] == ["a0"]

@@ -245,7 +245,8 @@ async def run_probe(
         for turn in range(start, start + probe.k_turns):
             async with session_factory() as session:
                 await run_turn(session, session_id=sid, turn=turn, agents=agents,
-                               seed=probe.world.seed, condition=probe.world.condition)
+                               seed=probe.world.seed, condition=probe.world.condition,
+                               record_trace=False)
         async with session_factory() as session:
             rows = (await session.execute(
                 select(ThoughtLog).where(ThoughtLog.session_id == sid)

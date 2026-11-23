@@ -40,6 +40,15 @@ async def test_run_cell_writes_a_valid_trace(tmp_path):
     assert report.n_turns > 0
 
 
+async def test_a_sweep_leaves_the_live_session_recorder_alone(tmp_path, caplog):
+    """The cell writes its own trace; the live recorder would only log refusals."""
+    factory, engine = await _factory()
+    await run_cell(factory, _cell(), roster=_roster(), turns=2, out_dir=tmp_path)
+    await engine.dispose()
+
+    assert "trace not recorded" not in caplog.text
+
+
 async def test_trace_manifest_carries_the_cell_identity(tmp_path):
     factory, engine = await _factory()
     result = await run_cell(factory, _cell(seed=4), roster=_roster(), turns=4, out_dir=tmp_path)

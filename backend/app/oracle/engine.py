@@ -744,6 +744,7 @@ async def run_turn(
     balance_visibility: str = "fuzzy",
     seed: int = 0,
     condition: str = "neutral",
+    record_trace: bool = True,
 ) -> TurnResult:
     """Execute one full turn for every alive agent in a session.
 
@@ -1036,7 +1037,8 @@ async def run_turn(
 
     # After the commit, never before: the database is the source of truth and a
     # trace is a record of it. record_turn swallows its own failures.
-    await record_turn(session, session_id, turn, seed=seed, condition=condition)
+    if record_trace:
+        await record_turn(session, session_id, turn, seed=seed, condition=condition)
 
     return TurnResult(turn=turn, apex_declared=apex, eliminated=eliminated)
 
